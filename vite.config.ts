@@ -6,18 +6,25 @@ export default defineConfig({
   plugins: [
     react(),
     dts({
-      insertTypesEntry: true, // автоматически добавляет entry в package.json
+      insertTypesEntry: true,
     }),
   ],
   build: {
     lib: {
       entry: 'src/index.ts',
       name: 'UIKit',
-      formats: ['es', 'cjs'],
-      fileName: (format) => `index.${format === 'es' ? 'js' : 'cjs'}`,
+      formats: ['es'],
+      fileName: () => 'index.js',
     },
     rollupOptions: {
       external: ['react', 'react-dom'],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+        },
+        format: 'es',
+      },
     },
   },
 })

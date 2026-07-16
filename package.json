@@ -1,7 +1,6 @@
 {
   "name": "@kbs/ui-kit",
   "version": "1.0.0",
-  "description": "React UI components with theme support",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -9,20 +8,13 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
       "types": "./dist/index.d.ts"
     },
-    "./styles": {
-      "import": "./dist/styles/global.css",
-      "require": "./dist/styles/global.css"
-    }
+    "./styles": "./dist/styles/global.css"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "vite build",
-    "dev": "vite build --watch",
     "prepare": "npm run build"
   },
   "peerDependencies": {
