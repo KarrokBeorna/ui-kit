@@ -1,0 +1,241 @@
+import { useState, useId, useRef, useEffect } from 'react'
+import type { Theme } from '../themes/themes'
+import type { SelectOption } from './SearchableSelect'
+
+interface MultiSelectProps {
+  label: string
+  theme: Theme
+  options: SelectOption[]
+  value: string[]
+  onChange: (vals: string[]) => void
+  error?: string
+}
+
+function pluralValue(n: number) {
+  if (n === 1) return `${n} значение`
+  if (n >= 2 && n <= 4) return `${n} значения`
+  return `${n} значений`
+}
+
+export default function MultiSelect({
+  label, theme: t, options, value, onChange, error,
+}: MultiSelectProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [focused, setFocused] = useState(false)
+  const id = useId()
+  const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const floated = focused || open || value.length > 0
+  const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+  const allFilteredSelected = filtered.length > 0 && filtered.every(o => value.includes(o.value))
+  const someFilteredSelected = filtered.some(o => value.includes(o.value))
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false); setQuery(''); setFocused(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleOpen = () => {
+    setOpen(true); setFocused(true)
+    setTimeout(() => inputRef.current?.focus(), 10)
+  }
+
+  const toggle = (val: string) =>
+    onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val])
+
+  const toggleAll = () => {
+    if (allFilteredSelected) {
+      onChange(value.filter(v => !filtered.some(o => o.value === v)))
+    } else {
+      const toAdd = filtered.filter(o => !value.includes(o.value)).map(o => o.value)
+      onChange([...value, ...toAdd])
+    }
+  }
+
+  const displayValue = (() => {
+    if (value.length === 0) return ''
+    if (value.length === 1) return options.find(o => o.value === value[0])?.label ?? ''
+    return pluralValue(value.length)
+  })()
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation(); onChange([]); setOpen(false); setQuery('')
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative', cursor: 'pointer' }} onClick={handleOpen}>
+        <input
+          ref={inputRef}
+          id={id}
+          value={open ? query : displayValue}
+          onChange={e => setQuery(e.target.value)}
+          onFocus={() => { setFocused(true); if (!open) handleOpen() }}
+          readOnly={!open}
+          placeholder=""
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: t.inputBg,
+            border: `1.5px solid ${error ? '#ef4444' : open ? t.borderFocus : t.border}`,
+            borderRadius: open ? '10px 10px 0 0' : 10,
+            padding: '18px 68px 8px 16px',
+            fontSize: 15, color: t.text, outline: 'none',
+            cursor: open ? 'text' : 'pointer',
+            transition: 'border-color 0.25s ease, box-shadow 0.25s ease, border-radius 0.15s ease',
+            boxShadow: open ? `0 0 0 3px ${t.borderFocus}22` : 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+        <label
+          htmlFor={id}
+          style={{
+            position: 'absolute', left: 14,
+            top: floated ? 0 : '50%',
+            transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(-50%)',
+            transformOrigin: 'left center',
+            color: error ? '#ef4444' : floated ? t.labelFloat : t.placeholder,
+            fontSize: 15, pointerEvents: 'none',
+            transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
+            background: floated ? t.labelBg : 'transparent',
+            padding: floated ? '0 4px' : '0',
+            borderRadius: 3, lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1,
+          }}
+        >
+          {label}
+        </label>
+
+        {value.length > 1 && !open && (
+          <div style={{
+            position: 'absolute', right: 68, top: '50%', transform: 'translateY(-50%)',
+            background: t.accent, color: t.accentText,
+            borderRadius: 10, padding: '2px 7px', fontSize: 11, fontWeight: 700, pointerEvents: 'none',
+          }}>
+            {value.length}
+          </div>
+        )}
+
+        <div style={{
+          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+          display: 'flex', alignItems: 'center', gap: 2,
+        }}>
+          {value.length > 0 && (
+            <button
+              type="button"
+              onMouseDown={handleClear}
+              style={{
+                width: 28, height: 28, background: 'transparent', border: 'none',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: t.iconColor, borderRadius: 6, transition: 'color 0.15s', padding: 0,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = t.text)}
+              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+            >
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M2 2l10 10M12 2L2 12" />
+              </svg>
+            </button>
+          )}
+          <div style={{ color: t.iconColor, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transition: 'transform 0.22s ease', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0,
+          background: t.dropdownBg,
+          border: `1.5px solid ${t.borderFocus}`,
+          borderTop: 'none',
+          borderRadius: '0 0 10px 10px',
+          zIndex: 100, maxHeight: 300, overflowY: 'auto',
+          boxShadow: t.shadow,
+          animation: 'dropDown 0.2s cubic-bezier(0.4,0,0.2,1)',
+        }}>
+          {/* Select All */}
+          <div
+            onMouseDown={e => { e.preventDefault(); toggleAll() }}
+            style={{
+              padding: '10px 16px',
+              borderBottom: `1px solid ${t.border}`,
+              display: 'flex', alignItems: 'center', gap: 8,
+              cursor: 'pointer', transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = t.dropdownHover}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{
+              width: 16, height: 16, borderRadius: 4,
+              border: `1.5px solid ${allFilteredSelected || someFilteredSelected ? t.accent : t.border}`,
+              background: allFilteredSelected ? t.accent : 'transparent',
+              transition: 'all 0.15s', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {allFilteredSelected ? (
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M2 6l3 3 5-5" />
+                </svg>
+              ) : someFilteredSelected ? (
+                <div style={{ width: 8, height: 2, background: t.accent, borderRadius: 1 }} />
+              ) : null}
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.accent }}>
+              Выбрать все {query ? `(${filtered.length})` : ''}
+            </span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>Ничего не найдено</div>
+          ) : filtered.map(opt => {
+            const sel = value.includes(opt.value)
+            return (
+              <div
+                key={opt.value}
+                onMouseDown={e => { e.preventDefault(); toggle(opt.value) }}
+                style={{
+                  padding: '10px 16px', fontSize: 14, cursor: 'pointer',
+                  color: sel ? t.dropdownSelectedText : t.text,
+                  background: sel ? t.dropdownSelected : 'transparent',
+                  transition: 'background 0.15s ease',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = t.dropdownHover }}
+                onMouseLeave={e => { e.currentTarget.style.background = sel ? t.dropdownSelected : 'transparent' }}
+              >
+                <div style={{
+                  width: 16, height: 16, borderRadius: 4,
+                  border: `1.5px solid ${sel ? t.accent : t.border}`,
+                  background: sel ? t.accent : 'transparent',
+                  transition: 'all 0.15s', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {sel && (
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M2 6l3 3 5-5" />
+                    </svg>
+                  )}
+                </div>
+                {opt.label}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: '#ef4444' }}>{error}</p>}
+    </div>
+  )
+}
