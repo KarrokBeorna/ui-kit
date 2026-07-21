@@ -83,6 +83,14 @@ export const IcoEye = ({ s = 16, off = false, ...props }: IconProps & { off?: bo
   </svg>
 );
 
+export const ExportIcon = ({ s = 12, ...props }: IconProps) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...props}>
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <path d="M14 2v6h6" />
+    <line x1="9" y1="13" x2="15" y2="19" /><line x1="15" y1="13" x2="9" y2="19" />
+  </svg>
+);
+
 export const IcoCheck = ({ s = 12, ...props }: IconProps) => (
   <svg
     width={s}

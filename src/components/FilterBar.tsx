@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
-import {IcoFilter, IcoX, IcoChevronDown, IcoSearch} from './icons';
+import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons';
 
 interface FilterItem {
   component: React.ReactNode;
@@ -26,6 +26,10 @@ interface FilterBarProps {
   instantApply?: boolean;
   /** Если true – нажатие Enter в любом поле ввода внутри фильтров вызывает onApply */
   applyOnEnter?: boolean;
+  /** Коллбэк при нажатии "Экспорт в Excel" */
+  onExport?: () => void;
+  /** Текст кнопки экспорта (по умолчанию "Экспорт в Excel") */
+  exportLabel?: string;
 }
 
 export function FilterBar({
@@ -39,6 +43,8 @@ export function FilterBar({
   onOpenChange,
   instantApply = false,
   applyOnEnter = false,
+  onExport,
+  exportLabel = 'Экспорт в Excel',
 }: FilterBarProps) {
   const [internalOpen, setInternalOpen] = useState(true);
   const open = externalOpen ?? internalOpen;
@@ -74,7 +80,7 @@ export function FilterBar({
       node.addEventListener('keydown', handleKeyDown);
       return () => node.removeEventListener('keydown', handleKeyDown);
     }
-  }, [applyOnEnter, onApply, bodyRef.current]); // зависимость от ref.current для перепривязки
+  }, [applyOnEnter, onApply, bodyRef.current]);
 
   // Группировка фильтров по строкам
   const rows: Record<number, React.ReactNode[]> = {};
@@ -131,7 +137,7 @@ export function FilterBar({
           ))}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {/* Кнопка "Применить" отображается только если задан onApply и НЕ включен instantApply */}
+            {/* Кнопка "Применить" */}
             {onApply && !instantApply && (
               <button
                 onClick={onApply}
@@ -149,11 +155,36 @@ export function FilterBar({
                   boxShadow: `0 2px 14px ${t.accentGlow}`
                 }}
                 onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'
-              }>
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
                 <IcoSearch s={12} /> Применить
               </button>
             )}
+
+            {/* Кнопка "Экспорт в Excel" – справа от "Применить" */}
+            {onExport && (
+              <button
+                onClick={onExport}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: 8,
+                  border: `1px solid ${t.border}`,
+                  background: 'transparent',
+                  color: t.accent,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: 'system-ui',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = `${t.accent}15`}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <ExportIcon s={12} /> {exportLabel}
+              </button>
+            )}
+
+            {/* Кнопка "Сбросить" */}
             {onReset && (
               <button
                 onClick={(e) => { e.stopPropagation(); onReset(); }}
@@ -167,11 +198,11 @@ export function FilterBar({
                   fontWeight: 600,
                   fontFamily: 'system-ui',
                   cursor: 'pointer',
-                  transition: 'background 0.15s',
-                  boxShadow: `0 2px 14px ${t.accentGlow}`
+                  transition: 'background 0.15s'
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = `${t.danger}15`}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
                 <IcoX s={10} /> Сбросить
               </button>
             )}

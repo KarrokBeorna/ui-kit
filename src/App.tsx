@@ -142,6 +142,7 @@ function App() {
               setSelectVal('')
               setNumberVal('')
             }}
+            onExport={() => {}}
           />
         </section>
 
