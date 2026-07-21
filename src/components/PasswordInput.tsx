@@ -43,9 +43,18 @@ interface PasswordInputProps {
   value: string;
   onChange: (val: string) => void;
   error?: string;
+  /** Показывать индикатор сложности пароля (по умолчанию true) */
+  showStrength?: boolean;
 }
 
-export default function PasswordInput({ label, theme: t, value, onChange, error }: PasswordInputProps) {
+export default function PasswordInput({
+  label,
+  theme: t,
+  value,
+  onChange,
+  error,
+  showStrength = true,
+}: PasswordInputProps) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   const id = useId();
@@ -128,7 +137,7 @@ export default function PasswordInput({ label, theme: t, value, onChange, error 
           </button>
         </div>
       </div>
-      <StrengthBar value={value} t={t} />
+      {showStrength && <StrengthBar value={value} t={t} />}
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
   );

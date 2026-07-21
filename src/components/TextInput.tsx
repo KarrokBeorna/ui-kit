@@ -117,11 +117,11 @@ export default function TextInput({
       </div>
 
       {/* Validation hint shown only when no error yet (pre-blur) */}
-      {!error && inputType !== 'text' && (
-        <p style={{ margin: '4px 0 0 4px', fontSize: 11, color: t.placeholder }}>
-          {inputType === 'email' ? 'Обязателен символ @' : 'Только цифры, +, −, (), пробел'}
-        </p>
-      )}
+      {/*{!error && inputType !== 'text' && (*/}
+      {/*  <p style={{ margin: '4px 0 0 4px', fontSize: 11, color: t.placeholder }}>*/}
+      {/*    {inputType === 'email' ? 'Обязателен символ @' : 'Только цифры, +, −, (), пробел'}*/}
+      {/*  </p>*/}
+      {/*)}*/}
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
 
       {onTypeChange && (

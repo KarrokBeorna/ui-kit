@@ -190,7 +190,7 @@ export default function RangeSlider(props: RangeSliderProps) {
       </div>
 
       {/* Track */}
-      <div style={{ position: 'relative', paddingBottom: 8 }}>
+      <div style={{ position: 'relative' }}>
         <div
           ref={trackRef}
           onClick={handleTrackClick}
@@ -245,7 +245,7 @@ export default function RangeSlider(props: RangeSliderProps) {
 
       {/* Manual inputs */}
       <div style={{
-        display: 'flex', gap: 10, marginTop: 12,
+        display: 'flex', gap: 10,
         justifyContent: isRange ? 'space-between' : 'center',
       }}>
         <ManualInput

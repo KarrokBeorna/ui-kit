@@ -112,15 +112,15 @@ export default function MultiSelect({
           {label}
         </label>
 
-        {value.length > 1 && !open && (
-          <div style={{
-            position: 'absolute', right: 68, top: '50%', transform: 'translateY(-50%)',
-            background: t.accent, color: t.accentText,
-            borderRadius: 10, padding: '2px 7px', fontSize: 11, fontWeight: 700, pointerEvents: 'none',
-          }}>
-            {value.length}
-          </div>
-        )}
+        {/*{value.length > 1 && !open && (*/}
+        {/*  <div style={{*/}
+        {/*    position: 'absolute', right: 68, top: '50%', transform: 'translateY(-50%)',*/}
+        {/*    background: t.accent, color: t.accentText,*/}
+        {/*    borderRadius: 10, padding: '2px 7px', fontSize: 11, fontWeight: 700, pointerEvents: 'none',*/}
+        {/*  }}>*/}
+        {/*    {value.length}*/}
+        {/*  </div>*/}
+        {/*)}*/}
 
         <div style={{
           position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',

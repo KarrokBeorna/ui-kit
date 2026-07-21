@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
-import { IcoFilter, IcoX, IcoChevronDown } from './icons';
+import {IcoFilter, IcoX, IcoChevronDown, IcoSearch} from './icons';
 
 interface FilterItem {
-  /** Компонент фильтра (поле ввода, селект и т.д.) */
   component: React.ReactNode;
-  /** Номер строки (фильтры с одинаковым номером будут в одной строке) */
   row: number;
 }
 
@@ -24,6 +22,10 @@ interface FilterBarProps {
   /** Внешний контроль открытого состояния (опционально) */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Если true – кнопка "Применить" не отображается, фильтры применяются мгновенно */
+  instantApply?: boolean;
+  /** Если true – нажатие Enter в любом поле ввода внутри фильтров вызывает onApply */
+  applyOnEnter?: boolean;
 }
 
 export function FilterBar({
@@ -35,6 +37,8 @@ export function FilterBar({
   onReset,
   open: externalOpen,
   onOpenChange,
+  instantApply = false,
+  applyOnEnter = false,
 }: FilterBarProps) {
   const [internalOpen, setInternalOpen] = useState(true);
   const open = externalOpen ?? internalOpen;
@@ -49,7 +53,30 @@ export function FilterBar({
     if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight);
   }, [filters, open]);
 
-  // Группируем фильтры по строкам
+  // Обработчик Enter внутри фильтров
+  useEffect(() => {
+    if (!applyOnEnter || !onApply) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        e.key === 'Enter' &&
+        bodyRef.current &&
+        bodyRef.current.contains(target)
+      ) {
+        e.preventDefault();
+        onApply();
+      }
+    };
+
+    const node = bodyRef.current;
+    if (node) {
+      node.addEventListener('keydown', handleKeyDown);
+      return () => node.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [applyOnEnter, onApply, bodyRef.current]); // зависимость от ref.current для перепривязки
+
+  // Группировка фильтров по строкам
   const rows: Record<number, React.ReactNode[]> = {};
   filters.forEach(({ component, row }) => {
     if (!rows[row]) rows[row] = [];
@@ -66,7 +93,7 @@ export function FilterBar({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: t.accent, display: 'flex' }}><IcoFilter /></span>
-          <span style={{ fontFamily: 'system-ui', fontWeight: 600, fontSize: 14, color: t.text }}>Filters</span>
+          <span style={{ fontFamily: 'system-ui', fontWeight: 600, fontSize: 14, color: t.text }}>Фильтры</span>
           {activeCount > 0 && (
             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, padding: '0 6px', borderRadius: 20, background: t.accent, color: t.accentText, fontSize: 11, fontWeight: 700, fontFamily: 'system-ui', boxShadow: `0 0 10px ${t.accentGlow}` }}>
               {activeCount}
@@ -83,7 +110,7 @@ export function FilterBar({
           )}
           {activeCount > 0 && onReset && (
             <button onClick={(e) => { e.stopPropagation(); onReset(); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: `1px solid ${t.border}`, background: 'transparent', color: t.danger, fontSize: 12, fontFamily: 'system-ui', fontWeight: 500, cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = `${t.danger}15`} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <IcoX s={10} /> Clear all
+              <IcoX s={10} /> Сбросить
             </button>
           )}
           <span style={{ color: t.textMuted, display: 'flex' }}><IcoChevronDown open={open} /></span>
@@ -103,15 +130,49 @@ export function FilterBar({
             </div>
           ))}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 18, flexWrap: 'wrap' }}>
-            {onApply && (
-              <button onClick={onApply} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: t.accent, color: t.accentText, fontSize: 13, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.15s', boxShadow: `0 2px 14px ${t.accentGlow}` }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-                Apply
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* Кнопка "Применить" отображается только если задан onApply и НЕ включен instantApply */}
+            {onApply && !instantApply && (
+              <button
+                onClick={onApply}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: t.accent,
+                  color: t.accentText,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: 'system-ui',
+                  cursor: 'pointer',
+                  transition: 'opacity 0.15s',
+                  boxShadow: `0 2px 14px ${t.accentGlow}`
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'
+              }>
+                <IcoSearch s={12} /> Применить
               </button>
             )}
             {onReset && (
-              <button onClick={onReset} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, fontSize: 13, fontWeight: 500, fontFamily: 'system-ui', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; }}>
-                Reset
+              <button
+                onClick={(e) => { e.stopPropagation(); onReset(); }}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: 8,
+                  border: `1px solid ${t.border}`,
+                  background: 'transparent',
+                  color: t.danger,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: 'system-ui',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s',
+                  boxShadow: `0 2px 14px ${t.accentGlow}`
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = `${t.danger}15`}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <IcoX s={10} /> Сбросить
               </button>
             )}
           </div>

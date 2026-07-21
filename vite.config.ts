@@ -16,7 +16,7 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: resolve(__dirname, 'src/components/index.ts'),
       formats: ['es'],               // только ES-модули
       fileName: 'index',
     },

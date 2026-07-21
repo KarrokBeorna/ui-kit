@@ -64,20 +64,20 @@ export function Pagination({ t, total, defaultPerPage = 10, onPageChange }: Pagi
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: `1px solid ${t.border}`, flexWrap: 'wrap', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <span style={{ fontSize: 13, color: t.textMuted, fontFamily: 'system-ui', whiteSpace: 'nowrap' }}>
-          Showing <strong style={{ color: t.text }}>{total === 0 ? 0 : start}–{end}</strong> of <strong style={{ color: t.text }}>{total.toLocaleString()}</strong> records
+          Отображены <strong style={{ color: t.text }}>{total === 0 ? 0 : start}–{end}</strong> из <strong style={{ color: t.text }}>{total.toLocaleString()}</strong> строк
         </span>
         <div style={{ position: 'relative' }} ref={dropRef}>
           <button
             onClick={() => setDropOpen(p => !p)}
             style={{ ...btn, padding: '0 10px', gap: 6, color: t.text, background: dropOpen ? t.navHoverBg : t.bgSurface, borderColor: dropOpen ? t.accent : t.border, boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}
           >
-            <span>{perPage} / page</span>
+            <span>{perPage} / страницу</span>
             <IcoChevronDown s={11} open={dropOpen} />
           </button>
           <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: t.bgSurface, border: `1px solid ${t.border}`, borderRadius: 10, padding: '4px', boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(6px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 100, minWidth: 100 }}>
-            {[5, 10, 20, 50].map(n => (
+            {[10, 50, 100, 500, 1000].map(n => (
               <button key={n} onClick={() => { setPerPage(n); setDropOpen(false); }} style={{ display: 'block', width: '100%', padding: '7px 12px', textAlign: 'left', background: perPage === n ? t.navHoverBg : 'transparent', border: 'none', borderRadius: 7, fontSize: 13, fontFamily: 'system-ui', color: perPage === n ? t.accent : t.text, cursor: 'pointer', fontWeight: perPage === n ? 600 : 400, transition: 'background 0.15s' }} onMouseEnter={e => { if (perPage !== n) (e.currentTarget as HTMLButtonElement).style.background = t.navHoverBg; }} onMouseLeave={e => { if (perPage !== n) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
-                {n} rows
+                {n} строк
               </button>
             ))}
           </div>
