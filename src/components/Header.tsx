@@ -51,7 +51,7 @@ export function HorizontalHeader({
         {navTabs.map(tab => {
           const active = activeTab === tab.id;
           return (
-            <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui', fontWeight: active ? 600 : 400, color: active ? t.navActiveText : t.textMuted, background: active ? t.navActiveBg : 'transparent', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', whiteSpace: 'nowrap', boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}>
+            <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui', fontWeight: active ? 600 : 400, color: active ? t.accentText : t.textMuted, background: active ? t.accent : 'transparent', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', whiteSpace: 'nowrap', boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{tab.icon}</span>{tab.label}
             </button>
           );
@@ -60,7 +60,7 @@ export function HorizontalHeader({
       <div style={{ flexShrink: 0 }} ref={dropRef}>
         {isLoggedIn ? (
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setDropOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 24, border: `1px solid ${t.border}`, background: t.bgElevated, cursor: 'pointer', transition: 'all 0.2s', boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}>
+            <button onClick={() => setDropOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 24, border: `1px solid ${t.border}`, background: t.bgSurface, cursor: 'pointer', transition: 'all 0.2s', boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui' }}>{userName?.[0]?.toUpperCase()}</div>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.2 }}>{userName}</div>
@@ -68,7 +68,7 @@ export function HorizontalHeader({
               </div>
               <span style={{ color: t.textMuted, fontSize: 10, transition: 'transform 0.2s', transform: dropOpen ? 'rotate(180deg)' : 'none', display: 'flex' }}>▾</span>
             </button>
-            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12, padding: '6px', minWidth: 160, boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 200 }}>
+            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: t.bgSurface, border: `1px solid ${t.border}`, borderRadius: 12, padding: '6px', minWidth: 160, boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 200 }}>
               {[['◈ Profile', false], ['⚙ Settings', false], ['— Sign out', true]].map(([label, danger]) => (
                 <button key={String(label)} onClick={String(label).includes('Sign out') ? onSignOut : undefined} style={{ display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'system-ui', color: danger ? t.danger : t.text, cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = danger ? `${t.danger}18` : t.navHoverBg; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
                   {String(label)}
@@ -122,7 +122,7 @@ export function VerticalHeader({
         {navTabs.map(tab => {
           const active = activeTab === tab.id;
           return (
-            <button key={tab.id} onClick={() => onTabChange(tab.id)} title={collapsed ? tab.label : undefined} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui', fontWeight: active ? 600 : 400, color: active ? t.navActiveText : t.textMuted, background: active ? t.navActiveBg : 'transparent', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', whiteSpace: 'nowrap', overflow: 'hidden', boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}>
+            <button key={tab.id} onClick={() => onTabChange(tab.id)} title={collapsed ? tab.label : undefined} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui', fontWeight: active ? 600 : 400, color: active ? t.accentText : t.textMuted, background: active ? t.accent : 'transparent', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', whiteSpace: 'nowrap', overflow: 'hidden', boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}>
               <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{tab.icon}</span>
               <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', overflow: 'hidden', transition: 'opacity 0.18s', whiteSpace: 'nowrap' }}>{tab.label}</span>
             </button>
@@ -131,7 +131,7 @@ export function VerticalHeader({
       </nav>
       <div style={{ padding: '12px 8px', borderTop: `1px solid ${t.borderSubtle}`, flexShrink: 0 }}>
         {isLoggedIn ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgElevated, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgSurface, overflow: 'hidden' }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', flexShrink: 0 }}>{userName?.[0]?.toUpperCase()}</div>
             <div style={{ flex: 1, overflow: 'hidden', opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>

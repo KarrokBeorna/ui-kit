@@ -50,7 +50,7 @@ export default function NumberInput({
           placeholder=""
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: t.inputBg,
+            background: t.bg,
             border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
             padding: '18px 80px 8px 16px',

@@ -74,7 +74,7 @@ export default function FileSelector({
           padding: '28px 20px',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
           cursor: 'pointer',
-          background: dragging ? `${t.accent}0a` : t.inputBg,
+          background: dragging ? `${t.accent}0a` : t.bg,
           transition: 'all 0.2s ease',
         }}
       >
@@ -113,7 +113,7 @@ export default function FileSelector({
               key={i}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                background: t.inputBg,
+                background: t.bg,
                 border: `1px solid ${t.border}`,
                 borderRadius: 8, padding: '8px 12px',
               }}

@@ -55,7 +55,7 @@ export function Pagination({ t, total, defaultPerPage = 10, onPageChange }: Pagi
   const btn: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     minWidth: 34, height: 34, padding: '0 6px', borderRadius: 8,
-    border: `1px solid ${t.border}`, background: t.bgElevated, color: t.textMuted,
+    border: `1px solid ${t.border}`, background: t.bgSurface, color: t.textMuted,
     fontSize: 13, fontFamily: 'system-ui', cursor: 'pointer',
     transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', fontWeight: 500,
   };
@@ -69,12 +69,12 @@ export function Pagination({ t, total, defaultPerPage = 10, onPageChange }: Pagi
         <div style={{ position: 'relative' }} ref={dropRef}>
           <button
             onClick={() => setDropOpen(p => !p)}
-            style={{ ...btn, padding: '0 10px', gap: 6, color: t.text, background: dropOpen ? t.navHoverBg : t.bgElevated, borderColor: dropOpen ? t.accent : t.border, boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}
+            style={{ ...btn, padding: '0 10px', gap: 6, color: t.text, background: dropOpen ? t.navHoverBg : t.bgSurface, borderColor: dropOpen ? t.accent : t.border, boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}
           >
             <span>{perPage} / page</span>
             <IcoChevronDown s={11} open={dropOpen} />
           </button>
-          <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, padding: '4px', boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(6px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 100, minWidth: 100 }}>
+          <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: t.bgSurface, border: `1px solid ${t.border}`, borderRadius: 10, padding: '4px', boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(6px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 100, minWidth: 100 }}>
             {[5, 10, 20, 50].map(n => (
               <button key={n} onClick={() => { setPerPage(n); setDropOpen(false); }} style={{ display: 'block', width: '100%', padding: '7px 12px', textAlign: 'left', background: perPage === n ? t.navHoverBg : 'transparent', border: 'none', borderRadius: 7, fontSize: 13, fontFamily: 'system-ui', color: perPage === n ? t.accent : t.text, cursor: 'pointer', fontWeight: perPage === n ? 600 : 400, transition: 'background 0.15s' }} onMouseEnter={e => { if (perPage !== n) (e.currentTarget as HTMLButtonElement).style.background = t.navHoverBg; }} onMouseLeave={e => { if (perPage !== n) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
                 {n} rows
@@ -84,19 +84,19 @@ export function Pagination({ t, total, defaultPerPage = 10, onPageChange }: Pagi
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <button onClick={() => goTo(page - 1)} disabled={page === 1} style={{ ...btn, opacity: page === 1 ? 0.35 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }} onMouseEnter={e => { if (page !== 1) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { e.currentTarget.style.background = t.bgElevated; e.currentTarget.style.color = t.textMuted; }}>
+        <button onClick={() => goTo(page - 1)} disabled={page === 1} style={{ ...btn, opacity: page === 1 ? 0.35 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }} onMouseEnter={e => { if (page !== 1) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { e.currentTarget.style.background = t.bgSurface; e.currentTarget.style.color = t.textMuted; }}>
           <IcoChevronLeft s={14} />
         </button>
         {pages.map((p, i) =>
           p === '...' ? (
             <span key={`e${i}`} style={{ color: t.textMuted, fontSize: 13, padding: '0 4px', userSelect: 'none' }}>…</span>
           ) : (
-            <button key={p} onClick={() => goTo(p)} style={{ ...btn, background: page === p ? t.navActiveBg : t.bgElevated, color: page === p ? t.navActiveText : t.textMuted, borderColor: page === p ? 'transparent' : t.border, fontWeight: page === p ? 700 : 500, boxShadow: page === p ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (page !== p) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (page !== p) { e.currentTarget.style.background = t.bgElevated; e.currentTarget.style.color = t.textMuted; } }}>
+            <button key={p} onClick={() => goTo(p)} style={{ ...btn, background: page === p ? t.accent : t.bgSurface, color: page === p ? t.accentText : t.textMuted, borderColor: page === p ? 'transparent' : t.border, fontWeight: page === p ? 700 : 500, boxShadow: page === p ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (page !== p) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (page !== p) { e.currentTarget.style.background = t.bgSurface; e.currentTarget.style.color = t.textMuted; } }}>
               {p}
             </button>
           )
         )}
-        <button onClick={() => goTo(page + 1)} disabled={page === totalPages} style={{ ...btn, opacity: page === totalPages ? 0.35 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }} onMouseEnter={e => { if (page !== totalPages) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { e.currentTarget.style.background = t.bgElevated; e.currentTarget.style.color = t.textMuted; }}>
+        <button onClick={() => goTo(page + 1)} disabled={page === totalPages} style={{ ...btn, opacity: page === totalPages ? 0.35 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }} onMouseEnter={e => { if (page !== totalPages) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { e.currentTarget.style.background = t.bgSurface; e.currentTarget.style.color = t.textMuted; }}>
           <IcoChevronRight s={14} />
         </button>
       </div>

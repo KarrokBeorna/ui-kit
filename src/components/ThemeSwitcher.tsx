@@ -40,7 +40,7 @@ export function ThemeSwitcher({ theme, onChange, t }: ThemeSwitcherProps) {
         display: 'inline-flex',
         borderRadius: 10,
         border: `1px solid ${t.border}`,
-        background: t.switchBg,
+        background: t.bgSurface,
         padding: 3,
         overflow: 'hidden',
       }}

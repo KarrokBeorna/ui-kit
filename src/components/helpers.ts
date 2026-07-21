@@ -2,7 +2,7 @@ import { Theme } from '../themes/theme';
 
 export function inputStyle(t: Theme, extra: React.CSSProperties = {}): React.CSSProperties {
   return {
-    background: t.inputBg,
+    background: t.bg,
     border: `1px solid ${t.border}`,
     borderRadius: 8,
     color: t.text,

@@ -96,7 +96,7 @@ export default function DateTimePicker({
           className={cls}
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: t.inputBg,
+            background: t.bg,
             border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
             // Right padding: clear(28) + gap(4) + picker-btn(28) + edge(10) = 70, else picker-btn(28)+edge(10) = 38

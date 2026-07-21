@@ -70,7 +70,7 @@ export default function TextInput({
           placeholder=""
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: t.inputBg,
+            background: t.bg,
             border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
             padding: '18px 40px 8px 16px',

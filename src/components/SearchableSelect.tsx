@@ -67,7 +67,7 @@ export default function SearchableSelect({
           placeholder=""
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: t.inputBg,
+            background: t.bg,
             border: `1.5px solid ${error ? t.danger : open ? t.borderFocus : t.border}`,
             borderRadius: open ? '10px 10px 0 0' : 10,
             padding: '18px 68px 8px 16px',

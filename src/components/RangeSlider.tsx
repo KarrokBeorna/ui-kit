@@ -1,5 +1,5 @@
 import { useState, useRef, useId } from 'react'
-import type { Theme } from '../themes/themes'
+import type { Theme } from '../themes/theme'
 
 // ─── Single-value mode ───────────────────────────────────────────────────────
 interface SingleProps {
@@ -70,7 +70,7 @@ function ManualInput({
         onKeyDown={e => { if (e.key === 'Enter') commit() }}
         style={{
           width: '100%', boxSizing: 'border-box',
-          background: t.inputBg,
+          background: t.bg,
           border: `1.5px solid ${editing ? t.borderFocus : t.border}`,
           borderRadius: 8, padding: '6px 10px',
           fontSize: 13, fontWeight: 600,
@@ -160,7 +160,7 @@ export default function RangeSlider(props: RangeSliderProps) {
   const thumbStyle = (active: boolean): React.CSSProperties => ({
     position: 'absolute', top: '50%', transform: 'translate(-50%, -50%)',
     width: 22, height: 22, borderRadius: '50%',
-    background: t.accent, border: `3px solid ${t.inputBg}`,
+    background: t.accent, border: `3px solid ${t.bg}`,
     boxShadow: active
       ? `0 0 0 4px ${t.accent}44, 0 2px 8px ${t.accent}55`
       : `0 2px 6px ${t.accent}55`,

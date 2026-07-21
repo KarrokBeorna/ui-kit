@@ -1,4 +1,3 @@
-// Компоненты UI-библиотеки (старые)
 export { default as Checkbox } from './components/Checkbox';
 export { default as DateTimePicker } from './components/DateTimePicker';
 export { default as FileSelector } from './components/FileSelector';
@@ -11,19 +10,15 @@ export { default as SearchableSelect } from './components/SearchableSelect';
 export { default as Textarea } from './components/Textarea';
 export { default as TextInput } from './components/TextInput';
 
-// Новые компоненты из App.tsx
 export { ThemeSwitcher } from './components/ThemeSwitcher';
 export { FilterBar } from './components/FilterBar';
 export { Pagination } from './components/Pagination';
 export { HorizontalHeader, VerticalHeader } from './components/Header';
 export { AuthPage } from './components/AuthPage';
 
-// Иконки (опционально)
 export * from './components/icons';
 
-// Тема
 export { themes } from './themes/theme';
 export type { Theme, ThemeName } from './themes/theme';
 
-// Глобальные стили (анимации)
 import './styles/global.css';

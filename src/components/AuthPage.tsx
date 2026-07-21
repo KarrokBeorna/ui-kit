@@ -134,7 +134,7 @@ export function AuthPage({ t, theme, onThemeChange, onSuccess, loading: external
               padding: '11px 0',
               borderRadius: 10,
               border: 'none',
-              background: (loading || externalLoading) ? t.textSubtle : t.accent,
+              background: (loading || externalLoading) ? t.bgSubmit : t.accent,
               color: t.accentText,
               fontSize: 14,
               fontWeight: 700,

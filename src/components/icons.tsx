@@ -1,4 +1,3 @@
-// src/components/icons.tsx
 import {SVGProps, useId, useRef, useState} from 'react';
 
 type IconProps = SVGProps<SVGSVGElement> & { s?: number };
