@@ -1,22 +1,23 @@
-import { useState, useId } from 'react'
-import type { Theme } from '../themes/themes'
+import { useState, useId } from 'react';
+import type { Theme } from '../themes/theme';
+import { IcoX } from './icons';
 
 interface TextareaProps {
-  label: string
-  theme: Theme
-  value: string
-  onChange: (val: string) => void
-  rows?: number
-  maxLength?: number
-  error?: string
+  label: string;
+  theme: Theme;
+  value: string;
+  onChange: (val: string) => void;
+  rows?: number;
+  maxLength?: number;
+  error?: string;
 }
 
 export default function Textarea({
   label, theme: t, value, onChange, rows = 4, maxLength, error,
 }: TextareaProps) {
-  const [focused, setFocused] = useState(false)
-  const id = useId()
-  const floated = focused || value.length > 0
+  const [focused, setFocused] = useState(false);
+  const id = useId();
+  const floated = focused || value.length > 0;
 
   return (
     <div style={{ width: '100%' }}>
@@ -33,13 +34,13 @@ export default function Textarea({
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.inputBg,
-            border: `1.5px solid ${error ? '#ef4444' : focused ? t.borderFocus : t.border}`,
+            border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
             padding: '22px 40px 10px 16px',
             fontSize: 15, color: t.text, outline: 'none',
             resize: 'vertical',
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
-            boxShadow: focused ? `0 0 0 3px ${t.borderFocus}22` : 'none',
+            boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit', lineHeight: 1.6,
             minHeight: 80,
           }}
@@ -51,7 +52,7 @@ export default function Textarea({
             top: floated ? 0 : 20,
             transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(0)',
             transformOrigin: 'left center',
-            color: error ? '#ef4444' : floated ? t.labelFloat : t.placeholder,
+            color: error ? t.danger : floated ? t.labelFloat : t.placeholder,
             fontSize: 15, pointerEvents: 'none',
             transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
             background: floated ? t.labelBg : 'transparent',
@@ -75,22 +76,20 @@ export default function Textarea({
             onMouseEnter={e => (e.currentTarget.style.color = t.text)}
             onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
           >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M2 2l10 10M12 2L2 12" />
-            </svg>
+            <IcoX s={13} />
           </button>
         )}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
         {maxLength && (
-          <span style={{ fontSize: 11, color: value.length >= maxLength ? '#ef4444' : t.placeholder }}>
+          <span style={{ fontSize: 11, color: value.length >= maxLength ? t.danger : t.placeholder }}>
             {value.length} / {maxLength}
           </span>
         )}
       </div>
 
-      {error && <p style={{ margin: '2px 0 0 4px', fontSize: 12, color: '#ef4444' }}>{error}</p>}
+      {error && <p style={{ margin: '2px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
-  )
+  );
 }

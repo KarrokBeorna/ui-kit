@@ -1,40 +1,41 @@
-import { useState, useId } from 'react'
-import type { Theme } from '../themes/themes'
+import { useState, useId } from 'react';
+import type { Theme } from '../themes/theme';
+import { IcoX, IcoArrowUp, IcoArrowDown } from './icons';
 
 interface NumberInputProps {
-  label: string
-  theme: Theme
-  value: string
-  onChange: (val: string) => void
-  allowDecimal?: boolean
-  min?: number
-  max?: number
-  step?: number
-  error?: string
+  label: string;
+  theme: Theme;
+  value: string;
+  onChange: (val: string) => void;
+  allowDecimal?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  error?: string;
 }
 
 export default function NumberInput({
   label, theme: t, value, onChange,
   allowDecimal = true, min, max, step, error,
 }: NumberInputProps) {
-  const [focused, setFocused] = useState(false)
-  const id = useId()
-  const floated = focused || value.length > 0
+  const [focused, setFocused] = useState(false);
+  const id = useId();
+  const floated = focused || value.length > 0;
 
   const handleChange = (raw: string) => {
-    if (raw === '' || raw === '-') { onChange(raw); return }
-    const pattern = allowDecimal ? /^-?\d*\.?\d*$/ : /^-?\d*$/
-    if (pattern.test(raw)) onChange(raw)
-  }
+    if (raw === '' || raw === '-') { onChange(raw); return; }
+    const pattern = allowDecimal ? /^-?\d*\.?\d*$/ : /^-?\d*$/;
+    if (pattern.test(raw)) onChange(raw);
+  };
 
   const step_ = (dir: 1 | -1) => {
-    const cur = parseFloat(value) || 0
-    const inc = step ?? (allowDecimal ? 0.1 : 1)
-    let next = Math.round((cur + dir * inc) * 1e10) / 1e10
-    if (min !== undefined) next = Math.max(min, next)
-    if (max !== undefined) next = Math.min(max, next)
-    onChange(String(next))
-  }
+    const cur = parseFloat(value) || 0;
+    const inc = step ?? (allowDecimal ? 0.1 : 1);
+    let next = Math.round((cur + dir * inc) * 1e10) / 1e10;
+    if (min !== undefined) next = Math.max(min, next);
+    if (max !== undefined) next = Math.min(max, next);
+    onChange(String(next));
+  };
 
   return (
     <div style={{ width: '100%' }}>
@@ -50,12 +51,12 @@ export default function NumberInput({
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.inputBg,
-            border: `1.5px solid ${error ? '#ef4444' : focused ? t.borderFocus : t.border}`,
+            border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
             padding: '18px 80px 8px 16px',
             fontSize: 15, color: t.text, outline: 'none',
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
-            boxShadow: focused ? `0 0 0 3px ${t.borderFocus}22` : 'none',
+            boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
           }}
         />
@@ -66,7 +67,7 @@ export default function NumberInput({
             top: floated ? 0 : '50%',
             transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(-50%)',
             transformOrigin: 'left center',
-            color: error ? '#ef4444' : floated ? t.labelFloat : t.placeholder,
+            color: error ? t.danger : floated ? t.labelFloat : t.placeholder,
             fontSize: 15, pointerEvents: 'none',
             transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
             background: floated ? t.labelBg : 'transparent',
@@ -93,34 +94,40 @@ export default function NumberInput({
               onMouseEnter={e => (e.currentTarget.style.color = t.text)}
               onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M2 2l10 10M12 2L2 12" />
-              </svg>
+              <IcoX s={12} />
             </button>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {[{ dir: 1 as const, path: 'M6 9l4-4 4 4' }, { dir: -1 as const, path: 'M6 9l4 4 4-4' }].map(({ dir, path }) => (
-              <button
-                key={dir}
-                type="button"
-                onMouseDown={e => { e.preventDefault(); step_(dir) }}
-                style={{
-                  width: 22, height: 16, background: 'transparent', border: 'none',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = t.accent)}
-                onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
-              >
-                <svg width="12" height="10" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={path} />
-                </svg>
-              </button>
-            ))}
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); step_(1); }}
+              style={{
+                width: 22, height: 16, background: 'transparent', border: 'none',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = t.accent)}
+              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+            >
+              <IcoArrowUp s={12} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); step_(-1); }}
+              style={{
+                width: 22, height: 16, background: 'transparent', border: 'none',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = t.accent)}
+              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+            >
+              <IcoArrowDown s={12} />
+            </button>
           </div>
         </div>
       </div>
-      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: '#ef4444' }}>{error}</p>}
+      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
-  )
+  );
 }

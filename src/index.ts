@@ -1,16 +1,29 @@
-export { default as Checkbox } from './components/Checkbox'
-export { default as DateTimePicker } from './components/DateTimePicker'
-export { default as FileSelector } from './components/FileSelector'
-export { default as MultiSelect } from './components/MultiSelect'
-export { default as NumberInput } from './components/NumberInput'
-export { default as PasswordInput } from './components/PasswordInput'
-export { default as RadioGroup } from './components/RadioGroup'
-export { default as SearchableSelect } from './components/SearchableSelect'
-export { default as Textarea } from './components/Textarea'
-export { default as TextInput } from './components/TextInput'
+// Компоненты UI-библиотеки (старые)
+export { default as Checkbox } from './components/Checkbox';
+export { default as DateTimePicker } from './components/DateTimePicker';
+export { default as FileSelector } from './components/FileSelector';
+export { default as MultiSelect } from './components/MultiSelect';
+export { default as NumberInput } from './components/NumberInput';
+export { default as PasswordInput } from './components/PasswordInput';
+export { default as RadioGroup } from './components/RadioGroup';
+export { default as RangeSlider } from './components/RadioGroup';
+export { default as SearchableSelect } from './components/SearchableSelect';
+export { default as Textarea } from './components/Textarea';
+export { default as TextInput } from './components/TextInput';
 
-export type { Theme, ThemeName } from './themes/themes'
-export { themes } from './themes/themes'
-import './styles/global.css'
-export type { SelectOption } from './components/SearchableSelect'
-export type { RadioOption } from './components/RadioGroup'
+// Новые компоненты из App.tsx
+export { ThemeSwitcher } from './components/ThemeSwitcher';
+export { FilterBar } from './components/FilterBar';
+export { Pagination } from './components/Pagination';
+export { HorizontalHeader, VerticalHeader } from './components/Header';
+export { AuthPage } from './components/AuthPage';
+
+// Иконки (опционально)
+export * from './components/icons';
+
+// Тема
+export { themes } from './themes/theme';
+export type { Theme, ThemeName } from './themes/theme';
+
+// Глобальные стили (анимации)
+import './styles/global.css';

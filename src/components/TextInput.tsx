@@ -1,52 +1,82 @@
-import { useState, useId, type ChangeEvent } from 'react'
-import type { Theme } from '../themes/themes'
+import { useState, useId, type ChangeEvent } from 'react';
+import type { Theme } from '../themes/theme';
+import { IcoX } from './icons';
 
-export type TextInputType = 'text' | 'email' | 'tel'
+export type TextInputType = 'text' | 'email' | 'tel';
 
 const TYPE_OPTIONS: { value: TextInputType; label: string; icon: string }[] = [
-  { value: 'text', label: 'Текст', icon: 'T' },
-  { value: 'email', label: 'E-mail', icon: '@' },
-  { value: 'tel', label: 'Телефон', icon: '+' },
+  { value: 'text',  label: 'Текст',   icon: 'T' },
+  { value: 'email', label: 'E-mail',  icon: '@' },
+  { value: 'tel',   label: 'Телефон', icon: '+' },
 ]
 
+// Strip any character that is invalid for a phone number field
+function sanitizeTel(raw: string) {
+  return raw.replace(/[^\d+\-()\s]/g, '')
+}
+
+function validateOnBlur(value: string, type: TextInputType): string {
+  if (!value) return ''
+  if (type === 'email' && !value.includes('@')) return 'Обязателен символ @'
+  if (type === 'tel') {
+    if (!/[+\-]/.test(value)) return 'Обязателен символ + или −'
+    if (!/\d/.test(value)) return 'Введите номер телефона'
+  }
+  return ''
+}
+
 interface TextInputProps {
-  label: string
-  theme: Theme
-  value: string
-  onChange: (val: string) => void
-  inputType?: TextInputType
-  onTypeChange?: (t: TextInputType) => void
-  error?: string
+  label: string;
+  theme: Theme;
+  value: string;
+  onChange: (val: string) => void;
+  inputType?: TextInputType;
+  onTypeChange?: (t: TextInputType) => void;
+  error?: string;
 }
 
 export default function TextInput({
   label, theme: t, value, onChange,
-  inputType = 'text', onTypeChange, error,
+  inputType = 'text', onTypeChange, error: externalError,
 }: TextInputProps) {
   const [focused, setFocused] = useState(false)
+  const [touched, setTouched] = useState(false)
   const id = useId()
   const floated = focused || value.length > 0
+
+  const internalError = touched ? validateOnBlur(value, inputType) : ''
+  const error = externalError || internalError
+
+  const handleChange = (raw: string) => {
+    onChange(inputType === 'tel' ? sanitizeTel(raw) : raw)
+  }
+
+  const handleBlur = () => {
+    setFocused(false)
+    setTouched(true)
+  }
 
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input
           id={id}
-          type={inputType}
+          type={inputType === 'tel' ? 'text' : inputType}
+          inputMode={inputType === 'tel' ? 'tel' : undefined}
           value={value}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+          onBlur={handleBlur}
+          onChange={e => handleChange(e.target.value)}
           placeholder=""
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.inputBg,
-            border: `1.5px solid ${error ? '#ef4444' : focused ? t.borderFocus : t.border}`,
+            border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
             padding: '18px 40px 8px 16px',
             fontSize: 15, color: t.text, outline: 'none',
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
-            boxShadow: focused ? `0 0 0 3px ${t.borderFocus}22` : 'none',
+            boxShadow: focused ? `0 0 0 3px ${error ? '#ef444422' : t.accentGlow}` : 'none',
             fontFamily: 'inherit',
           }}
         />
@@ -57,7 +87,7 @@ export default function TextInput({
             top: floated ? 0 : '50%',
             transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(-50%)',
             transformOrigin: 'left center',
-            color: error ? '#ef4444' : floated ? t.labelFloat : t.placeholder,
+            color: error ? t.danger : floated ? t.labelFloat : t.placeholder,
             fontSize: 15, pointerEvents: 'none',
             transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
             background: floated ? t.labelBg : 'transparent',
@@ -71,32 +101,38 @@ export default function TextInput({
         {value && (
           <button
             type="button"
-            onClick={() => onChange('')}
+            onClick={() => { onChange(''); setTouched(false) }}
             style={{
               position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
               background: 'transparent', border: 'none', cursor: 'pointer',
               color: t.iconColor, padding: 4, display: 'flex', alignItems: 'center',
-              transition: 'color 0.15s',
+              transition: 'color 0.15s', borderRadius: 4,
             }}
             onMouseEnter={e => (e.currentTarget.style.color = t.text)}
             onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M2 2l10 10M12 2L2 12" />
-            </svg>
+            <IcoX s={14} />
           </button>
         )}
       </div>
 
+      {/* Validation hint shown only when no error yet (pre-blur) */}
+      {!error && inputType !== 'text' && (
+        <p style={{ margin: '4px 0 0 4px', fontSize: 11, color: t.placeholder }}>
+          {inputType === 'email' ? 'Обязателен символ @' : 'Только цифры, +, −, (), пробел'}
+        </p>
+      )}
+      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
+
       {onTypeChange && (
         <div style={{ display: 'flex', gap: 6, marginTop: 10, paddingLeft: 2 }}>
           {TYPE_OPTIONS.map(opt => {
-            const active = inputType === opt.value
+            const active = inputType === opt.value;
             return (
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => { onTypeChange(opt.value); onChange('') }}
+                onClick={() => { onTypeChange(opt.value); onChange(''); setTouched(false) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
                   padding: '4px 10px', borderRadius: 6,
@@ -121,12 +157,10 @@ export default function TextInput({
                 </span>
                 {opt.label}
               </button>
-            )
+            );
           })}
         </div>
       )}
-
-      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: '#ef4444' }}>{error}</p>}
     </div>
-  )
+  );
 }

@@ -1,19 +1,19 @@
-import type { Theme } from '../themes/themes'
+import type { Theme } from '../themes/theme';
 
 export interface RadioOption {
-  value: string
-  label: string
-  description?: string
+  value: string;
+  label: string;
+  description?: string;
 }
 
 interface RadioGroupProps {
-  label: string
-  theme: Theme
-  options: RadioOption[]
-  value: string
-  onChange: (val: string) => void
-  direction?: 'horizontal' | 'vertical'
-  error?: string
+  label: string;
+  theme: Theme;
+  options: RadioOption[];
+  value: string;
+  onChange: (val: string) => void;
+  direction?: 'horizontal' | 'vertical';
+  error?: string;
 }
 
 export default function RadioGroup({
@@ -32,21 +32,20 @@ export default function RadioGroup({
         flexWrap: direction === 'horizontal' ? 'wrap' : 'nowrap',
       }}>
         {options.map(opt => {
-          const selected = value === opt.value
+          const selected = value === opt.value;
           return (
             <label
               key={opt.value}
               onClick={() => onChange(opt.value)}
               style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}
             >
-              {/* Radio circle */}
               <div style={{
                 width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 1,
                 border: `1.5px solid ${selected ? t.accent : t.border}`,
                 background: 'transparent',
                 transition: 'border-color 0.2s ease',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: selected ? `0 0 0 3px ${t.accent}22` : 'none',
+                boxShadow: selected ? `0 0 0 3px ${t.accentGlow}` : 'none',
               }}>
                 <div style={{
                   width: 10, height: 10, borderRadius: '50%',
@@ -62,10 +61,10 @@ export default function RadioGroup({
                 )}
               </div>
             </label>
-          )
+          );
         })}
       </div>
-      {error && <p style={{ margin: '8px 0 0 0', fontSize: 12, color: '#ef4444' }}>{error}</p>}
+      {error && <p style={{ margin: '8px 0 0 0', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
-  )
+  );
 }
