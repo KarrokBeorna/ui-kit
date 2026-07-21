@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { themes, ThemeName } from './themes/theme'
+import {LayoutMode, LayoutToggle} from './components/LayoutToggle';
 import {
   AuthPage,
   Checkbox,
@@ -22,6 +23,7 @@ import {
 
 function App() {
   const [themeName, setThemeName] = useState<ThemeName>('dark')
+  const [headerMode, setHeaderMode] = useState<LayoutMode>('horizontal')
   const t = themes[themeName]
 
   // Состояния для компонентов
@@ -61,6 +63,7 @@ function App() {
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
           <h1 style={{ margin: 0 }}>🎨 UI Showcase</h1>
+          <LayoutToggle mode={headerMode} theme={t} onChange={setHeaderMode} />
           <ThemeSwitcher theme={themeName} onChange={setThemeName} t={t} />
         </div>
 

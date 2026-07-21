@@ -1,4 +1,4 @@
-import {SVGProps, useId, useRef, useState} from 'react';
+import React, {SVGProps, useId, useRef, useState} from 'react';
 
 type IconProps = SVGProps<SVGSVGElement> & { s?: number };
 
@@ -120,7 +120,7 @@ export const IcoArrowDown = ({ s = 12, ...props }: IconProps) => (
 );
 
 export const CalendarIcon = ({ s = 12, ...props }: IconProps) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <rect x="3" y="4" width="18" height="18" rx="2" />
     <line x1="16" y1="2" x2="16" y2="6" />
     <line x1="8" y1="2" x2="8" y2="6" />
@@ -129,14 +129,14 @@ export const CalendarIcon = ({ s = 12, ...props }: IconProps) => (
 );
 
 export const ClockIcon = ({ s = 12, ...props }: IconProps) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <circle cx="12" cy="12" r="10" />
     <polyline points="12 6 12 12 16 14" />
   </svg>
 );
 
 export const DateTimeIcon = ({ s = 12, ...props }: IconProps) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <rect x="3" y="4" width="13" height="13" rx="1.5" />
     <line x1="7" y1="2" x2="7" y2="6" />
     <line x1="12" y1="2" x2="12" y2="6" />
@@ -172,3 +172,19 @@ export const IcoFile = ({ s = 20, type = 'file', ...props }: IconProps & { type?
     </svg>
   );
 };
+
+export const IcoHorHeader = ({ s = 14, ...props }: IconProps) => (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" {...props}>
+    <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+export const IcoVerHeader = ({ s = 14, ...props }: IconProps) => (
+  <svg width={s} height={s} viewBox="0 0 14 14" fill="none" {...props}>
+    <rect x="1" y="1" width="4" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+    <rect x="7" y="1" width="6" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+    <rect x="7" y="8" width="6" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+  </svg>
+);
