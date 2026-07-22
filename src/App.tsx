@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { ThemeName, Theme, themes } from './themes/theme';
-import { ThemeSwitcher } from './components';
+import { ThemeName, themes } from './themes/theme';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
 import TextInput from './components/TextInput';
 import Textarea from './components/Textarea';
 import Checkbox from './components/Checkbox';
 import SearchableSelect from './components/SearchableSelect';
 import DateTimePicker from './components/DateTimePicker';
 import Modal from './components/Modal';
-import Table from './components/Table';
+import Table, { Column } from './components/Table';
 import Badge from './components/Badge';
 
 const userData = [
@@ -44,7 +44,8 @@ export default function App() {
     setModalOpen(false);
   };
 
-  const columns = [
+  // Явно типизируем колонки с помощью импортированного типа Column
+  const columns: Column<(typeof userData)[0]>[] = [
     {
       key: 'name',
       header: 'Имя',
@@ -57,8 +58,8 @@ export default function App() {
       header: 'Возраст',
       width: 100,
       sortable: true,
-      style: { textAlign: 'center' },
-      headerStyle: { textAlign: 'center' },
+      style: { textAlign: 'center' as const },
+      headerStyle: { textAlign: 'center' as const },
     },
     {
       key: 'city',
@@ -79,8 +80,7 @@ export default function App() {
           borderColor={val ? '#10b981' : '#ef4444'}
           textColor="#fff"
           size="sm"
-          variant="soft"
-          opacity={0.3}
+          variant="filled"
         >
           {val ? 'Да' : 'Нет'}
         </Badge>

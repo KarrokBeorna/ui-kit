@@ -1,4 +1,6 @@
-import { useState, useId, useRef, useEffect } from 'react';
+// MultiSelect.tsx
+import React, { useState, useId, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import type { Theme } from '../themes/theme';
 import type { SelectOption } from './SearchableSelect';
 import { IcoChevronDown, IcoX, IcoCheck } from './icons';
@@ -10,6 +12,7 @@ interface MultiSelectProps {
   value: string[];
   onChange: (vals: string[]) => void;
   error?: string;
+  usePortal?: boolean;
 }
 
 function pluralValue(n: number) {
@@ -20,28 +23,55 @@ function pluralValue(n: number) {
 
 export default function MultiSelect({
   label, theme: t, options, value, onChange, error,
+  usePortal = true,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const id = useId();
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   const floated = focused || open || value.length > 0;
   const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
   const allFilteredSelected = filtered.length > 0 && filtered.every(o => value.includes(o.value));
   const someFilteredSelected = filtered.some(o => value.includes(o.value));
 
+  // Закрытие при клике вне
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false); setQuery(''); setFocused(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Закрытие по Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOpen(false); setQuery(''); setFocused(false); }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  // Позиционирование дропдауна – строго по ширине input
+  useEffect(() => {
+    if (open && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+  }, [open]);
 
   const handleOpen = () => {
     setOpen(true); setFocused(true);
@@ -70,8 +100,86 @@ export default function MultiSelect({
     e.stopPropagation(); onChange([]); setOpen(false); setQuery('');
   };
 
+  const dropdownContent = open && (
+    <div
+      ref={dropdownRef}
+      style={{
+        ...dropdownStyle,
+        background: t.dropdownBg,
+        border: `1.5px solid ${t.borderFocus}`,
+        borderRadius: '0 0 10px 10px',
+        maxHeight: 300,
+        overflowY: 'auto',
+        boxShadow: t.shadowLg,
+        animation: 'dropDown 0.2s cubic-bezier(0.4,0,0.2,1)',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onMouseDown={e => { e.preventDefault(); toggleAll(); }}
+        style={{
+          padding: '10px 16px',
+          borderBottom: `1px solid ${t.border}`,
+          display: 'flex', alignItems: 'center', gap: 8,
+          cursor: 'pointer', transition: 'background 0.15s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = t.dropdownHover}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      >
+        <div style={{
+          width: 16, height: 16, borderRadius: 4,
+          border: `1.5px solid ${allFilteredSelected || someFilteredSelected ? t.accent : t.border}`,
+          background: allFilteredSelected ? t.accent : 'transparent',
+          transition: 'all 0.15s', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {allFilteredSelected ? (
+            <IcoCheck s={10} style={{ stroke: '#fff' }} />
+          ) : someFilteredSelected ? (
+            <div style={{ width: 8, height: 2, background: t.accent, borderRadius: 1 }} />
+          ) : null}
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: t.accent }}>
+          Выбрать все {query ? `(${filtered.length})` : ''}
+        </span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>Ничего не найдено</div>
+      ) : filtered.map(opt => {
+        const sel = value.includes(opt.value);
+        return (
+          <div
+            key={opt.value}
+            onMouseDown={e => { e.preventDefault(); toggle(opt.value); }}
+            style={{
+              padding: '10px 16px', fontSize: 14, cursor: 'pointer',
+              color: sel ? t.dropdownSelectedText : t.text,
+              background: sel ? t.dropdownSelected : 'transparent',
+              transition: 'background 0.15s ease',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}
+            onMouseEnter={e => { if (!sel) e.currentTarget.style.background = t.dropdownHover; }}
+            onMouseLeave={e => { e.currentTarget.style.background = sel ? t.dropdownSelected : 'transparent'; }}
+          >
+            <div style={{
+              width: 16, height: 16, borderRadius: 4,
+              border: `1.5px solid ${sel ? t.accent : t.border}`,
+              background: sel ? t.accent : 'transparent',
+              transition: 'all 0.15s', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {sel && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
+            </div>
+            {opt.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <div style={{ position: 'relative', cursor: 'pointer' }} onClick={handleOpen}>
         <input
           ref={inputRef}
@@ -112,16 +220,6 @@ export default function MultiSelect({
           {label}
         </label>
 
-        {/*{value.length > 1 && !open && (*/}
-        {/*  <div style={{*/}
-        {/*    position: 'absolute', right: 68, top: '50%', transform: 'translateY(-50%)',*/}
-        {/*    background: t.accent, color: t.accentText,*/}
-        {/*    borderRadius: 10, padding: '2px 7px', fontSize: 11, fontWeight: 700, pointerEvents: 'none',*/}
-        {/*  }}>*/}
-        {/*    {value.length}*/}
-        {/*  </div>*/}
-        {/*)}*/}
-
         <div style={{
           position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
           display: 'flex', alignItems: 'center', gap: 2,
@@ -147,81 +245,19 @@ export default function MultiSelect({
         </div>
       </div>
 
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
-          background: t.dropdownBg,
-          border: `1.5px solid ${t.borderFocus}`,
-          borderTop: 'none',
-          borderRadius: '0 0 10px 10px',
-          zIndex: 100, maxHeight: 300, overflowY: 'auto',
-          boxShadow: t.shadow,
-          animation: 'dropDown 0.2s cubic-bezier(0.4,0,0.2,1)',
-        }}>
-          <div
-            onMouseDown={e => { e.preventDefault(); toggleAll(); }}
-            style={{
-              padding: '10px 16px',
-              borderBottom: `1px solid ${t.border}`,
-              display: 'flex', alignItems: 'center', gap: 8,
-              cursor: 'pointer', transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = t.dropdownHover}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-          >
-            <div style={{
-              width: 16, height: 16, borderRadius: 4,
-              border: `1.5px solid ${allFilteredSelected || someFilteredSelected ? t.accent : t.border}`,
-              background: allFilteredSelected ? t.accent : 'transparent',
-              transition: 'all 0.15s', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {allFilteredSelected ? (
-                <IcoCheck s={10} style={{ stroke: '#fff' }} />
-              ) : someFilteredSelected ? (
-                <div style={{ width: 8, height: 2, background: t.accent, borderRadius: 1 }} />
-              ) : null}
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: t.accent }}>
-              Выбрать все {query ? `(${filtered.length})` : ''}
-            </span>
-          </div>
-
-          {filtered.length === 0 ? (
-            <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>Ничего не найдено</div>
-          ) : filtered.map(opt => {
-            const sel = value.includes(opt.value);
-            return (
-              <div
-                key={opt.value}
-                onMouseDown={e => { e.preventDefault(); toggle(opt.value); }}
-                style={{
-                  padding: '10px 16px', fontSize: 14, cursor: 'pointer',
-                  color: sel ? t.dropdownSelectedText : t.text,
-                  background: sel ? t.dropdownSelected : 'transparent',
-                  transition: 'background 0.15s ease',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}
-                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = t.dropdownHover; }}
-                onMouseLeave={e => { e.currentTarget.style.background = sel ? t.dropdownSelected : 'transparent'; }}
-              >
-                <div style={{
-                  width: 16, height: 16, borderRadius: 4,
-                  border: `1.5px solid ${sel ? t.accent : t.border}`,
-                  background: sel ? t.accent : 'transparent',
-                  transition: 'all 0.15s', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {sel && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
-                </div>
-                {opt.label}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
+
+      {usePortal
+        ? ReactDOM.createPortal(dropdownContent, document.body)
+        : dropdownContent
+      }
+
+      <style>{`
+        @keyframes dropDown {
+          from { opacity: 0; transform: translateY(-6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

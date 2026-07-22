@@ -19,7 +19,7 @@ import {
   Textarea,
   TextInput,
   ThemeSwitcher,
-} from './components'
+} from './index'
 
 function App2() {
   const [themeName, setThemeName] = useState<ThemeName>('dark')
