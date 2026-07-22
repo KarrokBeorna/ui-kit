@@ -1,4 +1,5 @@
-import { useState, useId, useRef, useEffect } from 'react';
+import React, { useState, useId, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import type { Theme } from '../themes/theme';
 import { IcoChevronDown, IcoX, IcoCheck } from './icons';
 
@@ -14,31 +15,59 @@ interface SearchableSelectProps {
   value: string;
   onChange: (val: string) => void;
   error?: string;
+  usePortal?: boolean;
 }
 
 export default function SearchableSelect({
   label, theme: t, options, value, onChange, error,
+  usePortal = true,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const id = useId();
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   const selected = options.find(o => o.value === value);
   const floated = focused || open || !!selected;
   const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
 
+  // Закрытие при клике вне
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false); setQuery(''); setFocused(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Закрытие по Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOpen(false); setQuery(''); setFocused(false); }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  // Позиционирование дропдауна – строго по ширине input
+  useEffect(() => {
+    if (open && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+  }, [open]);
 
   const handleOpen = () => {
     setOpen(true); setFocused(true); setQuery('');
@@ -54,8 +83,54 @@ export default function SearchableSelect({
     onChange(''); setOpen(false); setQuery('');
   };
 
+  const dropdownContent = open && (
+    <div
+      ref={dropdownRef}
+      style={{
+        ...dropdownStyle,
+        background: t.dropdownBg,
+        border: `1.5px solid ${t.borderFocus}`,
+        borderRadius: '0 0 10px 10px',
+        maxHeight: 240,
+        overflowY: 'auto',
+        boxShadow: t.shadowLg,
+        animation: 'dropDown 0.2s cubic-bezier(0.4,0,0.2,1)',
+        boxSizing: 'border-box',
+      }}
+    >
+      {filtered.length === 0 ? (
+        <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>Ничего не найдено</div>
+      ) : filtered.map(opt => (
+        <div
+          key={opt.value}
+          onMouseDown={e => { e.preventDefault(); handleSelect(opt); }}
+          style={{
+            padding: '11px 16px', fontSize: 14, cursor: 'pointer',
+            color: opt.value === value ? t.dropdownSelectedText : t.text,
+            background: opt.value === value ? t.dropdownSelected : 'transparent',
+            transition: 'background 0.15s ease',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}
+          onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = t.dropdownHover; }}
+          onMouseLeave={e => { e.currentTarget.style.background = opt.value === value ? t.dropdownSelected : 'transparent'; }}
+        >
+          <div style={{
+            width: 16, height: 16, borderRadius: 4,
+            border: `1.5px solid ${opt.value === value ? t.accent : t.border}`,
+            background: opt.value === value ? t.accent : 'transparent',
+            transition: 'all 0.15s', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {opt.value === value && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
+          </div>
+          {opt.label}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <div style={{ position: 'relative', cursor: 'pointer' }} onClick={handleOpen}>
         <input
           ref={inputRef}
@@ -121,49 +196,19 @@ export default function SearchableSelect({
         </div>
       </div>
 
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
-          background: t.dropdownBg,
-          border: `1.5px solid ${t.borderFocus}`,
-          borderTop: 'none',
-          borderRadius: '0 0 10px 10px',
-          zIndex: 100, maxHeight: 240, overflowY: 'auto',
-          boxShadow: t.shadow,
-          animation: 'dropDown 0.2s cubic-bezier(0.4,0,0.2,1)',
-        }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>Ничего не найдено</div>
-          ) : filtered.map(opt => (
-            <div
-              key={opt.value}
-              onMouseDown={e => { e.preventDefault(); handleSelect(opt); }}
-              style={{
-                padding: '11px 16px', fontSize: 14, cursor: 'pointer',
-                color: opt.value === value ? t.dropdownSelectedText : t.text,
-                background: opt.value === value ? t.dropdownSelected : 'transparent',
-                transition: 'background 0.15s ease',
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}
-              onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = t.dropdownHover; }}
-              onMouseLeave={e => { e.currentTarget.style.background = opt.value === value ? t.dropdownSelected : 'transparent'; }}
-            >
-              <div style={{
-                width: 16, height: 16, borderRadius: 4,
-                border: `1.5px solid ${opt.value === value ? t.accent : t.border}`,
-                background: opt.value === value ? t.accent : 'transparent',
-                transition: 'all 0.15s', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {opt.value === value && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
-              </div>
-              {opt.label}
-            </div>
-          ))}
-        </div>
-      )}
-
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
+
+      {usePortal
+        ? ReactDOM.createPortal(dropdownContent, document.body)
+        : dropdownContent
+      }
+
+      <style>{`
+        @keyframes dropDown {
+          from { opacity: 0; transform: translateY(-6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
