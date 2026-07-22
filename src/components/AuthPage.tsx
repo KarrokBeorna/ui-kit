@@ -15,6 +15,8 @@ interface AuthPageProps {
   siteName?: string;
   /** SVG-логотип или любой React-узел (по умолчанию ◈) */
   logoSvg?: React.ReactNode;
+  /** Обработчик клика по логотипу / названию */
+  onLogoClick?: () => void;
 }
 
 export function AuthPage({
@@ -25,6 +27,7 @@ export function AuthPage({
   loading: externalLoading,
   siteName = 'Nexus',
   logoSvg = '◈',
+  onLogoClick,
 }: AuthPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,6 +64,12 @@ export function AuthPage({
       setLoading(false);
       onSuccess(email.split('@')[0]);
     }, 1100);
+  };
+
+  const handleLogoClick = () => {
+    if (onLogoClick) {
+      onLogoClick();
+    }
   };
 
   const orbA = t.accent;
@@ -124,8 +133,23 @@ export function AuthPage({
         }}
       >
         <div style={{ padding: '28px 32px 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-            {/* Логотип */}
+          <div
+            onClick={handleLogoClick}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 24,
+              cursor: onLogoClick ? 'pointer' : 'default',
+              transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              if (onLogoClick) e.currentTarget.style.opacity = '0.7';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '1';
+            }}
+          >
             <div
               style={{
                 width: 34,
@@ -143,7 +167,6 @@ export function AuthPage({
             >
               {logoSvg}
             </div>
-            {/* Название сайта */}
             <span
               style={{
                 fontFamily: 'system-ui',
