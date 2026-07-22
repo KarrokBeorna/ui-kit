@@ -16,6 +16,7 @@ export { Pagination } from './components/Pagination';
 export { HorizontalHeader, VerticalHeader } from './components/Header';
 export { AuthPage } from './components/AuthPage';
 export { LayoutToggle } from './components/LayoutToggle';
+export type { LayoutMode } from './components/LayoutToggle';
 export { default as Table } from './components/Table';
 export { default as Modal } from './components/Modal';
 export { default as Badge } from './components/Badge';
