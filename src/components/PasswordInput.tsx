@@ -83,6 +83,16 @@ export default function PasswordInput({
     return () => input.removeEventListener('input', handleInput);
   }, [onChange]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const input = inputRef.current;
+      if (input && input.value !== valueRef.current) {
+        onChange(input.value);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [onChange]);
+
   const floated = focused || value.length > 0;
 
   return (

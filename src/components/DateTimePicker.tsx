@@ -74,6 +74,16 @@ export default function DateTimePicker({
     return () => input.removeEventListener('input', handleInput)
   }, [onChange])
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const input = inputRef.current;
+      if (input && input.value !== valueRef.current) {
+        onChange(input.value);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [onChange]);
+
   const type = enableDate && enableTime ? 'datetime-local' : enableDate ? 'date' : 'time'
   const floated = focused || value.length > 0
   const textColor = !focused && !value ? 'transparent' : t.text

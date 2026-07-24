@@ -64,6 +64,16 @@ export default function MultiSelect({
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      const input = inputRef.current;
+      if (input && input.value !== queryRef.current) {
+        setQuery(input.value);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false); setQuery(''); setFocused(false);

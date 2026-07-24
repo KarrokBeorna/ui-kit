@@ -1,4 +1,4 @@
-import { useState, useId, useRef, useEffect, type ChangeEvent } from 'react';
+import { useState, useId, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
 
@@ -65,6 +65,16 @@ export default function TextInput({
 
     input.addEventListener('input', handleInput);
     return () => input.removeEventListener('input', handleInput);
+  }, [onChange]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const input = inputRef.current;
+      if (input && input.value !== valueRef.current) {
+        onChange(input.value);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
   }, [onChange]);
 
   const floated = focused || value.length > 0;
