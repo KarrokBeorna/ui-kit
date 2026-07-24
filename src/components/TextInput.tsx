@@ -1,4 +1,4 @@
-import { useState, useId, type ChangeEvent } from 'react';
+import { useState, useId, useRef, useEffect, type ChangeEvent } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
 
@@ -8,21 +8,20 @@ const TYPE_OPTIONS: { value: TextInputType; label: string; icon: string }[] = [
   { value: 'text',  label: 'Текст',   icon: 'T' },
   { value: 'email', label: 'E-mail',  icon: '@' },
   { value: 'tel',   label: 'Телефон', icon: '+' },
-]
+];
 
-// Strip any character that is invalid for a phone number field
 function sanitizeTel(raw: string) {
-  return raw.replace(/[^\d+\-()\s]/g, '')
+  return raw.replace(/[^\d+\-()\s]/g, '');
 }
 
 function validateOnBlur(value: string, type: TextInputType): string {
-  if (!value) return ''
-  if (type === 'email' && !value.includes('@')) return 'Обязателен символ @'
+  if (!value) return '';
+  if (type === 'email' && !value.includes('@')) return 'Обязателен символ @';
   if (type === 'tel') {
-    if (!/[+\-]/.test(value)) return 'Обязателен символ + или −'
-    if (!/\d/.test(value)) return 'Введите номер телефона'
+    if (!/[+\-]/.test(value)) return 'Обязателен символ + или −';
+    if (!/\d/.test(value)) return 'Введите номер телефона';
   }
-  return ''
+  return '';
 }
 
 interface TextInputProps {
@@ -39,27 +38,53 @@ export default function TextInput({
   label, theme: t, value, onChange,
   inputType = 'text', onTypeChange, error: externalError,
 }: TextInputProps) {
-  const [focused, setFocused] = useState(false)
-  const [touched, setTouched] = useState(false)
-  const id = useId()
-  const floated = focused || value.length > 0
+  const [focused, setFocused] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const id = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const valueRef = useRef(value);
 
-  const internalError = touched ? validateOnBlur(value, inputType) : ''
-  const error = externalError || internalError
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const handleInput = () => {
+      const newValue = input.value;
+      if (newValue !== valueRef.current) {
+        onChange(newValue);
+      }
+    };
+
+    if (input.value !== valueRef.current) {
+      onChange(input.value);
+    }
+
+    input.addEventListener('input', handleInput);
+    return () => input.removeEventListener('input', handleInput);
+  }, [onChange]);
+
+  const floated = focused || value.length > 0;
+  const internalError = touched ? validateOnBlur(value, inputType) : '';
+  const error = externalError || internalError;
 
   const handleChange = (raw: string) => {
-    onChange(inputType === 'tel' ? sanitizeTel(raw) : raw)
-  }
+    onChange(inputType === 'tel' ? sanitizeTel(raw) : raw);
+  };
 
   const handleBlur = () => {
-    setFocused(false)
-    setTouched(true)
-  }
+    setFocused(false);
+    setTouched(true);
+  };
 
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input
+          ref={inputRef}
           id={id}
           type={inputType === 'tel' ? 'text' : inputType}
           inputMode={inputType === 'tel' ? 'tel' : undefined}
@@ -101,7 +126,7 @@ export default function TextInput({
         {value && (
           <button
             type="button"
-            onClick={() => { onChange(''); setTouched(false) }}
+            onClick={() => { onChange(''); setTouched(false); }}
             style={{
               position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
               background: 'transparent', border: 'none', cursor: 'pointer',
@@ -116,12 +141,6 @@ export default function TextInput({
         )}
       </div>
 
-      {/* Validation hint shown only when no error yet (pre-blur) */}
-      {/*{!error && inputType !== 'text' && (*/}
-      {/*  <p style={{ margin: '4px 0 0 4px', fontSize: 11, color: t.placeholder }}>*/}
-      {/*    {inputType === 'email' ? 'Обязателен символ @' : 'Только цифры, +, −, (), пробел'}*/}
-      {/*  </p>*/}
-      {/*)}*/}
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
 
       {onTypeChange && (
@@ -132,7 +151,7 @@ export default function TextInput({
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => { onTypeChange(opt.value); onChange(''); setTouched(false) }}
+                onClick={() => { onTypeChange(opt.value); onChange(''); setTouched(false); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
                   padding: '4px 10px', borderRadius: 6,

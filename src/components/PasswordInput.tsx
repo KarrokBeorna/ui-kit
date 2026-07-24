@@ -1,4 +1,4 @@
-import { useState, useId } from 'react';
+import { useState, useId, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoEye, IcoX } from './icons';
 
@@ -43,7 +43,6 @@ interface PasswordInputProps {
   value: string;
   onChange: (val: string) => void;
   error?: string;
-  /** Показывать индикатор сложности пароля (по умолчанию true) */
   showStrength?: boolean;
 }
 
@@ -58,12 +57,39 @@ export default function PasswordInput({
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   const id = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const handleInput = () => {
+      const newValue = input.value;
+      if (newValue !== valueRef.current) {
+        onChange(newValue);
+      }
+    };
+
+    if (input.value !== valueRef.current) {
+      onChange(input.value);
+    }
+
+    input.addEventListener('input', handleInput);
+    return () => input.removeEventListener('input', handleInput);
+  }, [onChange]);
+
   const floated = focused || value.length > 0;
 
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input
+          ref={inputRef}
           id={id}
           type={visible ? 'text' : 'password'}
           value={value}

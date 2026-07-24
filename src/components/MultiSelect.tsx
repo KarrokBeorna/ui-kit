@@ -39,7 +39,30 @@ export default function MultiSelect({
   const allFilteredSelected = filtered.length > 0 && filtered.every(o => value.includes(o.value));
   const someFilteredSelected = filtered.some(o => value.includes(o.value));
 
-  // Закрытие при клике вне
+  const queryRef = useRef(query);
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const handleInput = () => {
+      const newVal = input.value;
+      if (newVal !== queryRef.current) {
+        setQuery(newVal);
+      }
+    };
+
+    if (input.value !== queryRef.current) {
+      setQuery(input.value);
+    }
+
+    input.addEventListener('input', handleInput);
+    return () => input.removeEventListener('input', handleInput);
+  }, []);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -50,7 +73,6 @@ export default function MultiSelect({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Закрытие по Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setOpen(false); setQuery(''); setFocused(false); }
@@ -59,7 +81,6 @@ export default function MultiSelect({
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
-  // Позиционирование дропдауна – строго по ширине input
   useEffect(() => {
     if (open && inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();

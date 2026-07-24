@@ -1,4 +1,4 @@
-import { useState, useId, useRef } from 'react'
+import { useState, useId, useRef, useEffect } from 'react'
 import type { Theme } from '../themes/theme'
 import {CalendarIcon, ClockIcon, DateTimeIcon, IcoX} from "./icons";
 
@@ -46,10 +46,33 @@ export default function DateTimePicker({
 }: DateTimePickerProps) {
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const valueRef = useRef(value)
   const uid = useId()
-  // Make a valid CSS class name from the useId output
   const cls = 'dtp' + uid.replace(/[^a-z0-9]/gi, '')
   const id = uid + 'input'
+
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
+
+  useEffect(() => {
+    const input = inputRef.current
+    if (!input) return
+
+    const handleInput = () => {
+      const newVal = input.value
+      if (newVal !== valueRef.current) {
+        onChange(newVal)
+      }
+    }
+
+    if (input.value !== valueRef.current) {
+      onChange(input.value)
+    }
+
+    input.addEventListener('input', handleInput)
+    return () => input.removeEventListener('input', handleInput)
+  }, [onChange])
 
   const type = enableDate && enableTime ? 'datetime-local' : enableDate ? 'date' : 'time'
   const floated = focused || value.length > 0
@@ -58,10 +81,8 @@ export default function DateTimePicker({
   const openPicker = () => {
     inputRef.current?.focus()
     try {
-      // showPicker() is supported in Chrome 99+, Firefox 101+, Safari 16+
       ;(inputRef.current as any)?.showPicker?.()
     } catch {
-      // silently ignore in unsupported environments
     }
   }
 
@@ -69,7 +90,6 @@ export default function DateTimePicker({
 
   return (
     <div style={{ width: '100%' }}>
-      {/* Hide native browser calendar/clock indicator via scoped CSS */}
       <style>{`
         .${cls}::-webkit-calendar-picker-indicator {
           opacity: 0;
@@ -99,7 +119,6 @@ export default function DateTimePicker({
             background: t.bg,
             border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
-            // Right padding: clear(28) + gap(4) + picker-btn(28) + edge(10) = 70, else picker-btn(28)+edge(10) = 38
             padding: value ? '18px 70px 8px 16px' : '18px 46px 8px 16px',
             fontSize: 15, color: textColor, outline: 'none',
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease, color 0.15s ease, padding 0.15s ease',
@@ -127,12 +146,10 @@ export default function DateTimePicker({
           {label}
         </label>
 
-        {/* Right-side button group: [× clear]  [picker icon] */}
         <div style={{
           position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
           display: 'flex', alignItems: 'center', gap: 2,
         }}>
-          {/* Clear × — only visible when there's a value; sits to the LEFT of the picker icon */}
           {value && (
             <button
               type="button"
@@ -148,8 +165,6 @@ export default function DateTimePicker({
               <IcoX s={14} />
             </button>
           )}
-
-          {/* Picker icon — always visible, opens native picker */}
           <button
             type="button"
             onClick={openPicker}
