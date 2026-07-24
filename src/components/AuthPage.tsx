@@ -3,20 +3,21 @@ import { Theme, ThemeName } from '../themes/theme';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { IcoLogIn } from './icons';
 import PasswordInput from './PasswordInput';
-import TextInput from './TextInput';
+import TextInput, {TextInputType} from './TextInput';
 
 interface AuthPageProps {
   t: Theme;
   theme: ThemeName;
   onThemeChange: (theme: ThemeName) => void;
-  onSuccess: (userName: string) => void;
+  onSuccess: (login: string, hashPass: string) => void;
   loading?: boolean;
-  /** Название сайта (по умолчанию 'Nexus') */
   siteName?: string;
-  /** SVG-логотип или любой React-узел (по умолчанию ◈) */
   logoSvg?: React.ReactNode;
-  /** Обработчик клика по логотипу / названию */
   onLogoClick?: () => void;
+  emailLabel?: string;
+  emailType?: TextInputType;
+  authError?: string;
+  onClearAuthError?: () => void;
 }
 
 export function AuthPage({
@@ -28,6 +29,10 @@ export function AuthPage({
   siteName = 'Nexus',
   logoSvg = '◈',
   onLogoClick,
+  emailLabel = 'Email',
+  emailType = 'email',
+  authError,
+  onClearAuthError,
 }: AuthPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,21 +45,29 @@ export function AuthPage({
     requestAnimationFrame(() => setMounted(true));
   }, []);
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (authError && onClearAuthError) onClearAuthError();
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (authError && onClearAuthError) onClearAuthError();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError('');
     setPasswordError('');
+    if (authError && onClearAuthError) onClearAuthError();
 
     let hasError = false;
     if (!email.trim()) {
-      setEmailError('Поле Email обязательно');
+      setEmailError('Поле обязательно');
       hasError = true;
     }
     if (!password.trim()) {
       setPasswordError('Поле Пароль обязательно');
-      hasError = true;
-    } else if (password.length < 4) {
-      setPasswordError('Пароль должен быть не менее 4 символов');
       hasError = true;
     }
     if (hasError) return;
@@ -62,14 +75,12 @@ export function AuthPage({
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      onSuccess(email.split('@')[0]);
+      onSuccess(email, password);
     }, 1100);
   };
 
   const handleLogoClick = () => {
-    if (onLogoClick) {
-      onLogoClick();
-    }
+    if (onLogoClick) onLogoClick();
   };
 
   const orbA = t.accent;
@@ -183,11 +194,11 @@ export function AuthPage({
 
         <form onSubmit={handleSubmit} style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <TextInput
-            label="Email"
+            label={emailLabel}
             theme={t}
             value={email}
-            onChange={setEmail}
-            inputType="email"
+            onChange={handleEmailChange}
+            inputType={emailType}
             error={emailError}
           />
 
@@ -195,10 +206,24 @@ export function AuthPage({
             label="Пароль"
             theme={t}
             value={password}
-            onChange={setPassword}
+            onChange={handlePasswordChange}
             error={passwordError}
-            showStrength
+            showStrength={false}
           />
+
+          {authError && (
+            <div
+              style={{
+                color: t.danger,
+                fontSize: 13,
+                textAlign: 'center',
+                marginTop: -4,
+                marginBottom: 4,
+              }}
+            >
+              {authError}
+            </div>
+          )}
 
           <button
             type="submit"
