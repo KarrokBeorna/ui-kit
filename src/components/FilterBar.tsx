@@ -5,11 +5,12 @@ import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons'
 interface FilterItem {
   component: React.ReactNode;
   row: number;
+  cols?: number;
 }
 
 interface FilterBarProps {
   theme: Theme;
-  /** Список фильтров с указанием строки */
+  /** Список фильтров с указанием строки и количеством колонок */
   filters: FilterItem[];
   /** Количество активных фильтров (для бейджа) */
   activeCount?: number;
@@ -30,6 +31,8 @@ interface FilterBarProps {
   onExport?: () => void;
   /** Текст кнопки экспорта (по умолчанию "Экспорт в Excel") */
   exportLabel?: string;
+  /** Общее количество колонок в сетке (по умолчанию 1) */
+  gridCols?: number;
 }
 
 export function FilterBar({
@@ -45,6 +48,7 @@ export function FilterBar({
   applyOnEnter = false,
   onExport,
   exportLabel = 'Экспорт в Excel',
+  gridCols = 1,
 }: FilterBarProps) {
   const [internalOpen, setInternalOpen] = useState(true);
   const open = externalOpen ?? internalOpen;
@@ -59,7 +63,6 @@ export function FilterBar({
     if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight);
   }, [filters, open]);
 
-  // Обработчик Enter внутри фильтров
   useEffect(() => {
     if (!applyOnEnter || !onApply) return;
 
@@ -82,11 +85,10 @@ export function FilterBar({
     }
   }, [applyOnEnter, onApply, bodyRef.current]);
 
-  // Группировка фильтров по строкам
-  const rows: Record<number, React.ReactNode[]> = {};
-  filters.forEach(({ component, row }) => {
+  const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
+  filters.forEach(({ component, row, cols = 1 }) => {
     if (!rows[row]) rows[row] = [];
-    rows[row].push(component);
+    rows[row].push({ component, cols });
   });
   const sortedRows = Object.keys(rows).sort((a, b) => Number(a) - Number(b));
 
@@ -126,18 +128,33 @@ export function FilterBar({
       {/* Collapsible body */}
       <div ref={bodyRef} style={{ maxHeight: open ? bodyH || 600 : 0, overflow: 'hidden', transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)' }}>
         <div style={{ padding: '16px 18px 0', borderTop: `1px solid ${t.borderSubtle}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {sortedRows.map((rowKey) => (
-            <div key={rowKey} style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-              {rows[Number(rowKey)].map((comp, idx) => (
-                <div key={idx} style={{ flex: '1 1 160px', minWidth: 120 }}>
-                  {comp}
-                </div>
-              ))}
-            </div>
-          ))}
+          {sortedRows.map((rowKey) => {
+            const items = rows[Number(rowKey)];
+            return (
+              <div
+                key={rowKey}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+                  gap: '14px',
+                }}
+              >
+                {items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      gridColumn: `span ${Math.min(item.cols, gridCols)}`,
+                      minWidth: 0, // чтобы контент не вылезал
+                    }}
+                  >
+                    {item.component}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {/* Кнопка "Применить" */}
             {onApply && !instantApply && (
               <button
                 onClick={onApply}
@@ -161,7 +178,6 @@ export function FilterBar({
               </button>
             )}
 
-            {/* Кнопка "Экспорт в Excel" – справа от "Применить" */}
             {onExport && (
               <button
                 onClick={onExport}
@@ -184,7 +200,6 @@ export function FilterBar({
               </button>
             )}
 
-            {/* Кнопка "Сбросить" */}
             {onReset && (
               <button
                 onClick={(e) => { e.stopPropagation(); onReset(); }}
