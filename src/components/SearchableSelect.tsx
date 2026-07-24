@@ -1,3 +1,4 @@
+// SearchableSelect.tsx
 import React, { useState, useId, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import type { Theme } from '../themes/theme';
@@ -39,35 +40,6 @@ export default function SearchableSelect({
   useEffect(() => {
     queryRef.current = query;
   }, [query]);
-
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-
-    const handleInput = () => {
-      const newVal = input.value;
-      if (newVal !== queryRef.current) {
-        setQuery(newVal);
-      }
-    };
-
-    if (input.value !== queryRef.current) {
-      setQuery(input.value);
-    }
-
-    input.addEventListener('input', handleInput);
-    return () => input.removeEventListener('input', handleInput);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const input = inputRef.current;
-      if (input && input.value !== queryRef.current) {
-        setQuery(input.value);
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -183,6 +155,7 @@ export default function SearchableSelect({
             boxShadow: open ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
           }}
+          autoComplete="off"
         />
         <label
           htmlFor={id}

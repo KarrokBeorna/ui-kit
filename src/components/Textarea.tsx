@@ -1,4 +1,4 @@
-import { useState, useId, useRef, useEffect } from 'react';
+import {useState, useId, useEffect, useRef} from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
 
@@ -24,42 +24,12 @@ export default function Textarea({
     valueRef.current = value;
   }, [value]);
 
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const handleInput = () => {
-      const newVal = textarea.value;
-      if (newVal !== valueRef.current) {
-        onChange(newVal);
-      }
-    };
-
-    if (textarea.value !== valueRef.current) {
-      onChange(textarea.value);
-    }
-
-    textarea.addEventListener('input', handleInput);
-    return () => textarea.removeEventListener('input', handleInput);
-  }, [onChange]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const input = textareaRef.current;
-      if (input && input.value !== valueRef.current) {
-        onChange(input.value);
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [onChange]);
-
   const floated = focused || value.length > 0;
 
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <textarea
-          ref={textareaRef}
           id={id}
           value={value}
           onFocus={() => setFocused(true)}
@@ -81,6 +51,7 @@ export default function Textarea({
             fontFamily: 'inherit', lineHeight: 1.6,
             minHeight: 80,
           }}
+          autoComplete="off"
         />
         <label
           htmlFor={id}

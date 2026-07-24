@@ -55,35 +55,6 @@ export default function DateTimePicker({
     valueRef.current = value
   }, [value])
 
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) return
-
-    const handleInput = () => {
-      const newVal = input.value
-      if (newVal !== valueRef.current) {
-        onChange(newVal)
-      }
-    }
-
-    if (input.value !== valueRef.current) {
-      onChange(input.value)
-    }
-
-    input.addEventListener('input', handleInput)
-    return () => input.removeEventListener('input', handleInput)
-  }, [onChange])
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const input = inputRef.current;
-      if (input && input.value !== valueRef.current) {
-        onChange(input.value);
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [onChange]);
-
   const type = enableDate && enableTime ? 'datetime-local' : enableDate ? 'date' : 'time'
   const floated = focused || value.length > 0
   const textColor = !focused && !value ? 'transparent' : t.text
@@ -136,6 +107,7 @@ export default function DateTimePicker({
             fontFamily: 'inherit',
             colorScheme: t.bg.startsWith('#0') || t.bg.startsWith('#1') ? 'dark' : 'light',
           }}
+          autoComplete="off"
         />
 
         <label

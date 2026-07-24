@@ -1,4 +1,4 @@
-import { useState, useId, useRef, useEffect } from 'react';
+import { useState, useId } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoEye, IcoX } from './icons';
 
@@ -52,54 +52,17 @@ export default function PasswordInput({
   value,
   onChange,
   error,
-  showStrength = true,
+  showStrength = false,
 }: PasswordInputProps) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   const id = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const valueRef = useRef(value);
-
-  useEffect(() => {
-    valueRef.current = value;
-  }, [value]);
-
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-
-    const handleInput = () => {
-      const newValue = input.value;
-      if (newValue !== valueRef.current) {
-        onChange(newValue);
-      }
-    };
-
-    if (input.value !== valueRef.current) {
-      onChange(input.value);
-    }
-
-    input.addEventListener('input', handleInput);
-    return () => input.removeEventListener('input', handleInput);
-  }, [onChange]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const input = inputRef.current;
-      if (input && input.value !== valueRef.current) {
-        onChange(input.value);
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [onChange]);
-
   const floated = focused || value.length > 0;
 
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input
-          ref={inputRef}
           id={id}
           type={visible ? 'text' : 'password'}
           value={value}
@@ -119,6 +82,7 @@ export default function PasswordInput({
             fontFamily: 'inherit',
             letterSpacing: visible ? 'normal' : value ? '2px' : 'normal',
           }}
+          autoComplete="new-password"
         />
         <label
           htmlFor={id}

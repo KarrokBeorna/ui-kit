@@ -45,35 +45,6 @@ export default function MultiSelect({
   }, [query]);
 
   useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-
-    const handleInput = () => {
-      const newVal = input.value;
-      if (newVal !== queryRef.current) {
-        setQuery(newVal);
-      }
-    };
-
-    if (input.value !== queryRef.current) {
-      setQuery(input.value);
-    }
-
-    input.addEventListener('input', handleInput);
-    return () => input.removeEventListener('input', handleInput);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const input = inputRef.current;
-      if (input && input.value !== queryRef.current) {
-        setQuery(input.value);
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false); setQuery(''); setFocused(false);
@@ -232,6 +203,7 @@ export default function MultiSelect({
             boxShadow: open ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
           }}
+          autoComplete="off"
         />
         <label
           htmlFor={id}

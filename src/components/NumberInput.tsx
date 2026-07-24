@@ -1,4 +1,4 @@
-import { useState, useId, useRef, useEffect } from 'react';
+import {useState, useId, useEffect, useRef} from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX, IcoArrowUp, IcoArrowDown } from './icons';
 
@@ -27,35 +27,6 @@ export default function NumberInput({
     valueRef.current = value;
   }, [value]);
 
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-
-    const handleInput = () => {
-      const newVal = input.value;
-      if (newVal !== valueRef.current) {
-        onChange(newVal);
-      }
-    };
-
-    if (input.value !== valueRef.current) {
-      onChange(input.value);
-    }
-
-    input.addEventListener('input', handleInput);
-    return () => input.removeEventListener('input', handleInput);
-  }, [onChange]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const input = inputRef.current;
-      if (input && input.value !== valueRef.current) {
-        onChange(input.value);
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [onChange]);
-
   const floated = focused || value.length > 0;
 
   const handleChange = (raw: string) => {
@@ -77,7 +48,6 @@ export default function NumberInput({
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input
-          ref={inputRef}
           id={id}
           inputMode={allowDecimal ? 'decimal' : 'numeric'}
           value={value}
@@ -96,6 +66,7 @@ export default function NumberInput({
             boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
           }}
+          autoComplete="off"
         />
         <label
           htmlFor={id}
