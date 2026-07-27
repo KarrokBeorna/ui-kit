@@ -6,6 +6,7 @@ export interface Theme {
 
   // Основные
   bg: string; // фон страниц
+  selectedBg: string;
   bgSurface: string; // фон блоков 1-го уровня - авторизация, заголовок, фильтры, пагинация, Theme Switcher
   bgSubmit: string; // фон кнопки авторизации после попытки входа во время загрузки
   text: string; // цвет текста
@@ -47,6 +48,7 @@ export const themes: Record<ThemeName, Theme> = {
     name: 'dark',
     label: 'Тёмная',
     bg: '#0d0f14',
+    selectedBg: 'rgba(108,138,255,0.15)',
     bgSurface: '#13161f',
     text: '#e8eaf0',
     textMuted: '#8b8fa8',
@@ -79,6 +81,7 @@ export const themes: Record<ThemeName, Theme> = {
     name: 'light',
     label: 'Светлая',
     bg: '#f4f5f7',
+    selectedBg: 'rgba(67,97,238,0.12)',
     bgSurface: '#ffffff',
     text: '#1a1c24',
     textMuted: '#6b6f80',
@@ -111,6 +114,7 @@ export const themes: Record<ThemeName, Theme> = {
     name: 'vibrant',
     label: 'Яркая',
     bg: '#0a0010',
+    selectedBg: 'rgba(200,75,255,0.2)',
     bgSurface: '#120018',
     text: '#f0e8ff',
     textMuted: '#a882cc',
@@ -143,6 +147,7 @@ export const themes: Record<ThemeName, Theme> = {
     name: 'ocean',
     label: 'Океан',
     bg: '#020b18',
+    selectedBg: 'rgba(0,200,255,0.15)',
     bgSurface: '#05152a',
     text: '#d6eeff',
     textMuted: '#6a9bcc',
