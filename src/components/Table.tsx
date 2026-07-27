@@ -98,9 +98,11 @@ export default function Table<T extends Record<string, any>>({
                     fontWeight: 600,
                     color: t.text,
                     whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: 300,
+                    minWidth: col.width ? `${col.width}px` : 'auto',
                     cursor: col.sortable ? 'pointer' : 'default',
-                    width: col.width ? `${col.width}px` : 'auto',
-                    minWidth: col.width ? `${col.width}px` : '120px',
                     transition: 'background 0.15s',
                     ...col.headerStyle,
                   }}
@@ -148,6 +150,10 @@ export default function Table<T extends Record<string, any>>({
                       padding: '10px 14px',
                       color: t.text,
                       borderBottom: `1px solid ${t.borderSubtle}`,
+                      maxWidth: 300,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                       ...col.style,
                     }}
                   >
