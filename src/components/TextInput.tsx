@@ -33,11 +33,12 @@ interface TextInputProps {
   inputType?: TextInputType;
   onTypeChange?: (t: TextInputType) => void;
   error?: string;
+  autoFocus?: boolean;
 }
 
 export default function TextInput({
   label, theme: t, value, onChange,
-  inputType = 'text', onTypeChange, error: externalError,
+  inputType = 'text', onTypeChange, error: externalError, autoFocus = false,
 }: TextInputProps) {
   const [focused, setFocused] = useState(false)
   const [touched, setTouched] = useState(false)
@@ -68,6 +69,7 @@ export default function TextInput({
           onBlur={handleBlur}
           onChange={e => handleChange(e.target.value)}
           placeholder=""
+          autoFocus={autoFocus}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
