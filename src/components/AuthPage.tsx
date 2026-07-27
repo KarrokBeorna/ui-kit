@@ -55,7 +55,7 @@ export function AuthPage({
     if (authError && onClearAuthError) onClearAuthError();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError('');
     setPasswordError('');
@@ -73,10 +73,12 @@ export function AuthPage({
     if (hasError) return;
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await onSuccess(email, password);
+    } catch (err) {
+    } finally {
       setLoading(false);
-      onSuccess(email, password);
-    }, 1100);
+    }
   };
 
   const handleLogoClick = () => {
