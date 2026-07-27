@@ -79,7 +79,7 @@ export default function Table<T extends Record<string, any>>({
   }
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto', border: `1px solid ${t.border}`, borderRadius: 10 }}>
+    <div style={{ width: '100%', overflowX: 'auto', border: `1px solid ${t.border}`, borderRadius: 10, background: t.bgSurface }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 600, tableLayout: 'fixed' }}>
         <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
           <tr>
