@@ -41,18 +41,24 @@ export default function Modal({
   canSubmit = true,
 }: ModalProps) {
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+      if (e.key === 'Enter' && canSubmit) {
+        e.preventDefault();
+        onOk();
+      }
     };
     if (isOpen) {
-      document.addEventListener('keydown', handleEsc);
+      document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     }
     return () => {
-      document.removeEventListener('keydown', handleEsc);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, onOk, canSubmit]);
 
   if (!isOpen) return null;
 
