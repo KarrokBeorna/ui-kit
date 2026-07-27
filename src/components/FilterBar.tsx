@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons';
+import { Button } from './Button';
 
 interface FilterItem {
   component: React.ReactNode;
@@ -86,7 +87,7 @@ export function FilterBar({
   }, [applyOnEnter, onApply, bodyRef.current]);
 
   const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
-  filters.forEach(({ component, row, cols = 1 }) => {
+  filters.forEach(({ component, row, cols = gridCols }) => {
     if (!rows[row]) rows[row] = [];
     rows[row].push({ component, cols });
   });
@@ -99,6 +100,7 @@ export function FilterBar({
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', userSelect: 'none', gap: 12 }}
         onClick={() => setOpen(!open)}
       >
+        {/* ... иконка фильтра и бейдж ... */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: t.accent, display: 'flex' }}><IcoFilter /></span>
           <span style={{ fontFamily: 'system-ui', fontWeight: 600, fontSize: 14, color: t.text }}>Фильтры</span>
@@ -117,9 +119,16 @@ export function FilterBar({
             </div>
           )}
           {activeCount > 0 && onReset && (
-            <button onClick={(e) => { e.stopPropagation(); onReset(); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: `1px solid ${t.border}`, background: 'transparent', color: t.danger, fontSize: 12, fontFamily: 'system-ui', fontWeight: 500, cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = `${t.danger}15`} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <IcoX s={10} /> Сбросить
-            </button>
+            <Button
+              icon={<IcoX s={10} />}
+              variant="danger"
+              outline
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onReset(); }}
+              theme={t}
+            >
+              Сбросить
+            </Button>
           )}
           <span style={{ color: t.textMuted, display: 'flex' }}><IcoChevronDown open={open} /></span>
         </div>
@@ -144,7 +153,7 @@ export function FilterBar({
                     key={idx}
                     style={{
                       gridColumn: `span ${Math.min(item.cols, gridCols)}`,
-                      minWidth: 0, // чтобы контент не вылезал
+                      minWidth: 0,
                     }}
                   >
                     {item.component}
@@ -156,70 +165,41 @@ export function FilterBar({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {onApply && !instantApply && (
-              <button
+              <Button
+                icon={<IcoSearch s={12} />}
+                variant="primary"
+                size="md"
                 onClick={onApply}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: t.accent,
-                  color: t.accentText,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: 'system-ui',
-                  cursor: 'pointer',
-                  transition: 'opacity 0.15s',
-                  boxShadow: `0 2px 14px ${t.accentGlow}`
-                }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                theme={t}
               >
-                <IcoSearch s={12} /> Применить
-              </button>
+                Применить
+              </Button>
             )}
 
             {onExport && (
-              <button
+              <Button
+                icon={<ExportIcon s={12} />}
+                variant="primary"
+                outline
+                size="md"
                 onClick={onExport}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: 8,
-                  border: `1px solid ${t.border}`,
-                  background: 'transparent',
-                  color: t.accent,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: 'system-ui',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = `${t.accent}15`}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                theme={t}
               >
-                <ExportIcon s={12} /> {exportLabel}
-              </button>
+                {exportLabel}
+              </Button>
             )}
 
             {onReset && (
-              <button
+              <Button
+                icon={<IcoX s={12} />}
+                variant="danger"
+                outline
+                size="md"
                 onClick={(e) => { e.stopPropagation(); onReset(); }}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: 8,
-                  border: `1px solid ${t.border}`,
-                  background: 'transparent',
-                  color: t.danger,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: 'system-ui',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = `${t.danger}15`}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                theme={t}
               >
-                <IcoX s={10} /> Сбросить
-              </button>
+                Сбросить
+              </Button>
             )}
           </div>
         </div>

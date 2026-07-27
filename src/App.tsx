@@ -53,8 +53,8 @@ function App() {
   ]
 
   const filterItems = [
-    { component: <TextInput label="Поиск" theme={t} value={text} onChange={setText} />, row: 1 },
-    { component: <SearchableSelect label="Статус" theme={t} options={[{ value: 'active', label: 'Активен' }, { value: 'pending', label: 'Ожидает' }]} value={selectVal} onChange={setSelectVal} />, row: 1 },
+    { component: <TextInput label="Поиск" theme={t} value={text} onChange={setText} />, row: 1, cols: 1 },
+    { component: <SearchableSelect label="Статус" theme={t} options={[{ value: 'active', label: 'Активен' }, { value: 'pending', label: 'Ожидает' }]} value={selectVal} onChange={setSelectVal} />, row: 1, cols: 2 },
     { component: <NumberInput label="Количество" theme={t} value={numberVal} onChange={setNumberVal} />, row: 2 },
   ]
 
@@ -146,6 +146,7 @@ function App() {
               setNumberVal('')
             }}
             onExport={() => {}}
+            gridCols={3}
           />
         </section>
 
