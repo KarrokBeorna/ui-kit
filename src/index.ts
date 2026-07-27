@@ -20,6 +20,7 @@ export type { LayoutMode } from './components/LayoutToggle';
 export { default as Table } from './components/Table';
 export { default as Modal } from './components/Modal';
 export { default as Badge } from './components/Badge';
+export { default as Button } from './components/Button';
 
 export * from './components/icons';
 

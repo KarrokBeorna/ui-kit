@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons';
-import { Button } from './Button';
+import Button from './Button';
 
 interface FilterItem {
   component: React.ReactNode;

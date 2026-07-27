@@ -3,8 +3,8 @@ import {Theme} from '../themes/theme';
 
 interface ButtonProps {
   icon?: React.ReactNode;
-  children?: string;              // текст кнопки
-  variant: 'primary' | 'danger';  // пока только два варианта
+  children?: string;
+  variant: 'primary' | 'danger';
   outline?: boolean;
   size?: 'sm' | 'md';
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -15,7 +15,7 @@ interface ButtonProps {
   style?: React.CSSProperties;
 }
 
-export const Button: React.FC<ButtonProps> = ({
+export default function Button({
   icon,
   children,
   variant = 'primary',
@@ -27,7 +27,7 @@ export const Button: React.FC<ButtonProps> = ({
   type = 'button',
   className = '',
   style = {},
-}) => {
+}: ButtonProps) {
   const isPrimary = variant === 'primary';
   const isDanger = variant === 'danger';
 
