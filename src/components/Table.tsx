@@ -85,6 +85,9 @@ export default function Table<T extends Record<string, any>>({
     });
   }
 
+  const isStickyRight = (key: string) => stickyRight.includes(key);
+
+  // Базовый стиль ячейки (без sticky)
   const cellBaseStyle: React.CSSProperties = {
     padding: '10px 14px',
     whiteSpace: 'nowrap',
@@ -98,30 +101,30 @@ export default function Table<T extends Record<string, any>>({
     background: t.bgSurface,
   };
 
+  // Стиль для закреплённых справа ячеек (и th, и td)
+  const getStickyStyle = (key: string, isHeader: boolean = false): React.CSSProperties => {
+    if (!isStickyRight(key)) return {};
+    return {
+      position: 'sticky',
+      right: 0,
+      zIndex: isHeader ? 4 : 3,
+      background: t.bgSurface,
+      borderLeft: `2px solid ${t.border}`,
+      boxShadow: '-2px 0 8px rgba(0,0,0,0.08)',
+    };
+  };
+
+  // Стиль для заголовка (обычный)
   const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle,
     borderBottom: `2px solid ${t.border}`,
-    background: t.bgSurface,
     fontWeight: 600,
     cursor: 'default',
     transition: 'background 0.15s',
     position: 'sticky',
     top: 0,
-    zIndex: 3,
-  };
-
-  const isStickyRight = (key: string) => stickyRight.includes(key);
-
-  const getStickyStyle = (key: string): React.CSSProperties => {
-    if (!isStickyRight(key)) return {};
-    return {
-      position: 'sticky',
-      right: 0,
-      zIndex: 2,
-      background: t.bgSurface,
-      borderLeft: `2px solid ${t.border}`,
-      boxShadow: '-2px 0 8px rgba(0,0,0,0.1)',
-    };
+    zIndex: 2,
+    background: t.bgSurface,
   };
 
   const containerStyle: React.CSSProperties = {
@@ -129,7 +132,7 @@ export default function Table<T extends Record<string, any>>({
     overflow: fixedHeader ? 'auto' : 'visible',
     height: fixedHeader ? height : 'auto',
     border: `1px solid ${t.border}`,
-    borderRadius: 10,
+    borderRadius: 8,
     background: t.bgSurface,
   };
 
@@ -140,7 +143,6 @@ export default function Table<T extends Record<string, any>>({
           style={{
             position: fixedHeader ? 'sticky' : 'static',
             top: 0,
-            zIndex: 5,
             background: t.bgSurface,
             boxShadow: `0 2px 0 ${t.border}`,
           }}>
@@ -155,7 +157,7 @@ export default function Table<T extends Record<string, any>>({
                   key={col.key}
                   style={{
                     ...headerCellStyle,
-                    ...getStickyStyle(col.key),
+                    ...getStickyStyle(col.key, true),
                     cursor: col.sortable ? 'pointer' : 'default',
                     ...col.headerStyle,
                   }}
@@ -210,7 +212,7 @@ export default function Table<T extends Record<string, any>>({
                       key={col.key}
                       style={{
                         ...cellBaseStyle,
-                        ...getStickyStyle(col.key),
+                        ...getStickyStyle(col.key, false),
                         ...col.style,
                       }}
                     >
