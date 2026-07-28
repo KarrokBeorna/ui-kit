@@ -1,9 +1,9 @@
-// MultiSelect.tsx
 import React, { useState, useId, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import type { Theme } from '../themes/theme';
 import type { SelectOption } from './SearchableSelect';
 import { IcoChevronDown, IcoX, IcoCheck } from './icons';
+import { useDropdownPosition } from '../hooks/useDropdownPosition';
 
 interface MultiSelectProps {
   label: string;
@@ -32,7 +32,7 @@ export default function MultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const dropdownStyle = useDropdownPosition(open, inputRef);
 
   const floated = focused || open || value.length > 0;
   const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
@@ -61,19 +61,6 @@ export default function MultiSelect({
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, []);
-
-  useEffect(() => {
-    if (open && inputRef.current) {
-      const rect = inputRef.current.getBoundingClientRect();
-      setDropdownStyle({
-        position: 'fixed',
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        zIndex: 9999,
-      });
-    }
-  }, [open]);
 
   const handleOpen = () => {
     setOpen(true); setFocused(true);
