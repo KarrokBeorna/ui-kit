@@ -19,7 +19,6 @@ interface TableProps<T extends Record<string, any>> {
   initialSort?: { key: string; direction: 'asc' | 'desc' }[];
   fixedHeader?: boolean;
   height?: string | number;
-  /** Максимальная ширина ячейки (по умолчанию 300px) */
   columnMaxWidth?: number;
 }
 
@@ -93,6 +92,7 @@ export default function Table<T extends Record<string, any>>({
     borderBottom: `1px solid ${t.borderSubtle}`,
     color: t.text,
     textAlign: 'left',
+    background: t.bgSurface,
   };
 
   const headerCellStyle: React.CSSProperties = {
@@ -108,19 +108,25 @@ export default function Table<T extends Record<string, any>>({
     width: '100%',
     overflow: fixedHeader ? 'auto' : 'visible',
     height: fixedHeader ? height : 'auto',
+    border: `1px solid ${t.border}`,
+    borderRadius: 10,
+    background: t.bgSurface,
+  };
+
+  // Для стилизации заголовка с закруглением верхних углов
+  const theadStyle: React.CSSProperties = {
+    position: fixedHeader ? 'sticky' : 'static',
+    top: 0,
+    zIndex: 1,
+    background: t.bgSurface,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
   };
 
   return (
     <div style={containerStyle}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
-        <thead
-          style={{
-            position: fixedHeader ? 'sticky' : 'static',
-            top: 0,
-            zIndex: 1,
-            background: t.bgSurface,
-          }}
-        >
+        <thead style={theadStyle}>
           <tr>
             {columns.map((col) => {
               const sortIndex = sortState.findIndex(s => s.key === col.key);
@@ -162,7 +168,7 @@ export default function Table<T extends Record<string, any>>({
         <tbody>
           {sortedData.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} style={{ padding: 30, textAlign: 'center', color: t.placeholder }}>
+              <td colSpan={columns.length} style={{ padding: 30, textAlign: 'center', color: t.placeholder, background: t.bgSurface }}>
                 Нет данных
               </td>
             </tr>
@@ -201,6 +207,17 @@ export default function Table<T extends Record<string, any>>({
         @keyframes fadeInRow {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+        /* Дополнительно: чтобы последняя строка не имела нижней границы (опционально) */
+        tbody tr:last-child td {
+          border-bottom: none;
+        }
+        /* Для скругления нижних углов у последней строки (если нужно) */
+        tbody tr:last-child td:first-child {
+          border-bottom-left-radius: 10px;
+        }
+        tbody tr:last-child td:last-child {
+          border-bottom-right-radius: 10px;
         }
       `}</style>
     </div>
