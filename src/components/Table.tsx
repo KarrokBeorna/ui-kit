@@ -17,6 +17,10 @@ interface TableProps<T extends Record<string, any>> {
   rowKey?: string;
   onSort?: (sorted: { key: string; direction: 'asc' | 'desc' }[]) => void;
   initialSort?: { key: string; direction: 'asc' | 'desc' }[];
+  fixedHeader?: boolean;
+  height?: string | number;
+  /** Максимальная ширина ячейки (по умолчанию 300px) */
+  columnMaxWidth?: number;
 }
 
 export default function Table<T extends Record<string, any>>({
@@ -26,6 +30,9 @@ export default function Table<T extends Record<string, any>>({
   rowKey = 'id',
   onSort,
   initialSort = [],
+  fixedHeader = false,
+  height = '400px',
+  columnMaxWidth = 300,
 }: TableProps<T>) {
   const [sortState, setSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
 
@@ -63,7 +70,6 @@ export default function Table<T extends Record<string, any>>({
     if (onSort) onSort(newState);
   };
 
-  // Сортировка данных
   const sortedData = [...data];
   if (sortState.length > 0) {
     sortedData.sort((a, b) => {
@@ -78,121 +84,119 @@ export default function Table<T extends Record<string, any>>({
     });
   }
 
-  // Шаблон колонок: каждая колонка подстраивается под содержимое, но не шире 300px
-  const gridTemplateColumns = columns.map(() => 'minmax(min-content, 300px)').join(' ');
-
-  // Базовый стиль для всех ячеек (заголовки и данные)
   const cellBaseStyle: React.CSSProperties = {
     padding: '10px 14px',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
+    maxWidth: columnMaxWidth,
     borderBottom: `1px solid ${t.borderSubtle}`,
     color: t.text,
+    textAlign: 'left',
+  };
+
+  const headerCellStyle: React.CSSProperties = {
+    ...cellBaseStyle,
+    background: t.bgSurface,
+    borderBottom: `2px solid ${t.border}`,
+    fontWeight: 600,
+    cursor: 'default',
+    transition: 'background 0.15s',
+  };
+
+  const containerStyle: React.CSSProperties = {
+    width: '100%',
+    overflow: fixedHeader ? 'auto' : 'visible',
+    height: fixedHeader ? height : 'auto',
   };
 
   return (
-    <div
-      style={{
-        width: '100%',
-        overflowX: 'auto',
-        border: `1px solid ${t.border}`,
-        borderRadius: 10,
-        background: t.bgSurface,
-      }}
-    >
-      {/* Внутренний контейнер — inline-grid, чтобы не растягиваться на 100% */}
-      <div
-        style={{
-          display: 'inline-grid',
-          gridTemplateColumns,
-          fontSize: 14,
-          minWidth: 600,
-        }}
-      >
-        {/* Заголовки (строка 1) */}
-        {columns.map((col, colIndex) => {
-          const sortIndex = sortState.findIndex(s => s.key === col.key);
-          const isSorted = sortIndex !== -1;
-          const direction = isSorted ? sortState[sortIndex].direction : undefined;
-
-          return (
-            <div
-              key={col.key}
-              style={{
-                ...cellBaseStyle,
-                gridRow: 1,
-                gridColumn: colIndex + 1,
-                background: t.bgSurface,
-                borderBottom: `2px solid ${t.border}`,
-                fontWeight: 600,
-                cursor: col.sortable ? 'pointer' : 'default',
-                transition: 'background 0.15s',
-                ...col.headerStyle,
-              }}
-              onClick={(e) => col.sortable && handleHeaderClick(col.key, e)}
-              onMouseEnter={(e) => {
-                if (col.sortable) e.currentTarget.style.background = t.navHoverBg;
-              }}
-              onMouseLeave={(e) => {
-                if (col.sortable) e.currentTarget.style.background = t.bgSurface;
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {col.header}
-                {col.sortable && isSorted && (
-                  <span style={{ fontSize: 12, color: t.accent }}>
-                    {direction === 'asc' ? ' ↑' : ' ↓'}
-                  </span>
-                )}
-                {col.sortable && !isSorted && (
-                  <span style={{ fontSize: 10, color: t.placeholder }}>⇅</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Данные (строки 2 и далее) */}
-        {sortedData.length === 0 ? (
-          <div
-            style={{
-              gridRow: 2,
-              gridColumn: `1 / ${columns.length + 1}`,
-              padding: 30,
-              textAlign: 'center',
-              color: t.placeholder,
-            }}
-          >
-            Нет данных
-          </div>
-        ) : (
-          sortedData.map((row, rowIndex) =>
-            columns.map((col, colIndex) => {
-              const cellContent = col.render
-                ? col.render((row as any)[col.key], row)
-                : (row as any)[col.key];
+    <div style={containerStyle}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
+        <thead
+          style={{
+            position: fixedHeader ? 'sticky' : 'static',
+            top: 0,
+            zIndex: 1,
+            background: t.bgSurface,
+          }}
+        >
+          <tr>
+            {columns.map((col) => {
+              const sortIndex = sortState.findIndex(s => s.key === col.key);
+              const isSorted = sortIndex !== -1;
+              const direction = isSorted ? sortState[sortIndex].direction : undefined;
 
               return (
-                <div
-                  key={`${row[rowKey]}-${col.key}`}
+                <th
+                  key={col.key}
                   style={{
-                    ...cellBaseStyle,
-                    gridRow: rowIndex + 2,
-                    gridColumn: colIndex + 1,
-                    animation: 'fadeInRow 0.25s ease forwards',
-                    animationDelay: `${rowIndex * 30}ms`,
-                    ...col.style,
+                    ...headerCellStyle,
+                    cursor: col.sortable ? 'pointer' : 'default',
+                    ...col.headerStyle,
+                  }}
+                  onClick={(e) => col.sortable && handleHeaderClick(col.key, e)}
+                  onMouseEnter={(e) => {
+                    if (col.sortable) e.currentTarget.style.background = t.navHoverBg;
+                  }}
+                  onMouseLeave={(e) => {
+                    if (col.sortable) e.currentTarget.style.background = t.bgSurface;
                   }}
                 >
-                  {cellContent}
-                </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {col.header}
+                    {col.sortable && isSorted && (
+                      <span style={{ fontSize: 12, color: t.accent }}>
+                        {direction === 'asc' ? ' ↑' : ' ↓'}
+                      </span>
+                    )}
+                    {col.sortable && !isSorted && (
+                      <span style={{ fontSize: 10, color: t.placeholder }}>⇅</span>
+                    )}
+                  </div>
+                </th>
               );
-            })
-          )
-        )}
-      </div>
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {sortedData.length === 0 ? (
+            <tr>
+              <td colSpan={columns.length} style={{ padding: 30, textAlign: 'center', color: t.placeholder }}>
+                Нет данных
+              </td>
+            </tr>
+          ) : (
+            sortedData.map((row, rowIndex) => (
+              <tr
+                key={row[rowKey]}
+                style={{
+                  animation: 'fadeInRow 0.25s ease forwards',
+                  animationDelay: `${rowIndex * 30}ms`,
+                }}
+              >
+                {columns.map((col) => {
+                  const cellContent = col.render
+                    ? col.render((row as any)[col.key], row)
+                    : (row as any)[col.key];
 
+                  return (
+                    <td
+                      key={col.key}
+                      style={{
+                        ...cellBaseStyle,
+                        ...col.style,
+                      }}
+                    >
+                      {cellContent}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
       <style>{`
         @keyframes fadeInRow {
           from { opacity: 0; }
