@@ -78,10 +78,10 @@ export default function Table<T extends Record<string, any>>({
     });
   }
 
-  // Формируем шаблон колонок для Grid: каждая колонка — minmax(auto, 300px)
-  const gridTemplateColumns = columns.map(() => 'minmax(auto, 300px)').join(' ');
+  // Шаблон колонок: каждая колонка подстраивается под содержимое, но не шире 300px
+  const gridTemplateColumns = columns.map(() => 'minmax(min-content, 300px)').join(' ');
 
-  // Общий стиль для всех ячеек (заголовки и данные)
+  // Базовый стиль для всех ячеек (заголовки и данные)
   const cellBaseStyle: React.CSSProperties = {
     padding: '10px 14px',
     whiteSpace: 'nowrap',
@@ -101,9 +101,10 @@ export default function Table<T extends Record<string, any>>({
         background: t.bgSurface,
       }}
     >
+      {/* Внутренний контейнер — inline-grid, чтобы не растягиваться на 100% */}
       <div
         style={{
-          display: 'grid',
+          display: 'inline-grid',
           gridTemplateColumns,
           fontSize: 14,
           minWidth: 600,
