@@ -8,11 +8,11 @@ interface SingleProps {
   onChange: (v: number) => void
 }
 
-// ─── Range mode ──────────────────────────────────────────────────────────────
+// ─── Range mode (with optional null bounds) ────────────────────────────────
 interface RangeProps {
   range: true
-  value: [number, number]
-  onChange: (v: [number, number]) => void
+  value: [number | null, number | null]
+  onChange: (v: [number | null, number | null]) => void
 }
 
 type RangeSliderProps = (SingleProps | RangeProps) & {
@@ -21,7 +21,7 @@ type RangeSliderProps = (SingleProps | RangeProps) & {
   min?: number
   max?: number
   step?: number
-  formatValue?: (v: number) => string
+  formatValue?: (v: number | null) => string
   parseValue?: (s: string) => number | null
 }
 
@@ -39,11 +39,16 @@ function pct(v: number, min: number, max: number) {
 
 // ─── Mini number input for manual entry ──────────────────────────────────────
 function ManualInput({
-  value, onCommit, format, parse, t, label,
+  value,
+  onCommit,
+  format,
+  parse,
+  t,
+  label,
 }: {
-  value: number
-  onCommit: (v: number) => void
-  format: (v: number) => string
+  value: number | null
+  onCommit: (v: number | null) => void
+  format: (v: number | null) => string
   parse: (s: string) => number | null
   t: Theme
   label?: string
@@ -51,33 +56,55 @@ function ManualInput({
   const [editing, setEditing] = useState(false)
   const [raw, setRaw] = useState('')
 
-  const startEdit = () => { setEditing(true); setRaw(String(value)) }
+  const startEdit = () => {
+    setEditing(true)
+    setRaw(value !== null ? String(value) : '')
+  }
+
   const commit = () => {
     setEditing(false)
-    const n = parse(raw)
+    const trimmed = raw.trim()
+    if (trimmed === '') {
+      onCommit(null)
+      return
+    }
+    const n = parse(trimmed)
     if (n !== null) onCommit(n)
+    // if parse fails, keep previous value (no change)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 72 }}>
-      {label && <span style={{ fontSize: 10, color: t.placeholder, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>}
+      {label && (
+        <span style={{ fontSize: 10, color: t.placeholder, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {label}
+        </span>
+      )}
       <input
         type="text"
         value={editing ? raw : format(value)}
         onFocus={startEdit}
-        onChange={e => setRaw(e.target.value)}
+        onChange={(e) => setRaw(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit() }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+        }}
         style={{
-          width: '100%', boxSizing: 'border-box',
+          width: '100%',
+          boxSizing: 'border-box',
           background: t.bg,
           border: `1.5px solid ${editing ? t.borderFocus : t.border}`,
-          borderRadius: 8, padding: '6px 10px',
-          fontSize: 13, fontWeight: 600,
-          color: t.accent, outline: 'none', textAlign: 'center',
+          borderRadius: 8,
+          padding: '6px 10px',
+          fontSize: 13,
+          fontWeight: 600,
+          color: t.accent,
+          outline: 'none',
+          textAlign: 'center',
           transition: 'border-color 0.2s, box-shadow 0.2s',
           boxShadow: editing ? `0 0 0 3px ${t.borderFocus}22` : 'none',
-          fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums',
+          fontFamily: 'inherit',
+          fontVariantNumeric: 'tabular-nums',
         }}
       />
     </div>
@@ -87,8 +114,12 @@ function ManualInput({
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function RangeSlider(props: RangeSliderProps) {
   const {
-    label, theme: t, min = 0, max = 100, step = 1,
-    formatValue = (v) => String(v),
+    label,
+    theme: t,
+    min = 0,
+    max = 100,
+    step = 1,
+    formatValue = (v) => (v !== null ? String(v) : ''),
     parseValue,
   } = props
 
@@ -107,25 +138,36 @@ export default function RangeSlider(props: RangeSliderProps) {
   const lo = isRange ? (props as RangeProps).value[0] : (props as SingleProps).value
   const hi = isRange ? (props as RangeProps).value[1] : (props as SingleProps).value
 
-  const setLo = (v: number) => {
+  const setLo = (v: number | null) => {
     if (isRange) {
-      (props as RangeProps).onChange([clamp(v, min, hi), hi])
+      const newHi = hi !== null ? hi : max
+      if (v === null) {
+        (props as RangeProps).onChange([null, newHi])
+      } else {
+        (props as RangeProps).onChange([clamp(v, min, newHi), newHi])
+      }
     } else {
-      (props as SingleProps).onChange(clamp(v, min, max))
-    }
-  }
-  const setHi = (v: number) => {
-    if (isRange) {
-      (props as RangeProps).onChange([lo, clamp(v, lo, max)])
+      ;(props as SingleProps).onChange(clamp(v as number, min, max))
     }
   }
 
-  const pctLo = pct(lo, min, max)
-  const pctHi = pct(hi, min, max)
+  const setHi = (v: number | null) => {
+    if (!isRange) return
+    const newLo = lo !== null ? lo : min
+    if (v === null) {
+      ;(props as RangeProps).onChange([newLo, null])
+    } else {
+      const clamped = clamp(v, newLo, max)
+      ;(props as RangeProps).onChange([newLo, clamped])
+    }
+  }
+
+  const pctLo = lo !== null ? pct(lo, min, max) : 0
+  const pctHi = hi !== null ? pct(hi, min, max) : 100
 
   const valueFromEvent = (clientX: number): number => {
     const rect = trackRef.current?.getBoundingClientRect()
-    if (!rect) return lo
+    if (!rect) return lo !== null ? lo : min
     const raw = (clientX - rect.left) / rect.width
     return clamp(snap(raw * (max - min) + min, min, step), min, max)
   }
@@ -135,8 +177,13 @@ export default function RangeSlider(props: RangeSliderProps) {
     dragging.current = thumb
     const move = (ev: MouseEvent) => {
       const v = valueFromEvent(ev.clientX)
-      if (dragging.current === 'lo') setLo(isRange ? Math.min(v, hi) : v)
-      else setHi(Math.max(v, lo))
+      if (dragging.current === 'lo') {
+        if (hi === null) setLo(v)
+        else setLo(Math.min(v, hi))
+      } else if (dragging.current === 'hi') {
+        if (lo === null) setHi(v)
+        else setHi(Math.max(v, lo))
+      }
     }
     const up = () => {
       dragging.current = null
@@ -150,41 +197,89 @@ export default function RangeSlider(props: RangeSliderProps) {
   const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (dragging.current) return
     const v = valueFromEvent(e.clientX)
-    if (!isRange) { setLo(v); return }
-    // Snap to nearest thumb
-    const distLo = Math.abs(v - lo), distHi = Math.abs(v - hi)
+    if (!isRange) {
+      setLo(v)
+      return
+    }
+    // If one bound is missing, set it to clicked value
+    if (lo === null) {
+      setLo(Math.min(v, hi !== null ? hi : max))
+      return
+    }
+    if (hi === null) {
+      setHi(Math.max(v, lo))
+      return
+    }
+    // Both exist – snap to nearest
+    const distLo = Math.abs(v - lo),
+      distHi = Math.abs(v - hi)
     if (distLo <= distHi) setLo(Math.min(v, hi))
     else setHi(Math.max(v, lo))
   }
 
   const thumbStyle = (active: boolean): React.CSSProperties => ({
-    position: 'absolute', top: '50%', transform: 'translate(-50%, -50%)',
-    width: 22, height: 22, borderRadius: '50%',
-    background: t.accent, border: `3px solid ${t.bg}`,
+    position: 'absolute',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 22,
+    height: 22,
+    borderRadius: '50%',
+    background: t.accent,
+    border: `3px solid ${t.bg}`,
     boxShadow: active
       ? `0 0 0 4px ${t.accent}44, 0 2px 8px ${t.accent}55`
       : `0 2px 6px ${t.accent}55`,
-    cursor: 'grab', transition: 'box-shadow 0.2s ease',
-    outline: 'none', zIndex: active ? 3 : 2,
+    cursor: 'grab',
+    transition: 'box-shadow 0.2s ease',
+    outline: 'none',
+    zIndex: active ? 3 : 2,
   })
 
   const keyDown = (thumb: 'lo' | 'hi') => (e: React.KeyboardEvent) => {
+    if (!isRange) return
+    const isLo = thumb === 'lo'
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
       e.preventDefault()
-      if (thumb === 'lo') setLo(isRange ? Math.min(lo + step, hi) : Math.min(lo + step, max))
-      else setHi(Math.min(hi + step, max))
+      if (isLo) {
+        if (lo !== null) {
+          const newVal = Math.min(lo + step, hi !== null ? hi : max)
+          setLo(newVal)
+        }
+      } else {
+        if (hi !== null) {
+          const newVal = Math.min(hi + step, max)
+          setHi(newVal)
+        }
+      }
     }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
       e.preventDefault()
-      if (thumb === 'lo') setLo(Math.max(lo - step, min))
-      else setHi(Math.max(hi - step, lo))
+      if (isLo) {
+        if (lo !== null) {
+          const newVal = Math.max(lo - step, min)
+          setLo(newVal)
+        }
+      } else {
+        if (hi !== null) {
+          const newVal = Math.max(hi - step, lo !== null ? lo : min)
+          setHi(newVal)
+        }
+      }
     }
   }
 
   return (
     <div style={{ width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: t.placeholder }}>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.07em',
+            color: t.placeholder,
+          }}
+        >
           {label}
         </span>
       </div>
@@ -197,30 +292,37 @@ export default function RangeSlider(props: RangeSliderProps) {
           style={{ position: 'relative', height: 6, borderRadius: 3, background: t.border, cursor: 'pointer' }}
         >
           {/* Fill bar */}
-          <div style={{
-            position: 'absolute', top: 0, height: '100%', borderRadius: 3,
-            background: `linear-gradient(90deg, ${t.accent}88, ${t.accent})`,
-            left: isRange ? `${pctLo}%` : '0%',
-            right: `${100 - pctHi}%`,
-            transition: 'left 0.03s, right 0.03s',
-          }} />
-
-          {/* Lo thumb (also the single thumb) */}
           <div
-            style={{ ...thumbStyle(focusedThumb === 'lo'), left: `${pctLo}%` }}
-            onMouseDown={startDrag('lo')}
-            onFocus={() => setFocusedThumb('lo')}
-            onBlur={() => setFocusedThumb(null)}
-            onKeyDown={keyDown('lo')}
-            tabIndex={0}
-            role="slider"
-            aria-valuemin={min}
-            aria-valuemax={isRange ? hi : max}
-            aria-valuenow={lo}
+            style={{
+              position: 'absolute',
+              top: 0,
+              height: '100%',
+              borderRadius: 3,
+              background: `linear-gradient(90deg, ${t.accent}88, ${t.accent})`,
+              left: lo !== null ? `${pctLo}%` : '0%',
+              right: hi !== null ? `${100 - pctHi}%` : '0%',
+              transition: 'left 0.03s, right 0.03s',
+            }}
           />
 
-          {/* Hi thumb (range only) */}
-          {isRange && (
+          {/* Lo thumb (also the single thumb) – only if lo is not null */}
+          {lo !== null && (
+            <div
+              style={{ ...thumbStyle(focusedThumb === 'lo'), left: `${pctLo}%` }}
+              onMouseDown={startDrag('lo')}
+              onFocus={() => setFocusedThumb('lo')}
+              onBlur={() => setFocusedThumb(null)}
+              onKeyDown={isRange ? keyDown('lo') : undefined}
+              tabIndex={0}
+              role="slider"
+              aria-valuemin={min}
+              aria-valuemax={isRange && hi !== null ? hi : max}
+              aria-valuenow={lo}
+            />
+          )}
+
+          {/* Hi thumb (range only) – only if hi is not null */}
+          {isRange && hi !== null && (
             <div
               style={{ ...thumbStyle(focusedThumb === 'hi'), left: `${pctHi}%` }}
               onMouseDown={startDrag('hi')}
@@ -229,7 +331,7 @@ export default function RangeSlider(props: RangeSliderProps) {
               onKeyDown={keyDown('hi')}
               tabIndex={0}
               role="slider"
-              aria-valuemin={lo}
+              aria-valuemin={lo !== null ? lo : min}
               aria-valuemax={max}
               aria-valuenow={hi}
             />
@@ -244,13 +346,16 @@ export default function RangeSlider(props: RangeSliderProps) {
       </div>
 
       {/* Manual inputs */}
-      <div style={{
-        display: 'flex', gap: 10,
-        justifyContent: isRange ? 'space-between' : 'center',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          justifyContent: isRange ? 'space-between' : 'center',
+        }}
+      >
         <ManualInput
           value={lo}
-          onCommit={v => setLo(isRange ? Math.min(v, hi) : v)}
+          onCommit={(v) => setLo(isRange ? (v !== null ? Math.min(v, hi !== null ? hi : max) : null) : v)}
           format={formatValue}
           parse={parse}
           t={t}
@@ -258,13 +363,22 @@ export default function RangeSlider(props: RangeSliderProps) {
         />
         {isRange && (
           <>
-            <div style={{
-              display: 'flex', alignItems: 'flex-end', paddingBottom: 9,
-              color: t.placeholder, fontSize: 18, lineHeight: 1, userSelect: 'none',
-            }}>—</div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                paddingBottom: 9,
+                color: t.placeholder,
+                fontSize: 18,
+                lineHeight: 1,
+                userSelect: 'none',
+              }}
+            >
+              —
+            </div>
             <ManualInput
               value={hi}
-              onCommit={v => setHi(Math.max(v, lo))}
+              onCommit={(v) => setHi(v !== null ? Math.max(v, lo !== null ? lo : min) : null)}
               format={formatValue}
               parse={parse}
               t={t}

@@ -34,7 +34,7 @@ function App() {
   const [numberVal, setNumberVal] = useState('42')
   const [passwordVal, setPasswordVal] = useState('')
   const [radioVal, setRadioVal] = useState('opt1')
-  const [rangeVal, setRangeVal] = useState<[number, number]>([20, 80])
+  const [rangeVal, setRangeVal] = useState<[number | null, number | null]>([20, 80])
   const [selectVal, setSelectVal] = useState('')
   const [text, setText] = useState('')
   const [textarea, setTextarea] = useState('')
@@ -286,7 +286,7 @@ function App() {
             min={0}
             max={100}
             step={1}
-            formatValue={(v) => `${v}%`}
+            formatValue={(v) => v !== null ? `${v}%` : ''}
           />
         </section>
 
