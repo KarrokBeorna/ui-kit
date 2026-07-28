@@ -100,7 +100,6 @@ export default function Table<T extends Record<string, any>>({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     maxWidth: columnMaxWidth,
-    borderBottom: `1px solid ${t.borderSubtle}`,
     borderRight: `1px solid ${t.borderSubtle}`,
     color: t.text,
     textAlign: 'left',
@@ -115,21 +114,18 @@ export default function Table<T extends Record<string, any>>({
       right: 0,
       zIndex: isHeader ? 5 : 3,
       background: t.bgSurface,
-      borderLeft: isFirstSticky(colIndex) ? `2px solid ${t.border}` : 'none',
-      boxShadow: isFirstSticky(colIndex) ? '-2px 0 8px rgba(0,0,0,0.08)' : 'none',
+      boxShadow: isFirstSticky(colIndex) ? `inset 2px 0 ${t.border}` : 'none',
     };
   };
 
-  // Стиль для обычного заголовка (не закреплённого)
   const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle,
-    borderBottom: `2px solid ${t.border}`,
     fontWeight: 600,
     cursor: 'default',
     transition: 'background 0.15s',
     position: 'sticky',
     top: 0,
-    zIndex: 4,
+    zIndex: 3,
     background: t.bgSurface,
   };
 
@@ -140,6 +136,7 @@ export default function Table<T extends Record<string, any>>({
     border: `1px solid ${t.border}`,
     borderRadius: 10,
     background: t.bgSurface,
+    maxHeight: '200px'
   };
 
   return (
@@ -149,6 +146,7 @@ export default function Table<T extends Record<string, any>>({
           style={{
             position: fixedHeader ? 'sticky' : 'static',
             top: 0,
+            zIndex: 5,
             background: t.bgSurface,
             boxShadow: `0 2px 0 ${t.border}`,
           }}>

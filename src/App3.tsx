@@ -16,6 +16,21 @@ const userData = [
   { id: 3, name: 'Иван', age: 22, city: 'Казань', active: true },
   { id: 4, name: 'Мария', age: 41, city: 'Новосибирск', active: true },
   { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
+  { id: 5, name: 'Дмитрий', age: 19, city: 'Екатеринбург', active: false },
 ];
 
 const cityOptions = [
@@ -85,7 +100,7 @@ export default function App3() {
   ];
 
   return (
-    <div style={{ background: t.bg, minHeight: '100vh', padding: 30, color: t.text, fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ background: t.bg, minHeight: '100vh', padding: 30, color: t.text, fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 }}>
           <h1 style={{ margin: 0 }}>Демо-приложение</h1>
@@ -114,7 +129,11 @@ export default function App3() {
           </button>
         </div>
 
-        <Table theme={t} columns={columns} data={userData} rowKey="id" />
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+          <Table theme={t} columns={columns} data={userData} rowKey="id" fixedHeader
+            height="100%"
+            stickyRight={['active']} />
+        </div>
 
         <Modal
           theme={t}
