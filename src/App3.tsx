@@ -49,14 +49,12 @@ export default function App3() {
     {
       key: 'name',
       header: 'Имя',
-      width: 140,
       sortable: true,
       style: { fontWeight: 500 },
     },
     {
       key: 'age',
       header: 'Возраст',
-      width: 100,
       sortable: true,
       style: { textAlign: 'center' as const },
       headerStyle: { textAlign: 'center' as const },
@@ -64,14 +62,12 @@ export default function App3() {
     {
       key: 'city',
       header: 'Город',
-      width: 150,
       sortable: true,
       render: (val: string) => <span style={{ color: t.accent }}>{val}</span>,
     },
     {
       key: 'active',
       header: 'Активен',
-      width: 120,
       sortable: true,
       render: (val: boolean) => (
         <Badge

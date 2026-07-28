@@ -4,7 +4,6 @@ import type { Theme } from '../themes/theme';
 export interface Column<T extends Record<string, any> = any> {
   key: string;
   header: string;
-  width?: number;
   style?: React.CSSProperties;
   headerStyle?: React.CSSProperties;
   sortable?: boolean;
@@ -64,6 +63,7 @@ export default function Table<T extends Record<string, any>>({
     if (onSort) onSort(newState);
   };
 
+  // Сортировка данных
   const sortedData = [...data];
   if (sortState.length > 0) {
     sortedData.sort((a, b) => {
@@ -78,93 +78,119 @@ export default function Table<T extends Record<string, any>>({
     });
   }
 
+  // Формируем шаблон колонок для Grid: каждая колонка — minmax(auto, 300px)
+  const gridTemplateColumns = columns.map(() => 'minmax(auto, 300px)').join(' ');
+
+  // Общий стиль для всех ячеек (заголовки и данные)
+  const cellBaseStyle: React.CSSProperties = {
+    padding: '10px 14px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    borderBottom: `1px solid ${t.borderSubtle}`,
+    color: t.text,
+  };
+
   return (
-    <div style={{ width: '100%', overflowX: 'auto', border: `1px solid ${t.border}`, borderRadius: 10, background: t.bgSurface }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 600, tableLayout: 'fixed' }}>
-        <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
-          <tr>
-            {columns.map((col) => {
-              const sortIndex = sortState.findIndex(s => s.key === col.key);
-              const isSorted = sortIndex !== -1;
-              const direction = isSorted ? sortState[sortIndex].direction : undefined;
+    <div
+      style={{
+        width: '100%',
+        overflowX: 'auto',
+        border: `1px solid ${t.border}`,
+        borderRadius: 10,
+        background: t.bgSurface,
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns,
+          fontSize: 14,
+          minWidth: 600,
+        }}
+      >
+        {/* Заголовки (строка 1) */}
+        {columns.map((col, colIndex) => {
+          const sortIndex = sortState.findIndex(s => s.key === col.key);
+          const isSorted = sortIndex !== -1;
+          const direction = isSorted ? sortState[sortIndex].direction : undefined;
+
+          return (
+            <div
+              key={col.key}
+              style={{
+                ...cellBaseStyle,
+                gridRow: 1,
+                gridColumn: colIndex + 1,
+                background: t.bgSurface,
+                borderBottom: `2px solid ${t.border}`,
+                fontWeight: 600,
+                cursor: col.sortable ? 'pointer' : 'default',
+                transition: 'background 0.15s',
+                ...col.headerStyle,
+              }}
+              onClick={(e) => col.sortable && handleHeaderClick(col.key, e)}
+              onMouseEnter={(e) => {
+                if (col.sortable) e.currentTarget.style.background = t.navHoverBg;
+              }}
+              onMouseLeave={(e) => {
+                if (col.sortable) e.currentTarget.style.background = t.bgSurface;
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {col.header}
+                {col.sortable && isSorted && (
+                  <span style={{ fontSize: 12, color: t.accent }}>
+                    {direction === 'asc' ? ' ↑' : ' ↓'}
+                  </span>
+                )}
+                {col.sortable && !isSorted && (
+                  <span style={{ fontSize: 10, color: t.placeholder }}>⇅</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Данные (строки 2 и далее) */}
+        {sortedData.length === 0 ? (
+          <div
+            style={{
+              gridRow: 2,
+              gridColumn: `1 / ${columns.length + 1}`,
+              padding: 30,
+              textAlign: 'center',
+              color: t.placeholder,
+            }}
+          >
+            Нет данных
+          </div>
+        ) : (
+          sortedData.map((row, rowIndex) =>
+            columns.map((col, colIndex) => {
+              const cellContent = col.render
+                ? col.render((row as any)[col.key], row)
+                : (row as any)[col.key];
+
               return (
-                <th
-                  key={col.key}
+                <div
+                  key={`${row[rowKey]}-${col.key}`}
                   style={{
-                    background: t.bgSurface,
-                    borderBottom: `2px solid ${t.border}`,
-                    padding: '10px 14px',
-                    textAlign: 'left',
-                    fontWeight: 600,
-                    color: t.text,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: 300,
-                    minWidth: col.width ? `${col.width}px` : 'auto',
-                    cursor: col.sortable ? 'pointer' : 'default',
-                    transition: 'background 0.15s',
-                    ...col.headerStyle,
+                    ...cellBaseStyle,
+                    gridRow: rowIndex + 2,
+                    gridColumn: colIndex + 1,
+                    animation: 'fadeInRow 0.25s ease forwards',
+                    animationDelay: `${rowIndex * 30}ms`,
+                    ...col.style,
                   }}
-                  onClick={(e) => col.sortable && handleHeaderClick(col.key, e)}
-                  onMouseEnter={(e) => { if (col.sortable) e.currentTarget.style.background = t.navHoverBg; }}
-                  onMouseLeave={(e) => { if (col.sortable) e.currentTarget.style.background = t.bgSurface; }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {col.header}
-                    {col.sortable && isSorted && (
-                      <span style={{ fontSize: 12, color: t.accent }}>
-                        {direction === 'asc' ? ' ↑' : ' ↓'}
-                      </span>
-                    )}
-                    {col.sortable && !isSorted && (
-                      <span style={{ fontSize: 10, color: t.placeholder }}>⇅</span>
-                    )}
-                  </div>
-                </th>
+                  {cellContent}
+                </div>
               );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedData.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} style={{ padding: 30, textAlign: 'center', color: t.placeholder }}>
-                Нет данных
-              </td>
-            </tr>
-          ) : (
-            sortedData.map((row, index) => (
-              <tr
-                key={`${row[rowKey]}-${index}`}
-                style={{
-                  borderBottom: `1px solid ${t.borderSubtle}`,
-                  animation: 'fadeInRow 0.25s ease forwards',
-                  animationDelay: `${index * 30}ms`,
-                }}
-              >
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
-                    style={{
-                      padding: '10px 14px',
-                      color: t.text,
-                      borderBottom: `1px solid ${t.borderSubtle}`,
-                      maxWidth: 300,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      ...col.style,
-                    }}
-                  >
-                    {col.render ? col.render((row as any)[col.key], row) : (row as any)[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            })
+          )
+        )}
+      </div>
 
       <style>{`
         @keyframes fadeInRow {
