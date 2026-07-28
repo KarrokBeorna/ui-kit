@@ -136,7 +136,6 @@ export default function Table<T extends Record<string, any>>({
     border: `1px solid ${t.border}`,
     borderRadius: 10,
     background: t.bgSurface,
-    maxHeight: '200px'
   };
 
   return (
