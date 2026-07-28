@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
 
@@ -40,8 +40,15 @@ export default function Modal({
   width = 640,
   canSubmit = true,
 }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: Event) => {
+      if (!(e instanceof KeyboardEvent)) return;
+      const target = e.target as HTMLElement;
+
+      if (!modalRef.current || !modalRef.current.contains(target)) return;
+
       if (e.key === 'Escape') {
         onClose();
       }
@@ -50,6 +57,7 @@ export default function Modal({
         onOk();
       }
     };
+
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
@@ -86,6 +94,8 @@ export default function Modal({
 
   return (
     <div
+      ref={modalRef}
+      data-modal="true"
       style={{
         position: 'fixed',
         inset: 0,

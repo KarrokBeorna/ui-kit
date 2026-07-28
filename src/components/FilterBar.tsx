@@ -34,6 +34,8 @@ interface FilterBarProps {
   exportLabel?: string;
   /** Общее количество колонок в сетке (по умолчанию 1) */
   gridCols?: number;
+  /** Enter применяет фильтры на всей странице (кроме модалки) */
+  globalEnter?: boolean;
 }
 
 export function FilterBar({
@@ -50,6 +52,7 @@ export function FilterBar({
   onExport,
   exportLabel = 'Экспорт в Excel',
   gridCols = 1,
+  globalEnter = false,
 }: FilterBarProps) {
   const [internalOpen, setInternalOpen] = useState(true);
   const open = externalOpen ?? internalOpen;
@@ -67,24 +70,48 @@ export function FilterBar({
   useEffect(() => {
     if (!applyOnEnter || !onApply) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: Event) => {
+      if (!(e instanceof KeyboardEvent)) return;
+      if (e.key !== 'Enter') return;
+
       const target = e.target as HTMLElement;
-      if (
-        e.key === 'Enter' &&
-        bodyRef.current &&
-        bodyRef.current.contains(target)
-      ) {
-        e.preventDefault();
-        onApply();
+
+      if (!globalEnter) {
+        if (!bodyRef.current || !bodyRef.current.contains(target)) return;
+      } else {
+        const modal = document.querySelector('[data-modal="true"]');
+        if (modal && modal.contains(target)) return;
       }
+
+      e.preventDefault();
+      onApply();
     };
 
+    const node = globalEnter ? document : bodyRef.current;
+    if (!node) return;
+
+    node.addEventListener('keydown', handleKeyDown);
+    return () => node.removeEventListener('keydown', handleKeyDown);
+  }, [applyOnEnter, onApply, globalEnter, bodyRef.current]);
+
+  useEffect(() => {
+    if (!instantApply || !onApply) return;
+
     const node = bodyRef.current;
-    if (node) {
-      node.addEventListener('keydown', handleKeyDown);
-      return () => node.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [applyOnEnter, onApply, bodyRef.current]);
+    if (!node) return;
+
+    const handleChange = (e: Event) => {
+      onApply();
+    };
+
+    node.addEventListener('change', handleChange);
+    node.addEventListener('input', handleChange);
+
+    return () => {
+      node.removeEventListener('change', handleChange);
+      node.removeEventListener('input', handleChange);
+    };
+  }, [instantApply, onApply, bodyRef.current]);
 
   const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
   filters.forEach(({ component, row, cols = gridCols }) => {
@@ -100,7 +127,6 @@ export function FilterBar({
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', userSelect: 'none', gap: 12 }}
         onClick={() => setOpen(!open)}
       >
-        {/* ... иконка фильтра и бейдж ... */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: t.accent, display: 'flex' }}><IcoFilter /></span>
           <span style={{ fontFamily: 'system-ui', fontWeight: 600, fontSize: 14, color: t.text }}>Фильтры</span>
