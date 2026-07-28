@@ -20,6 +20,8 @@ interface TableProps<T extends Record<string, any>> {
   fixedHeader?: boolean;
   height?: string | number;
   columnMaxWidth?: number;
+  /** Ключи колонок, которые должны быть закреплены справа */
+  stickyRight?: string[];
 }
 
 export default function Table<T extends Record<string, any>>({
@@ -32,6 +34,7 @@ export default function Table<T extends Record<string, any>>({
   fixedHeader = false,
   height = '400px',
   columnMaxWidth = 300,
+  stickyRight = [],
 }: TableProps<T>) {
   const [sortState, setSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
 
@@ -90,6 +93,7 @@ export default function Table<T extends Record<string, any>>({
     textOverflow: 'ellipsis',
     maxWidth: columnMaxWidth,
     borderBottom: `1px solid ${t.borderSubtle}`,
+    borderRight: `1px solid ${t.borderSubtle}`,
     color: t.text,
     textAlign: 'left',
     background: t.bgSurface,
@@ -98,13 +102,26 @@ export default function Table<T extends Record<string, any>>({
   const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle,
     background: t.bgSurface,
-    borderBottom: `2px solid ${t.border}`,
     fontWeight: 600,
     cursor: 'default',
     transition: 'background 0.15s',
     position: 'sticky',
     top: 0,
-    zIndex: 2,
+    zIndex: 3,
+  };
+
+  const isStickyRight = (key: string) => stickyRight.includes(key);
+
+  const getStickyStyle = (key: string): React.CSSProperties => {
+    if (!isStickyRight(key)) return {};
+    return {
+      position: 'sticky',
+      right: 0,
+      zIndex: 2,
+      background: t.bgSurface,
+      borderLeft: `1px solid ${t.borderSubtle}`,
+      boxShadow: '-2px 0 5px rgba(0,0,0,0.05)',
+    };
   };
 
   const containerStyle: React.CSSProperties = {
@@ -119,7 +136,14 @@ export default function Table<T extends Record<string, any>>({
   return (
     <div style={containerStyle}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
-        <thead>
+        <thead
+          style={{
+            position: fixedHeader ? 'sticky' : 'static',
+            top: 0,
+            zIndex: 3,
+            background: t.bgSurface,
+            boxShadow: `0 2px 0 ${t.border}`,
+          }}>
           <tr>
             {columns.map((col) => {
               const sortIndex = sortState.findIndex(s => s.key === col.key);
@@ -131,6 +155,7 @@ export default function Table<T extends Record<string, any>>({
                   key={col.key}
                   style={{
                     ...headerCellStyle,
+                    ...getStickyStyle(col.key),
                     cursor: col.sortable ? 'pointer' : 'default',
                     ...col.headerStyle,
                   }}
@@ -172,6 +197,7 @@ export default function Table<T extends Record<string, any>>({
                 style={{
                   animation: 'fadeInRow 0.25s ease forwards',
                   animationDelay: `${rowIndex * 30}ms`,
+                  background: t.bgSurface,
                 }}
               >
                 {columns.map((col) => {
@@ -184,6 +210,7 @@ export default function Table<T extends Record<string, any>>({
                       key={col.key}
                       style={{
                         ...cellBaseStyle,
+                        ...getStickyStyle(col.key),
                         ...col.style,
                       }}
                     >
