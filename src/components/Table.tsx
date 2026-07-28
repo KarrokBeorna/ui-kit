@@ -102,6 +102,9 @@ export default function Table<T extends Record<string, any>>({
     fontWeight: 600,
     cursor: 'default',
     transition: 'background 0.15s',
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
   };
 
   const containerStyle: React.CSSProperties = {
@@ -113,20 +116,10 @@ export default function Table<T extends Record<string, any>>({
     background: t.bgSurface,
   };
 
-  // Для стилизации заголовка с закруглением верхних углов
-  const theadStyle: React.CSSProperties = {
-    position: fixedHeader ? 'sticky' : 'static',
-    top: 0,
-    zIndex: 1,
-    background: t.bgSurface,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-  };
-
   return (
     <div style={containerStyle}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
-        <thead style={theadStyle}>
+        <thead>
           <tr>
             {columns.map((col) => {
               const sortIndex = sortState.findIndex(s => s.key === col.key);
@@ -207,17 +200,6 @@ export default function Table<T extends Record<string, any>>({
         @keyframes fadeInRow {
           from { opacity: 0; }
           to { opacity: 1; }
-        }
-        /* Дополнительно: чтобы последняя строка не имела нижней границы (опционально) */
-        tbody tr:last-child td {
-          border-bottom: none;
-        }
-        /* Для скругления нижних углов у последней строки (если нужно) */
-        tbody tr:last-child td:first-child {
-          border-bottom-left-radius: 10px;
-        }
-        tbody tr:last-child td:last-child {
-          border-bottom-right-radius: 10px;
         }
       `}</style>
     </div>
