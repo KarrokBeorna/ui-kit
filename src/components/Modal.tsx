@@ -57,11 +57,11 @@ export default function Modal({
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown, true);
+      window.addEventListener('keydown', handleKeyDown, true);
       document.body.style.overflow = 'hidden';
     }
     return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose, onOk, canSubmit]);
