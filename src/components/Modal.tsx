@@ -43,10 +43,8 @@ export default function Modal({
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleKeyDown = (e: Event) => {
-      if (!(e instanceof KeyboardEvent)) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-
       if (!modalRef.current || !modalRef.current.contains(target)) return;
 
       if (e.key === 'Escape') {
@@ -59,11 +57,11 @@ export default function Modal({
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('keydown', handleKeyDown, true);
       document.body.style.overflow = 'hidden';
     }
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose, onOk, canSubmit]);
