@@ -85,18 +85,15 @@ export default function Table<T extends Record<string, any>>({
     });
   }
 
+  // Определяем индексы закреплённых колонок и первую из них
+  const stickyIndices = columns
+    .map((col, index) => (stickyRight.includes(col.key) ? index : -1))
+    .filter(idx => idx !== -1);
+  const firstStickyIndex = stickyIndices.length > 0 ? stickyIndices[0] : -1;
+
   const isStickyRight = (key: string) => stickyRight.includes(key);
+  const isFirstSticky = (index: number) => index === firstStickyIndex;
 
-  // Находим индекс последней незакреплённой колонки
-  let lastUnstickyIndex = -1;
-  for (let i = columns.length - 1; i >= 0; i--) {
-    if (!isStickyRight(columns[i].key)) {
-      lastUnstickyIndex = i;
-      break;
-    }
-  }
-
-  // Базовый стиль ячейки (без sticky)
   const cellBaseStyle: React.CSSProperties = {
     padding: '10px 14px',
     whiteSpace: 'nowrap',
@@ -110,7 +107,21 @@ export default function Table<T extends Record<string, any>>({
     background: t.bgSurface,
   };
 
-  const headerBaseStyle: React.CSSProperties = {
+  const getStickyStyle = (colIndex: number, isHeader: boolean = false): React.CSSProperties => {
+    const key = columns[colIndex].key;
+    if (!isStickyRight(key)) return {};
+    return {
+      position: 'sticky',
+      right: 0,
+      zIndex: isHeader ? 5 : 3,
+      background: t.bgSurface,
+      borderLeft: isFirstSticky(colIndex) ? `2px solid ${t.border}` : 'none',
+      boxShadow: isFirstSticky(colIndex) ? '-2px 0 8px rgba(0,0,0,0.08)' : 'none',
+    };
+  };
+
+  // Стиль для обычного заголовка (не закреплённого)
+  const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle,
     borderBottom: `2px solid ${t.border}`,
     fontWeight: 600,
@@ -122,40 +133,27 @@ export default function Table<T extends Record<string, any>>({
     background: t.bgSurface,
   };
 
-  // Функция для получения стиля ячейки с учётом sticky
-  const getCellStyle = (colKey: string, isHeader: boolean) => {
-    const base = isHeader ? headerBaseStyle : cellBaseStyle;
-    const stickyStyles = isStickyRight(colKey) ? {
-      position: 'sticky' as const,
-      right: 0,
-      zIndex: isHeader ? 5 : 3, // заголовок закреплённой колонки выше всех
-      background: t.bgSurface,
-      boxShadow: '-2px 0 8px rgba(0,0,0,0.08)',
-    } : {};
-
-    // Добавляем толстую правую границу, если это последняя незакреплённая колонка
-    const extraBorder = (lastUnstickyIndex !== -1 && columns[lastUnstickyIndex].key === colKey) ? {
-      borderRight: `2px solid ${t.border}`,
-    } : {};
-
-    return { ...base, ...stickyStyles, ...extraBorder };
-  };
-
   const containerStyle: React.CSSProperties = {
     width: '100%',
     overflow: fixedHeader ? 'auto' : 'visible',
     height: fixedHeader ? height : 'auto',
     border: `1px solid ${t.border}`,
-    borderRadius: 8,
+    borderRadius: 10,
     background: t.bgSurface,
   };
 
   return (
     <div style={containerStyle}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
-        <thead>
+        <thead
+          style={{
+            position: fixedHeader ? 'sticky' : 'static',
+            top: 0,
+            background: t.bgSurface,
+            boxShadow: `0 2px 0 ${t.border}`,
+          }}>
           <tr>
-            {columns.map((col) => {
+            {columns.map((col, index) => {
               const sortIndex = sortState.findIndex(s => s.key === col.key);
               const isSorted = sortIndex !== -1;
               const direction = isSorted ? sortState[sortIndex].direction : undefined;
@@ -164,7 +162,8 @@ export default function Table<T extends Record<string, any>>({
                 <th
                   key={col.key}
                   style={{
-                    ...getCellStyle(col.key, true),
+                    ...headerCellStyle,
+                    ...getStickyStyle(index, true),
                     cursor: col.sortable ? 'pointer' : 'default',
                     ...col.headerStyle,
                   }}
@@ -209,7 +208,7 @@ export default function Table<T extends Record<string, any>>({
                   background: t.bgSurface,
                 }}
               >
-                {columns.map((col) => {
+                {columns.map((col, index) => {
                   const cellContent = col.render
                     ? col.render((row as any)[col.key], row)
                     : (row as any)[col.key];
@@ -218,7 +217,8 @@ export default function Table<T extends Record<string, any>>({
                     <td
                       key={col.key}
                       style={{
-                        ...getCellStyle(col.key, false),
+                        ...cellBaseStyle,
+                        ...getStickyStyle(index, false),
                         ...col.style,
                       }}
                     >
