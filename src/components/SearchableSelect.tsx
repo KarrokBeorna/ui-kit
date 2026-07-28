@@ -59,9 +59,25 @@ export default function SearchableSelect({
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
-  const handleOpen = () => {
-    setOpen(true); setFocused(true); setQuery('');
-    setTimeout(() => inputRef.current?.focus(), 10);
+  const openDropdown = () => {
+    if (!open) {
+      setOpen(true);
+      setFocused(true);
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
+  };
+
+  const toggleDropdown = () => {
+    if (open) {
+      setOpen(false);
+      setQuery('');
+      setFocused(false);
+      inputRef.current?.blur();
+    } else {
+      setOpen(true);
+      setFocused(true);
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
   };
 
   const handleSelect = (opt: SelectOption) => {
@@ -93,7 +109,7 @@ export default function SearchableSelect({
       ) : filtered.map(opt => (
         <div
           key={opt.value}
-          onMouseDown={e => { e.preventDefault(); handleSelect(opt); }}
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation(); handleSelect(opt); }}
           style={{
             padding: '11px 16px', fontSize: 14, cursor: 'pointer',
             color: opt.value === value ? t.dropdownSelectedText : t.text,
@@ -121,13 +137,19 @@ export default function SearchableSelect({
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative', cursor: 'pointer' }} onClick={handleOpen}>
+      <div
+        style={{ position: 'relative', cursor: 'pointer' }}
+        onMouseDown={(e) => { e.preventDefault(); openDropdown(); }}
+      >
         <input
           ref={inputRef}
           id={id}
           value={open ? query : (selected?.label ?? '')}
           onChange={e => setQuery(e.target.value)}
-          onFocus={() => { setFocused(true); if (!open) handleOpen(); }}
+          onFocus={() => {
+            setFocused(true);
+            if (!open) openDropdown();
+          }}
           readOnly={!open}
           placeholder=""
           style={{
@@ -169,7 +191,7 @@ export default function SearchableSelect({
           {value && (
             <button
               type="button"
-              onMouseDown={handleClear}
+              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleClear(e); }}
               style={{
                 width: 28, height: 28, background: 'transparent', border: 'none',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -181,7 +203,10 @@ export default function SearchableSelect({
               <IcoX s={12} />
             </button>
           )}
-          <div style={{ color: t.iconColor, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+          <div
+            style={{ color: t.iconColor, display: 'flex', alignItems: 'center' }}
+            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); toggleDropdown(); }}
+          >
             <IcoChevronDown s={16} open={open} />
           </div>
         </div>

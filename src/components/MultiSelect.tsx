@@ -62,9 +62,25 @@ export default function MultiSelect({
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
-  const handleOpen = () => {
-    setOpen(true); setFocused(true);
-    setTimeout(() => inputRef.current?.focus(), 10);
+  const openDropdown = () => {
+    if (!open) {
+      setOpen(true);
+      setFocused(true);
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
+  };
+
+  const toggleDropdown = () => {
+    if (open) {
+      setOpen(false);
+      setQuery('');
+      setFocused(false);
+      inputRef.current?.blur();
+    } else {
+      setOpen(true);
+      setFocused(true);
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
   };
 
   const toggle = (val: string) =>
@@ -105,7 +121,7 @@ export default function MultiSelect({
       }}
     >
       <div
-        onMouseDown={e => { e.preventDefault(); toggleAll(); }}
+        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); toggleAll(); }}
         style={{
           padding: '10px 16px',
           borderBottom: `1px solid ${t.border}`,
@@ -140,7 +156,7 @@ export default function MultiSelect({
         return (
           <div
             key={opt.value}
-            onMouseDown={e => { e.preventDefault(); toggle(opt.value); }}
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); toggle(opt.value); }}
             style={{
               padding: '10px 16px', fontSize: 14, cursor: 'pointer',
               color: sel ? t.dropdownSelectedText : t.text,
@@ -169,13 +185,19 @@ export default function MultiSelect({
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative', cursor: 'pointer' }} onClick={handleOpen}>
+      <div
+        style={{ position: 'relative', cursor: 'pointer' }}
+        onMouseDown={(e) => { e.preventDefault(); openDropdown(); }}
+      >
         <input
           ref={inputRef}
           id={id}
           value={open ? query : displayValue}
           onChange={e => setQuery(e.target.value)}
-          onFocus={() => { setFocused(true); if (!open) handleOpen(); }}
+          onFocus={() => {
+            setFocused(true);
+            if (!open) openDropdown();
+          }}
           readOnly={!open}
           placeholder=""
           style={{
@@ -217,7 +239,7 @@ export default function MultiSelect({
           {value.length > 0 && (
             <button
               type="button"
-              onMouseDown={handleClear}
+              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleClear(e); }}
               style={{
                 width: 28, height: 28, background: 'transparent', border: 'none',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -229,7 +251,10 @@ export default function MultiSelect({
               <IcoX s={12} />
             </button>
           )}
-          <div style={{ color: t.iconColor, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+          <div
+            style={{ color: t.iconColor, display: 'flex', alignItems: 'center' }}
+            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); toggleDropdown(); }}
+          >
             <IcoChevronDown s={16} open={open} />
           </div>
         </div>
