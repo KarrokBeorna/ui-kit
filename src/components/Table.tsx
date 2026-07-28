@@ -20,7 +20,6 @@ interface TableProps<T extends Record<string, any>> {
   fixedHeader?: boolean;
   height?: string | number;
   columnMaxWidth?: number;
-  /** Ключи колонок, которые должны быть закреплены справа */
   stickyRight?: string[];
 }
 
@@ -101,6 +100,7 @@ export default function Table<T extends Record<string, any>>({
 
   const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle,
+    borderBottom: `2px solid ${t.border}`,
     background: t.bgSurface,
     fontWeight: 600,
     cursor: 'default',
@@ -119,8 +119,8 @@ export default function Table<T extends Record<string, any>>({
       right: 0,
       zIndex: 2,
       background: t.bgSurface,
-      borderLeft: `1px solid ${t.borderSubtle}`,
-      boxShadow: '-2px 0 5px rgba(0,0,0,0.05)',
+      borderLeft: `2px solid ${t.border}`,
+      boxShadow: '-2px 0 8px rgba(0,0,0,0.1)',
     };
   };
 
@@ -140,7 +140,7 @@ export default function Table<T extends Record<string, any>>({
           style={{
             position: fixedHeader ? 'sticky' : 'static',
             top: 0,
-            zIndex: 3,
+            zIndex: 5,
             background: t.bgSurface,
             boxShadow: `0 2px 0 ${t.border}`,
           }}>
