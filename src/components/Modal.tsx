@@ -179,11 +179,10 @@ export default function Modal({
                       gridColumn: `${ci + 1} / span ${colspan}`,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 4,
                     }}
                   >
                     {field?.required && (
-                      <span style={{ color: t.danger, fontSize: 14, fontWeight: 600, marginRight: 4 }}>*</span>
+                      <span style={{ color: t.danger, fontSize: 12, fontWeight: 600, marginRight: 4 }}>*</span>
                     )}
                     {cell}
                   </div>
