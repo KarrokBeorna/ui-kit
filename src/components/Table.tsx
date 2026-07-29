@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Theme } from '../themes/theme';
 
 export interface Column<T extends Record<string, any> = any> {
@@ -15,7 +15,10 @@ interface TableProps<T extends Record<string, any>> {
   columns: Column<T>[];
   data: T[];
   rowKey?: string;
-  onSort?: (sorted: { key: string; direction: 'asc' | 'desc' }[]) => void;
+  // Управляемая сортировка
+  sortState?: { key: string; direction: 'asc' | 'desc' }[];
+  onSortChange?: (newSortState: { key: string; direction: 'asc' | 'desc' }[]) => void;
+  // Начальное состояние для неуправляемого режима
   initialSort?: { key: string; direction: 'asc' | 'desc' }[];
   fixedHeader?: boolean;
   height?: string | number;
@@ -28,15 +31,30 @@ export default function Table<T extends Record<string, any>>({
   columns,
   data,
   rowKey = 'id',
-  onSort,
+  sortState: externalSortState,
+  onSortChange,
   initialSort = [],
   fixedHeader = false,
   height = '400px',
   columnMaxWidth = 300,
   stickyRight = [],
 }: TableProps<T>) {
-  const [sortState, setSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
+  // Внутреннее состояние сортировки (если внешнее не передано)
+  const [internalSortState, setInternalSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
 
+  // Используем внешнее состояние, если оно передано, иначе внутреннее
+  const sortState = externalSortState !== undefined ? externalSortState : internalSortState;
+
+  // Функция обновления сортировки
+  const updateSortState = (newState: { key: string; direction: 'asc' | 'desc' }[]) => {
+    if (onSortChange) {
+      onSortChange(newState);
+    } else {
+      setInternalSortState(newState);
+    }
+  };
+
+  // Обработчик клика по заголовку
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
     let newState: { key: string; direction: 'asc' | 'desc' }[] = [];
@@ -67,13 +85,15 @@ export default function Table<T extends Record<string, any>>({
         newState = [{ key, direction: 'asc' }];
       }
     }
-    setSortState(newState);
-    if (onSort) onSort(newState);
+    updateSortState(newState);
   };
 
-  const sortedData = [...data];
-  if (sortState.length > 0) {
-    sortedData.sort((a, b) => {
+  // Сортировка данных (только для отображения, сама сортировка не изменяет переданные данные)
+  const sortedData = useMemo(() => {
+    const sorted = [...data];
+    if (sortState.length === 0) return sorted;
+
+    sorted.sort((a, b) => {
       for (const { key, direction } of sortState) {
         const aVal = (a as any)[key];
         const bVal = (b as any)[key];
@@ -83,7 +103,8 @@ export default function Table<T extends Record<string, any>>({
       }
       return 0;
     });
-  }
+    return sorted;
+  }, [data, sortState]);
 
   // Определяем индексы закреплённых колонок и первую из них
   const stickyIndices = columns
