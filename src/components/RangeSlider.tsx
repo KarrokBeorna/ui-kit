@@ -1,5 +1,6 @@
 import { useState, useRef, useId } from 'react'
 import type { Theme } from '../themes/theme'
+import { IcoX } from './icons'
 
 // ─── Single-value mode ───────────────────────────────────────────────────────
 interface SingleProps {
@@ -73,6 +74,11 @@ function ManualInput({
     // if parse fails, keep previous value (no change)
   }
 
+  const handleClear = () => {
+    setEditing(false)
+    onCommit(null)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 72 }}>
       {label && (
@@ -80,33 +86,63 @@ function ManualInput({
           {label}
         </span>
       )}
-      <input
-        type="text"
-        value={editing ? raw : format(value)}
-        onFocus={startEdit}
-        onChange={(e) => setRaw(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit()
-        }}
-        style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          background: t.bg,
-          border: `1.5px solid ${editing ? t.borderFocus : t.border}`,
-          borderRadius: 8,
-          padding: '6px 10px',
-          fontSize: 13,
-          fontWeight: 600,
-          color: t.accent,
-          outline: 'none',
-          textAlign: 'center',
-          transition: 'border-color 0.2s, box-shadow 0.2s',
-          boxShadow: editing ? `0 0 0 3px ${t.borderFocus}22` : 'none',
-          fontFamily: 'inherit',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      />
+      <div style={{ position: 'relative', width: '100%' }}>
+        <input
+          type="text"
+          value={editing ? raw : format(value)}
+          onFocus={startEdit}
+          onChange={(e) => setRaw(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit()
+          }}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            background: t.bg,
+            border: `1.5px solid ${editing ? t.borderFocus : t.border}`,
+            borderRadius: 8,
+            padding: '6px 28px 6px 10px',
+            fontSize: 13,
+            fontWeight: 600,
+            color: t.accent,
+            outline: 'none',
+            textAlign: 'center',
+            transition: 'border-color 0.2s, box-shadow 0.2s',
+            boxShadow: editing ? `0 0 0 3px ${t.borderFocus}22` : 'none',
+            fontFamily: 'inherit',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        />
+        {value !== null && (
+          <button
+            type="button"
+            onClick={handleClear}
+            style={{
+              position: 'absolute',
+              right: 6,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 20,
+              height: 20,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: t.iconColor,
+              borderRadius: 4,
+              transition: 'color 0.15s',
+              padding: 0,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = t.text)}
+            onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+          >
+            <IcoX s={12} />
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -138,13 +174,17 @@ export default function RangeSlider(props: RangeSliderProps) {
   const lo = isRange ? (props as RangeProps).value[0] : (props as SingleProps).value
   const hi = isRange ? (props as RangeProps).value[1] : (props as SingleProps).value
 
+  // ─── Изменённые функции установки значений ────────────────────────────────
   const setLo = (v: number | null) => {
     if (isRange) {
-      const newHi = hi !== null ? hi : max
       if (v === null) {
-        (props as RangeProps).onChange([null, newHi])
+        // Оставляем hi неизменным (даже если hi === null)
+        ;(props as RangeProps).onChange([null, hi])
       } else {
-        (props as RangeProps).onChange([clamp(v, min, newHi), newHi])
+        // Если hi существует, ограничиваем сверху hi, иначе только max
+        const upper = hi !== null ? hi : max
+        const clamped = clamp(v, min, upper)
+        ;(props as RangeProps).onChange([clamped, hi])
       }
     } else {
       ;(props as SingleProps).onChange(clamp(v as number, min, max))
@@ -153,12 +193,13 @@ export default function RangeSlider(props: RangeSliderProps) {
 
   const setHi = (v: number | null) => {
     if (!isRange) return
-    const newLo = lo !== null ? lo : min
     if (v === null) {
-      ;(props as RangeProps).onChange([newLo, null])
+      // Оставляем lo неизменным
+      ;(props as RangeProps).onChange([lo, null])
     } else {
-      const clamped = clamp(v, newLo, max)
-      ;(props as RangeProps).onChange([newLo, clamped])
+      const lower = lo !== null ? lo : min
+      const clamped = clamp(v, lower, max)
+      ;(props as RangeProps).onChange([lo, clamped])
     }
   }
 
@@ -178,11 +219,10 @@ export default function RangeSlider(props: RangeSliderProps) {
     const move = (ev: MouseEvent) => {
       const v = valueFromEvent(ev.clientX)
       if (dragging.current === 'lo') {
-        if (hi === null) setLo(v)
-        else setLo(Math.min(v, hi))
+        // Устанавливаем lo, не трогая hi (даже если hi null)
+        setLo(v)
       } else if (dragging.current === 'hi') {
-        if (lo === null) setHi(v)
-        else setHi(Math.max(v, lo))
+        setHi(v)
       }
     }
     const up = () => {
@@ -201,18 +241,11 @@ export default function RangeSlider(props: RangeSliderProps) {
       setLo(v)
       return
     }
-    // If one bound is missing, set it to clicked value
-    if (lo === null) {
-      setLo(Math.min(v, hi !== null ? hi : max))
-      return
-    }
-    if (hi === null) {
-      setHi(Math.max(v, lo))
-      return
-    }
-    // Both exist – snap to nearest
-    const distLo = Math.abs(v - lo),
-      distHi = Math.abs(v - hi)
+    // Если хотя бы одна граница отсутствует — клик игнорируется
+    if (lo === null || hi === null) return
+    // Обе границы существуют — выбираем ближайшую
+    const distLo = Math.abs(v - lo)
+    const distHi = Math.abs(v - hi)
     if (distLo <= distHi) setLo(Math.min(v, hi))
     else setHi(Math.max(v, lo))
   }
@@ -282,6 +315,25 @@ export default function RangeSlider(props: RangeSliderProps) {
         >
           {label}
         </span>
+        {/* ─── Добавлена кнопка полной очистки (только в режиме Range) ─── */}
+        {isRange && (
+          <button
+            type="button"
+            onClick={() => (props as RangeProps).onChange([null, null])}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: t.placeholder,
+              fontSize: 11,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              padding: 0,
+            }}
+            title="Очистить оба значения"
+          >
+            Очистить
+          </button>
+        )}
       </div>
 
       {/* Track */}
