@@ -95,9 +95,29 @@ export default function Table<T extends Record<string, any>>({
 
     sorted.sort((a, b) => {
       for (const { key, direction } of sortState) {
-        const aVal = (a as any)[key];
-        const bVal = (b as any)[key];
+        let aVal = (a as any)[key];
+        let bVal = (b as any)[key];
+
+        // Обработка null/undefined: всегда в конце
+        const aIsNull = aVal === null || aVal === undefined;
+        const bIsNull = bVal === null || bVal === undefined;
+
+        if (aIsNull && bIsNull) continue;
+        if (aIsNull) return 1; // a после b
+        if (bIsNull) return -1; // a перед b
+
+        // Теперь оба не null, сравниваем
         if (aVal === bVal) continue;
+
+        // Для строк – сравнение без учёта регистра (опционально)
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          const cmp = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' });
+          if (cmp !== 0) {
+            return direction === 'asc' ? cmp : -cmp;
+          }
+          continue;
+        }
+
         const cmp = aVal < bVal ? -1 : 1;
         return direction === 'asc' ? cmp : -cmp;
       }
