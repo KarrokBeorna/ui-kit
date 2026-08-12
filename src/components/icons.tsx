@@ -31,6 +31,12 @@ export const IcoChevronDown = ({ s = 14, open = false, ...props }: IconProps & {
   </svg>
 );
 
+export const IcoChevronUp = ({ s = 14, ...props }: IconProps) => (
+  <svg width={s} height={s} viewBox="0 0 14 14" fill="none" {...props}>
+    <path d="M12 10L8 5l-4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export const IcoLogIn = ({ s = 16, ...props }: IconProps) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" {...props}>
     <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
