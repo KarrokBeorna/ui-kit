@@ -82,7 +82,7 @@ export default function App3() {
         margin: 0,
       }}
     >
-      <div style={{ maxWidth: 1000, margin: '0 auto', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto', width: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30, flexShrink: 0 }}>
           <h1 style={{ margin: 0 }}>Демо-приложение</h1>
           <ThemeSwitcher theme={themeName} onChange={setThemeName} t={t} />

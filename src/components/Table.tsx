@@ -322,118 +322,116 @@ export default function Table<T extends Record<string, any>>({
   // ---------- Рендер ----------
   return (
     <>
-      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-        <div ref={containerRef} style={tableContainerStyle}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
-            <thead
-              style={{
-                position: fixedHeader ? 'sticky' : 'static',
-                top: 0,
-                zIndex: 5,
-                background: t.bgSurface,
-                boxShadow: `0 2px 0 ${t.border}`,
-              }}
-            >
+      <div ref={containerRef} style={tableContainerStyle}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
+          <thead
+            style={{
+              position: fixedHeader ? 'sticky' : 'static',
+              top: 0,
+              zIndex: 5,
+              background: t.bgSurface,
+              boxShadow: `0 2px 0 ${t.border}`,
+            }}
+          >
+            <tr>
+              {displayColumns.map((col) => {
+                const sortKey = col.key;
+                const sortIndex = sortState.findIndex(s => s.key === sortKey);
+                const isSorted = sortIndex !== -1;
+                const direction = isSorted ? sortState[sortIndex].direction : undefined;
+                const originalIndex = columns.findIndex(c => c.key === col.key);
+                const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, true) : {};
+
+                const isSortable = col.sortable;
+
+                return (
+                  <th
+                    key={col.key}
+                    style={{
+                      ...headerCellStyle,
+                      ...stickyStyle,
+                      ...col.headerStyle,
+                      cursor: isSortable ? 'pointer' : 'default',
+                    }}
+                    onClick={(e) => isSortable && handleHeaderClick(sortKey, e)}
+                    onMouseEnter={(e) => {
+                      if (isSortable) e.currentTarget.style.background = t.navHoverBg;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isSortable) e.currentTarget.style.background = t.bgSurface;
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>{col.header}</span>
+                      {isSortable && isSorted && (
+                        <span style={{ fontSize: 12, color: t.accent }}>
+                          {direction === 'asc' ? ' ↑' : ' ↓'}
+                        </span>
+                      )}
+                      {isSortable && !isSorted && (
+                        <span style={{ fontSize: 10, color: t.placeholder }}>⇅</span>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedData.length === 0 ? (
               <tr>
-                {displayColumns.map((col) => {
-                  const sortKey = col.key;
-                  const sortIndex = sortState.findIndex(s => s.key === sortKey);
-                  const isSorted = sortIndex !== -1;
-                  const direction = isSorted ? sortState[sortIndex].direction : undefined;
-                  const originalIndex = columns.findIndex(c => c.key === col.key);
-                  const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, true) : {};
-
-                  const isSortable = col.sortable;
-
-                  return (
-                    <th
-                      key={col.key}
-                      style={{
-                        ...headerCellStyle,
-                        ...stickyStyle,
-                        ...col.headerStyle,
-                        cursor: isSortable ? 'pointer' : 'default',
-                      }}
-                      onClick={(e) => isSortable && handleHeaderClick(sortKey, e)}
-                      onMouseEnter={(e) => {
-                        if (isSortable) e.currentTarget.style.background = t.navHoverBg;
-                      }}
-                      onMouseLeave={(e) => {
-                        if (isSortable) e.currentTarget.style.background = t.bgSurface;
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>{col.header}</span>
-                        {isSortable && isSorted && (
-                          <span style={{ fontSize: 12, color: t.accent }}>
-                            {direction === 'asc' ? ' ↑' : ' ↓'}
-                          </span>
-                        )}
-                        {isSortable && !isSorted && (
-                          <span style={{ fontSize: 10, color: t.placeholder }}>⇅</span>
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
+                <td
+                  colSpan={displayColumns.length}
+                  style={{
+                    padding: 30,
+                    textAlign: 'center',
+                    color: t.placeholder,
+                    background: t.bgSurface,
+                  }}
+                >
+                  Нет данных
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {sortedData.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={displayColumns.length}
-                    style={{
-                      padding: 30,
-                      textAlign: 'center',
-                      color: t.placeholder,
-                      background: t.bgSurface,
-                    }}
-                  >
-                    Нет данных
-                  </td>
+            ) : (
+              sortedData.map((row, rowIndex) => (
+                <tr
+                  key={row[rowKey]}
+                  style={{
+                    animation: 'fadeInRow 0.25s ease forwards',
+                    animationDelay: `${rowIndex * 30}ms`,
+                    background: t.bgSurface,
+                  }}
+                >
+                  {displayColumns.map((col) => {
+                    const originalIndex = columns.findIndex(c => c.key === col.key);
+                    const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, false) : {};
+                    const cellContent = col.render
+                      ? col.render((row as any)[col.key], row)
+                      : (row as any)[col.key];
+                    return (
+                      <td
+                        key={col.key}
+                        style={{
+                          ...cellBaseStyle,
+                          ...stickyStyle,
+                          ...col.style,
+                        }}
+                      >
+                        {cellContent}
+                      </td>
+                    );
+                  })}
                 </tr>
-              ) : (
-                sortedData.map((row, rowIndex) => (
-                  <tr
-                    key={row[rowKey]}
-                    style={{
-                      animation: 'fadeInRow 0.25s ease forwards',
-                      animationDelay: `${rowIndex * 30}ms`,
-                      background: t.bgSurface,
-                    }}
-                  >
-                    {displayColumns.map((col) => {
-                      const originalIndex = columns.findIndex(c => c.key === col.key);
-                      const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, false) : {};
-                      const cellContent = col.render
-                        ? col.render((row as any)[col.key], row)
-                        : (row as any)[col.key];
-                      return (
-                        <td
-                          key={col.key}
-                          style={{
-                            ...cellBaseStyle,
-                            ...stickyStyle,
-                            ...col.style,
-                          }}
-                        >
-                          {cellContent}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          <style>{`
-            @keyframes fadeInRow {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
-          `}</style>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
+        <style>{`
+          @keyframes fadeInRow {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
       </div>
 
       {settingsButton}
@@ -455,7 +453,6 @@ export default function Table<T extends Record<string, any>>({
           const canMoveUp = !isSticky && index > 0 && !stickyRight.includes(settingsOrder[index - 1]);
           const canMoveDown = !isSticky && index < settingsOrder.length - 1 && !stickyRight.includes(settingsOrder[index + 1]);
 
-          // Массив для двух кнопок – устраняет дублирование разметки
           const moveButtons = [
             { key: 'up', Icon: IcoChevronUp, canMove: canMoveUp, handler: moveUp },
             { key: 'down', Icon: IcoChevronDown, canMove: canMoveDown, handler: moveDown },
