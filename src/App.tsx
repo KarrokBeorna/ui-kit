@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
-import { themes, ThemeName } from './themes/theme'
-import {LayoutMode, LayoutToggle} from './components/LayoutToggle';
+import { useState } from 'react';
+import { themes, ThemeName } from './themes/theme';
+import { LayoutMode, LayoutToggle } from './components/LayoutToggle';
 import {
   AuthPage,
   Checkbox,
@@ -19,44 +19,43 @@ import {
   Textarea,
   TextInput,
   ThemeSwitcher,
-} from './index'
+} from './index';
 
 function App() {
-  const [themeName, setThemeName] = useState<ThemeName>('dark')
-  const [headerMode, setHeaderMode] = useState<LayoutMode>('horizontal')
-  const t = themes[themeName]
+  const [themeName, setThemeName] = useState<ThemeName>('dark');
+  const [headerMode, setHeaderMode] = useState<LayoutMode>('horizontal');
+  const t = themes[themeName];
 
   // Состояния для компонентов
-  const [checked, setChecked] = useState(false)
-  const [dateTime, setDateTime] = useState('')
-  const [files, setFiles] = useState<File[]>([])
-  const [multiSelectVal, setMultiSelectVal] = useState<string[]>(['1'])
-  const [numberVal, setNumberVal] = useState('42')
-  const [passwordVal, setPasswordVal] = useState('')
-  const [radioVal, setRadioVal] = useState('opt1')
-  const [rangeVal, setRangeVal] = useState<[number | null, number | null]>([20, 80])
-  const [selectVal, setSelectVal] = useState('')
-  const [text, setText] = useState('')
-  const [textarea, setTextarea] = useState('')
-  const [authUser, setAuthUser] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [checked, setChecked] = useState(false);
+  const [dateTime, setDateTime] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [multiSelectVal, setMultiSelectVal] = useState<string[]>(['1']);
+  const [numberVal, setNumberVal] = useState('42');
+  const [passwordVal, setPasswordVal] = useState('');
+  const [radioVal, setRadioVal] = useState('opt1');
+  const [rangeVal, setRangeVal] = useState<[number | null, number | null]>([20, 80]);
+  const [selectVal, setSelectVal] = useState('');
+  const [text, setText] = useState('');
+  const [textarea, setTextarea] = useState('');
+  const [authUser, setAuthUser] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
-  // Для Pagination
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
-  const totalItems = 150
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
+  const totalItems = 150;
 
   const navTabs = [
     { id: 'dashboard', label: 'Панель', icon: '⬡' },
     { id: 'analytics', label: 'Аналитика', icon: '◈' },
     { id: 'settings', label: 'Настройки', icon: '⚙' },
-  ]
+  ];
 
   const filterItems = [
     { component: <TextInput label="Поиск" theme={t} value={text} onChange={setText} />, row: 1, cols: 1 },
     { component: <SearchableSelect label="Статус" theme={t} options={[{ value: 'active', label: 'Активен' }, { value: 'pending', label: 'Ожидает' }]} value={selectVal} onChange={setSelectVal} />, row: 1, cols: 2 },
     { component: <NumberInput label="Количество" theme={t} value={numberVal} onChange={setNumberVal} />, row: 2 },
-  ]
+  ];
 
   return (
     <div style={{ background: t.bg, color: t.text, minHeight: '100vh', padding: '24px', fontFamily: 'system-ui' }}>
@@ -141,9 +140,9 @@ function App() {
             chips={['Поиск: test', 'Статус: Активен']}
             onApply={() => alert('Применить')}
             onReset={() => {
-              setText('')
-              setSelectVal('')
-              setNumberVal('')
+              setText('');
+              setSelectVal('');
+              setNumberVal('');
             }}
             onExport={() => {}}
             gridCols={3}
@@ -173,6 +172,13 @@ function App() {
               }
               showProfile={false}
               showSettings={true}
+              // Новые пропсы
+              showLayoutToggle
+              showThemeSwitcher
+              layoutMode={headerMode}
+              onLayoutChange={setHeaderMode}
+              currentTheme={themeName}
+              onThemeChange={setThemeName}
             />
           </div>
           <h2 style={{ marginTop: 24 }}>VerticalHeader</h2>
@@ -194,6 +200,13 @@ function App() {
                   <path d="M2 12L12 17L22 12" stroke="white" strokeWidth="2" />
                 </svg>
               }
+              // Новые пропсы
+              showLayoutToggle
+              showThemeSwitcher
+              layoutMode={headerMode}
+              onLayoutChange={setHeaderMode}
+              currentTheme={themeName}
+              onThemeChange={setThemeName}
             />
             <div style={{ flex: 1, padding: 24, background: t.bg }}>
               <p>Содержимое страницы</p>
@@ -342,7 +355,7 @@ function App() {
         </section>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

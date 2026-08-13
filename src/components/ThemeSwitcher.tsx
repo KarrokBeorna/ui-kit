@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import {Theme, ThemeName} from '../themes/theme';
+import { Theme, ThemeName } from '../themes/theme';
 
 interface ThemeSwitcherProps {
   theme: ThemeName;
   onChange: (theme: ThemeName) => void;
   t: Theme;
+  compact?: boolean;
 }
 
 const themeOptions: { id: ThemeName; label: string; dot: string }[] = [
@@ -14,7 +15,7 @@ const themeOptions: { id: ThemeName; label: string; dot: string }[] = [
   { id: 'ocean', label: 'Ocean', dot: '#00c8ff' },
 ];
 
-export function ThemeSwitcher({ theme, onChange, t }: ThemeSwitcherProps) {
+export function ThemeSwitcher({ theme, onChange, t, compact = false }: ThemeSwitcherProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState({ left: 0, width: 0 });
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -72,8 +73,9 @@ export function ThemeSwitcher({ theme, onChange, t }: ThemeSwitcherProps) {
               zIndex: 1,
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '6px 16px',
+              justifyContent: 'center',
+              gap: compact ? 0 : 6,
+              padding: compact ? '6px 8px' : '6px 16px',
               border: 'none',
               background: 'transparent',
               cursor: 'pointer',
@@ -88,16 +90,17 @@ export function ThemeSwitcher({ theme, onChange, t }: ThemeSwitcherProps) {
           >
             <span
               style={{
-                width: 7,
-                height: 7,
+                width: compact ? 8 : 7,
+                height: compact ? 8 : 7,
                 borderRadius: '50%',
                 background: opt.dot,
                 flexShrink: 0,
-                boxShadow: active ? `0 0 6px ${opt.dot}` : 'none',
-                transition: 'box-shadow 0.3s',
+                boxShadow: active ? `0 0 8px ${opt.dot}` : 'none',
+                transition: 'box-shadow 0.3s, transform 0.3s',
+                transform: active && compact ? 'scale(1.2)' : 'scale(1)',
               }}
             />
-            {opt.label}
+            {!compact && <span>{opt.label}</span>}
           </button>
         );
       })}

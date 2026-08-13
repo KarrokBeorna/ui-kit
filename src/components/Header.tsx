@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Theme } from '../themes/theme';
+import { Theme, ThemeName } from '../themes/theme';
 import { IcoLogIn, IcoLogOut, IcoChevronLeft, IcoChevronRight } from './icons';
+import { LayoutToggle, LayoutMode } from './LayoutToggle';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 export interface NavTab {
   id: string;
   label: string;
   icon: string;
-  /** Функция, определяющая, видима ли вкладка. Если не задана, видима всегда. */
   visible?: (isLoggedIn: boolean) => boolean;
 }
 
@@ -19,14 +20,16 @@ interface HeaderBaseProps {
   onSignOut: () => void;
   userName?: string;
   navTabs: NavTab[];
-  /** Название сайта (по умолчанию 'Nexus') */
   siteName?: string;
-  /** SVG-логотип или React-узел (по умолчанию '◈') */
   logoSvg?: React.ReactNode;
-  /** Показывать пункт "Профиль" в выпадающем меню (только горизонтальный) */
   showProfile?: boolean;
-  /** Показывать пункт "Настройки" в выпадающем меню (только горизонтальный) */
   showSettings?: boolean;
+  showLayoutToggle?: boolean;
+  showThemeSwitcher?: boolean;
+  layoutMode?: LayoutMode;
+  onLayoutChange?: (mode: LayoutMode) => void;
+  currentTheme?: ThemeName;
+  onThemeChange?: (theme: ThemeName) => void;
 }
 
 // ── Горизонтальный Header ──────────────────────────────────────
@@ -43,6 +46,12 @@ export function HorizontalHeader({
   logoSvg = '◈',
   showProfile = true,
   showSettings = true,
+  showLayoutToggle = false,
+  showThemeSwitcher = false,
+  layoutMode,
+  onLayoutChange,
+  currentTheme,
+  onThemeChange,
 }: HeaderBaseProps) {
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -55,12 +64,10 @@ export function HorizontalHeader({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Фильтруем вкладки с учётом видимости
   const visibleTabs = navTabs.filter(tab =>
     tab.visible ? tab.visible(isLoggedIn) : true
   );
 
-  // Формируем пункты меню с учётом флагов
   const menuItems: [string, boolean][] = [];
   if (showProfile) menuItems.push(['◈ Profile', false]);
   if (showSettings) menuItems.push(['⚙ Settings', false]);
@@ -86,9 +93,15 @@ export function HorizontalHeader({
           );
         })}
       </nav>
-      <div style={{ flexShrink: 0 }} ref={dropRef}>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {showLayoutToggle && layoutMode && onLayoutChange && (
+          <LayoutToggle mode={layoutMode} onChange={onLayoutChange} theme={t} />
+        )}
+        {showThemeSwitcher && currentTheme && onThemeChange && (
+          <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact />
+        )}
         {isLoggedIn ? (
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }} ref={dropRef}>
             <button onClick={() => setDropOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 24, border: `1px solid ${t.border}`, background: t.bgSurface, cursor: 'pointer', transition: 'all 0.2s', boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui' }}>{userName?.[0]?.toUpperCase()}</div>
               <div style={{ textAlign: 'left' }}>
@@ -127,11 +140,16 @@ export function VerticalHeader({
   navTabs,
   siteName = 'Nexus',
   logoSvg = '◈',
+  showLayoutToggle = false,
+  showThemeSwitcher = false,
+  layoutMode,
+  onLayoutChange,
+  currentTheme,
+  onThemeChange,
 }: HeaderBaseProps) {
   const [collapsed, setCollapsed] = useState(false);
   const w = collapsed ? 64 : 220;
 
-  // Фильтруем вкладки с учётом видимости
   const visibleTabs = navTabs.filter(tab =>
     tab.visible ? tab.visible(isLoggedIn) : true
   );
@@ -169,6 +187,17 @@ export function VerticalHeader({
           );
         })}
       </nav>
+      {/* Блок переключателей (виден только когда не свернут) */}
+      {!collapsed && (showLayoutToggle || showThemeSwitcher) && (
+        <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, display: 'flex', justifyContent: 'center', gap: 6 }}>
+          {showLayoutToggle && layoutMode && onLayoutChange && (
+            <LayoutToggle mode={layoutMode} onChange={onLayoutChange} theme={t} />
+          )}
+          {showThemeSwitcher && currentTheme && onThemeChange && (
+            <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact />
+          )}
+        </div>
+      )}
       <div style={{ padding: '12px 8px', borderTop: `1px solid ${t.borderSubtle}`, flexShrink: 0 }}>
         {isLoggedIn ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgSurface, overflow: 'hidden' }}>
