@@ -72,7 +72,6 @@ export default function Table<T extends Record<string, any>>({
   const [internalOrder, setInternalOrder] = useState<string[]>(columns.map(c => c.key));
   const [internalVisible, setInternalVisible] = useState<Set<string>>(new Set(columns.map(c => c.key)));
 
-  // Мемоизация order и visibleKeys для предотвращения бесконечных циклов
   const order = useMemo(() => {
     return externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
   }, [externalColumnOrder, internalOrder]);
@@ -296,12 +295,13 @@ export default function Table<T extends Record<string, any>>({
     updateButtonPosition();
   }, [sortedData, columns, visibleKeys, order, updateButtonPosition]);
 
-  // ---------- Отображаемые колонки ----------
+  // ---------- Отображаемые колонки (с защитой от дубликатов) ----------
   const displayColumns = useMemo(() => {
-    return order
-      .filter(key => visibleKeys.has(key))
-      .map(key => columns.find(c => c.key === key)!)
-      .filter(Boolean);
+    // Удаляем дубликаты из order и фильтруем по видимости
+    const uniqueKeys = Array.from(new Set(order.filter(key => visibleKeys.has(key))));
+    return uniqueKeys
+      .map(key => columns.find(c => c.key === key))
+      .filter((col): col is Column<T> => col !== undefined);
   }, [order, visibleKeys, columns]);
 
   // ---------- Стили для кнопки-шестерёнки ----------
