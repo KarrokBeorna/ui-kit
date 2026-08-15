@@ -28,6 +28,8 @@ interface TableProps<T extends Record<string, any>> {
   stickyRight?: string[];
   onRowClick?: (row: T) => void;
   selectedRowKey?: string | number;
+  rowClassName?: (row: T) => string;
+  rowStyle?: (row: T) => React.CSSProperties;
   columnOrder?: string[];
   visibleColumns?: string[];
   onColumnOrderChange?: (order: string[]) => void;
@@ -48,6 +50,8 @@ export default function Table<T extends Record<string, any>>({
   stickyRight = [],
   onRowClick,
   selectedRowKey,
+  rowClassName,
+  rowStyle,
   columnOrder: externalColumnOrder,
   visibleColumns: externalVisibleColumns,
   onColumnOrderChange,
@@ -68,14 +72,26 @@ export default function Table<T extends Record<string, any>>({
   const [internalOrder, setInternalOrder] = useState<string[]>(columns.map(c => c.key));
   const [internalVisible, setInternalVisible] = useState<Set<string>>(new Set(columns.map(c => c.key)));
 
-  // Мемоизация order и visibleKeys для стабильности ссылок
-  const order = useMemo(() => {
-    return externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
-  }, [externalColumnOrder, internalOrder]);
+  const order = externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
+  const visibleKeys = externalVisibleColumns !== undefined
+    ? new Set(externalVisibleColumns)
+    : internalVisible;
 
-  const visibleKeys = useMemo(() => {
-    return externalVisibleColumns !== undefined ? new Set(externalVisibleColumns) : internalVisible;
-  }, [externalVisibleColumns, internalVisible]);
+  const updateOrder = (newOrder: string[]) => {
+    if (onColumnOrderChange) {
+      onColumnOrderChange(newOrder);
+    } else {
+      setInternalOrder(newOrder);
+    }
+  };
+
+  const updateVisible = (newVisible: Set<string>) => {
+    if (onVisibleColumnsChange) {
+      onVisibleColumnsChange(Array.from(newVisible));
+    } else {
+      setInternalVisible(newVisible);
+    }
+  };
 
   // ---------- Модалка настроек ----------
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -89,18 +105,8 @@ export default function Table<T extends Record<string, any>>({
   };
 
   const applySettings = () => {
-    const newOrder = settingsOrder;
-    const newVisible = settingsVisible;
-    if (onColumnOrderChange) {
-      onColumnOrderChange(newOrder);
-    } else {
-      setInternalOrder(newOrder);
-    }
-    if (onVisibleColumnsChange) {
-      onVisibleColumnsChange(Array.from(newVisible));
-    } else {
-      setInternalVisible(newVisible);
-    }
+    updateOrder(settingsOrder);
+    updateVisible(settingsVisible);
     setSettingsOpen(false);
   };
 
@@ -132,7 +138,7 @@ export default function Table<T extends Record<string, any>>({
     setSettingsOrder(newOrder);
   };
 
-  // ---------- Обработка клика по заголовку (сортировка) ----------
+  // ---------- Обработка клика по заголовку ----------
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
     let newState: { key: string; direction: 'asc' | 'desc' }[] = [];
@@ -426,9 +432,13 @@ export default function Table<T extends Record<string, any>>({
             ) : (
               sortedData.map((row, rowIndex) => {
                 const isSelected = selectedRowKey !== undefined && row[rowKey] === selectedRowKey;
+                const className = rowClassName ? rowClassName(row) : '';
+                const customRowStyle = rowStyle ? rowStyle(row) : {};
+
                 return (
                   <tr
                     key={row[rowKey]}
+                    className={className}
                     onClick={() => onRowClick && onRowClick(row)}
                     style={{
                       cursor: onRowClick ? 'pointer' : 'default',
@@ -437,6 +447,7 @@ export default function Table<T extends Record<string, any>>({
                       transition: 'background 0.15s',
                       animation: 'fadeInRow 0.25s ease forwards',
                       animationDelay: `${rowIndex * 30}ms`,
+                      ...customRowStyle,
                     }}
                     onMouseEnter={(e) => {
                       if (onRowClick && !isSelected) e.currentTarget.style.background = t.navHoverBg;
