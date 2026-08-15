@@ -28,6 +28,10 @@ interface TableProps<T extends Record<string, any>> {
   stickyRight?: string[];
   onRowClick?: (row: T) => void;
   selectedRowKey?: string | number;
+  columnOrder?: string[];
+  visibleColumns?: string[];
+  onColumnOrderChange?: (order: string[]) => void;
+  onVisibleColumnsChange?: (visible: string[]) => void;
 }
 
 export default function Table<T extends Record<string, any>>({
@@ -44,6 +48,10 @@ export default function Table<T extends Record<string, any>>({
   stickyRight = [],
   onRowClick,
   selectedRowKey,
+  columnOrder: externalColumnOrder,
+  visibleColumns: externalVisibleColumns,
+  onColumnOrderChange,
+  onVisibleColumnsChange,
 }: TableProps<T>) {
   // ---------- Сортировка ----------
   const [internalSortState, setInternalSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
@@ -56,9 +64,36 @@ export default function Table<T extends Record<string, any>>({
     }
   };
 
-  // ---------- Управление видимостью и порядком ----------
-  const [order, setOrder] = useState<string[]>(columns.map(c => c.key));
-  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set(columns.map(c => c.key)));
+  // ---------- Управление видимостью и порядком (с поддержкой внешних пропсов) ----------
+  const defaultOrder = columns.map(c => c.key);
+  const defaultVisible = new Set(defaultOrder);
+
+  // Внутренние состояния используются только если нет внешних пропсов
+  const [internalOrder, setInternalOrder] = useState<string[]>(defaultOrder);
+  const [internalVisible, setInternalVisible] = useState<Set<string>>(defaultVisible);
+
+  // Определяем текущие значения
+  const order = externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
+  const visibleKeys = externalVisibleColumns !== undefined
+    ? new Set(externalVisibleColumns)
+    : internalVisible;
+
+  // Функции обновления с вызовом внешних колбэков, если они переданы
+  const updateOrder = (newOrder: string[]) => {
+    if (onColumnOrderChange) {
+      onColumnOrderChange(newOrder);
+    } else {
+      setInternalOrder(newOrder);
+    }
+  };
+
+  const updateVisible = (newVisible: Set<string>) => {
+    if (onVisibleColumnsChange) {
+      onVisibleColumnsChange(Array.from(newVisible));
+    } else {
+      setInternalVisible(newVisible);
+    }
+  };
 
   // ---------- Модалка настроек ----------
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -72,8 +107,8 @@ export default function Table<T extends Record<string, any>>({
   };
 
   const applySettings = () => {
-    setOrder(settingsOrder);
-    setVisibleKeys(settingsVisible);
+    updateOrder(settingsOrder);
+    updateVisible(settingsVisible);
     setSettingsOpen(false);
   };
 
@@ -510,4 +545,4 @@ export default function Table<T extends Record<string, any>>({
       />
     </>
   );
-};
+}
