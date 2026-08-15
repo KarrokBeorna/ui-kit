@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { Theme } from '../themes/theme';
 import Modal from './Modal';
@@ -72,26 +72,30 @@ export default function Table<T extends Record<string, any>>({
   const [internalOrder, setInternalOrder] = useState<string[]>(columns.map(c => c.key));
   const [internalVisible, setInternalVisible] = useState<Set<string>>(new Set(columns.map(c => c.key)));
 
-  const order = externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
-  const visibleKeys = externalVisibleColumns !== undefined
-    ? new Set(externalVisibleColumns)
-    : internalVisible;
+  // Мемоизация order и visibleKeys для предотвращения бесконечных циклов
+  const order = useMemo(() => {
+    return externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
+  }, [externalColumnOrder, internalOrder]);
 
-  const updateOrder = (newOrder: string[]) => {
+  const visibleKeys = useMemo(() => {
+    return externalVisibleColumns !== undefined ? new Set(externalVisibleColumns) : internalVisible;
+  }, [externalVisibleColumns, internalVisible]);
+
+  const updateOrder = useCallback((newOrder: string[]) => {
     if (onColumnOrderChange) {
       onColumnOrderChange(newOrder);
     } else {
       setInternalOrder(newOrder);
     }
-  };
+  }, [onColumnOrderChange]);
 
-  const updateVisible = (newVisible: Set<string>) => {
+  const updateVisible = useCallback((newVisible: Set<string>) => {
     if (onVisibleColumnsChange) {
       onVisibleColumnsChange(Array.from(newVisible));
     } else {
       setInternalVisible(newVisible);
     }
-  };
+  }, [onVisibleColumnsChange]);
 
   // ---------- Модалка настроек ----------
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -261,7 +265,7 @@ export default function Table<T extends Record<string, any>>({
   const containerRef = useRef<HTMLDivElement>(null);
   const [buttonPosition, setButtonPosition] = useState({ top: 0, left: 0 });
 
-  const updateButtonPosition = () => {
+  const updateButtonPosition = useCallback(() => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       setButtonPosition({
@@ -269,7 +273,7 @@ export default function Table<T extends Record<string, any>>({
         left: rect.left - 12,
       });
     }
-  };
+  }, []);
 
   useEffect(() => {
     updateButtonPosition();
@@ -286,14 +290,13 @@ export default function Table<T extends Record<string, any>>({
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
     };
-  }, []);
+  }, [updateButtonPosition]);
 
-  // Обновляем позицию при изменении данных или колонок
   useEffect(() => {
     updateButtonPosition();
-  }, [sortedData, columns, visibleKeys, order]);
+  }, [sortedData, columns, visibleKeys, order, updateButtonPosition]);
 
-  // ---------- Отображаемые колонки (мемоизация!) ----------
+  // ---------- Отображаемые колонки ----------
   const displayColumns = useMemo(() => {
     return order
       .filter(key => visibleKeys.has(key))
