@@ -26,6 +26,8 @@ interface TableProps<T extends Record<string, any>> {
   height?: string | number;
   columnMaxWidth?: number;
   stickyRight?: string[];
+  onRowClick?: (row: T) => void;
+  selectedRowKey?: string | number;
 }
 
 export default function Table<T extends Record<string, any>>({
@@ -40,6 +42,8 @@ export default function Table<T extends Record<string, any>>({
   height = '400px',
   columnMaxWidth = 300,
   stickyRight = [],
+  onRowClick,
+  selectedRowKey,
 }: TableProps<T>) {
   // ---------- Сортировка ----------
   const [internalSortState, setInternalSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
@@ -342,7 +346,7 @@ export default function Table<T extends Record<string, any>>({
                 const originalIndex = columns.findIndex(c => c.key === col.key);
                 const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, true) : {};
 
-                const isSortable = col.sortable;
+                const isSortable = col.sortable !== undefined ? col.sortable : true;
 
                 return (
                   <th
@@ -393,36 +397,49 @@ export default function Table<T extends Record<string, any>>({
                 </td>
               </tr>
             ) : (
-              sortedData.map((row, rowIndex) => (
-                <tr
-                  key={row[rowKey]}
-                  style={{
-                    animation: 'fadeInRow 0.25s ease forwards',
-                    animationDelay: `${rowIndex * 30}ms`,
-                    background: t.bgSurface,
-                  }}
-                >
-                  {displayColumns.map((col) => {
-                    const originalIndex = columns.findIndex(c => c.key === col.key);
-                    const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, false) : {};
-                    const cellContent = col.render
-                      ? col.render((row as any)[col.key], row)
-                      : (row as any)[col.key];
-                    return (
-                      <td
-                        key={col.key}
-                        style={{
-                          ...cellBaseStyle,
-                          ...stickyStyle,
-                          ...col.style,
-                        }}
-                      >
-                        {cellContent}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
+              sortedData.map((row, rowIndex) => {
+                const isSelected = selectedRowKey !== undefined && row[rowKey] === selectedRowKey;
+                return (
+                  <tr
+                    key={row[rowKey]}
+                    onClick={() => onRowClick && onRowClick(row)}
+                    style={{
+                      cursor: onRowClick ? 'pointer' : 'default',
+                      background: isSelected ? `${t.accent}22` : t.bgSurface,
+                      borderLeft: isSelected ? `3px solid ${t.accent}` : 'none',
+                      transition: 'background 0.15s',
+                      animation: 'fadeInRow 0.25s ease forwards',
+                      animationDelay: `${rowIndex * 30}ms`,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (onRowClick && !isSelected) e.currentTarget.style.background = t.navHoverBg;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (onRowClick && !isSelected) e.currentTarget.style.background = t.bgSurface;
+                    }}
+                  >
+                    {displayColumns.map((col) => {
+                      const originalIndex = columns.findIndex(c => c.key === col.key);
+                      const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, false) : {};
+                      const cellContent = col.render
+                        ? col.render((row as any)[col.key], row)
+                        : (row as any)[col.key];
+                      return (
+                        <td
+                          key={col.key}
+                          style={{
+                            ...cellBaseStyle,
+                            ...stickyStyle,
+                            ...col.style,
+                          }}
+                        >
+                          {cellContent}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
