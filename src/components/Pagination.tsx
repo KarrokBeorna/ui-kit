@@ -7,21 +7,31 @@ interface PaginationProps {
   total: number;
   /** Начальное значение на страницу (по умолчанию 10) */
   defaultPerPage?: number;
+  /** Текущая страница (внешнее управление) */
+  page?: number;
   /** Коллбэк при изменении страницы или perPage */
   onPageChange?: (page: number, perPage: number) => void;
 }
 
-export function Pagination({ t, total, defaultPerPage = 10, onPageChange }: PaginationProps) {
-  const [page, setPage] = useState(1);
+export function Pagination({ t, total, defaultPerPage = 10, page: externalPage, onPageChange }: PaginationProps) {
+  const [internalPage, setInternalPage] = useState(1);
   const [perPage, setPerPage] = useState(defaultPerPage);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
+
+  // Используем внешнюю страницу, если передана, иначе внутреннюю
+  const page = externalPage !== undefined ? externalPage : internalPage;
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const start = (page - 1) * perPage + 1;
   const end = Math.min(page * perPage, total);
 
-  useEffect(() => { setPage(1); }, [total, perPage]);
+  // Сброс страницы при изменении total/perPage
+  useEffect(() => {
+    if (externalPage === undefined) {
+      setInternalPage(1);
+    }
+  }, [total, perPage, externalPage]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -33,10 +43,13 @@ export function Pagination({ t, total, defaultPerPage = 10, onPageChange }: Pagi
 
   const goTo = useCallback((p: number) => {
     const newPage = Math.max(1, Math.min(totalPages, p));
-    setPage(newPage);
+    if (externalPage === undefined) {
+      setInternalPage(newPage);
+    }
     onPageChange?.(newPage, perPage);
-  }, [totalPages, perPage, onPageChange]);
+  }, [totalPages, perPage, onPageChange, externalPage]);
 
+  // Автоматический вызов onPageChange при изменении page или perPage
   useEffect(() => {
     onPageChange?.(page, perPage);
   }, [page, perPage]);

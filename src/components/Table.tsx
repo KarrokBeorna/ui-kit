@@ -72,14 +72,26 @@ export default function Table<T extends Record<string, any>>({
   const [internalOrder, setInternalOrder] = useState<string[]>(columns.map(c => c.key));
   const [internalVisible, setInternalVisible] = useState<Set<string>>(new Set(columns.map(c => c.key)));
 
-  // Мемоизация order и visibleKeys для стабильности ссылок
-  const order = useMemo(() => {
-    return externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
-  }, [externalColumnOrder, internalOrder]);
+  const order = externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
+  const visibleKeys = externalVisibleColumns !== undefined
+    ? new Set(externalVisibleColumns)
+    : internalVisible;
 
-  const visibleKeys = useMemo(() => {
-    return externalVisibleColumns !== undefined ? new Set(externalVisibleColumns) : internalVisible;
-  }, [externalVisibleColumns, internalVisible]);
+  const updateOrder = (newOrder: string[]) => {
+    if (onColumnOrderChange) {
+      onColumnOrderChange(newOrder);
+    } else {
+      setInternalOrder(newOrder);
+    }
+  };
+
+  const updateVisible = (newVisible: Set<string>) => {
+    if (onVisibleColumnsChange) {
+      onVisibleColumnsChange(Array.from(newVisible));
+    } else {
+      setInternalVisible(newVisible);
+    }
+  };
 
   // ---------- Модалка настроек ----------
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -93,18 +105,8 @@ export default function Table<T extends Record<string, any>>({
   };
 
   const applySettings = () => {
-    const newOrder = settingsOrder;
-    const newVisible = settingsVisible;
-    if (onColumnOrderChange) {
-      onColumnOrderChange(newOrder);
-    } else {
-      setInternalOrder(newOrder);
-    }
-    if (onVisibleColumnsChange) {
-      onVisibleColumnsChange(Array.from(newVisible));
-    } else {
-      setInternalVisible(newVisible);
-    }
+    updateOrder(settingsOrder);
+    updateVisible(settingsVisible);
     setSettingsOpen(false);
   };
 
@@ -284,13 +286,14 @@ export default function Table<T extends Record<string, any>>({
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
     };
-  }, [sortedData, columns, visibleKeys, order]);
+  }, []);
 
+  // Обновляем позицию при изменении данных или колонок
   useEffect(() => {
     updateButtonPosition();
   }, [sortedData, columns, visibleKeys, order]);
 
-  // ---------- Отображаемые колонки ----------
+  // ---------- Отображаемые колонки (мемоизация!) ----------
   const displayColumns = useMemo(() => {
     return order
       .filter(key => visibleKeys.has(key))
