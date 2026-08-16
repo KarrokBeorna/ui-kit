@@ -34,6 +34,7 @@ interface TableProps<T extends Record<string, any>> {
   visibleColumns?: string[];
   onColumnOrderChange?: (order: string[]) => void;
   onVisibleColumnsChange?: (visible: string[]) => void;
+  onApplySettings?: (visible: string[], order: string[]) => void;
 }
 
 export default function Table<T extends Record<string, any>>({
@@ -56,6 +57,7 @@ export default function Table<T extends Record<string, any>>({
   visibleColumns: externalVisibleColumns,
   onColumnOrderChange,
   onVisibleColumnsChange,
+  onApplySettings,
 }: TableProps<T>) {
   // ---------- Сортировка ----------
   const [internalSortState, setInternalSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
@@ -108,8 +110,12 @@ export default function Table<T extends Record<string, any>>({
   };
 
   const applySettings = () => {
-    updateOrder(settingsOrder);
-    updateVisible(settingsVisible);
+    if (onApplySettings) {
+      onApplySettings(Array.from(settingsVisible), settingsOrder);
+    } else {
+      updateOrder(settingsOrder);
+      updateVisible(settingsVisible);
+    }
     setSettingsOpen(false);
   };
 
@@ -297,7 +303,6 @@ export default function Table<T extends Record<string, any>>({
 
   // ---------- Отображаемые колонки (с защитой от дубликатов) ----------
   const displayColumns = useMemo(() => {
-    // Удаляем дубликаты из order и фильтруем по видимости
     const uniqueKeys = Array.from(new Set(order.filter(key => visibleKeys.has(key))));
     return uniqueKeys
       .map(key => columns.find(c => c.key === key))
