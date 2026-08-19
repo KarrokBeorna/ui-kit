@@ -163,6 +163,7 @@ export default function SearchableSelect({
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease, border-radius 0.15s ease',
             boxShadow: open ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
+            height: '50px',
           }}
           autoComplete="off"
         />

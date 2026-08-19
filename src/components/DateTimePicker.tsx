@@ -9,40 +9,11 @@ interface DateTimePickerProps {
   onChange: (val: string) => void
   enableDate?: boolean
   enableTime?: boolean
-  onToggleDate?: (v: boolean) => void
-  onToggleTime?: (v: boolean) => void
-  error?: string
-}
-
-function Toggle({ active, onChange, label, t }: {
-  active: boolean; onChange: (v: boolean) => void; label: string; t: Theme
-}) {
-  return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}>
-      <div
-        onClick={() => onChange(!active)}
-        style={{
-          width: 34, height: 18, borderRadius: 9,
-          background: active ? t.toggleActive : t.toggleBg,
-          position: 'relative', transition: 'background 0.22s ease', cursor: 'pointer', flexShrink: 0,
-        }}
-      >
-        <div style={{
-          position: 'absolute', top: 2, left: active ? 18 : 2,
-          width: 14, height: 14, borderRadius: '50%', background: '#ffffff',
-          transition: 'left 0.22s cubic-bezier(0.4,0,0.2,1)',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-        }} />
-      </div>
-      <span style={{ fontSize: 12, color: t.placeholder }}>{label}</span>
-    </label>
-  )
 }
 
 export default function DateTimePicker({
   label, theme: t, value, onChange,
   enableDate = true, enableTime = true,
-  onToggleDate, onToggleTime, error,
 }: DateTimePickerProps) {
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -98,7 +69,7 @@ export default function DateTimePicker({
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
-            border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
+            border: `1.5px solid ${focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
             padding: value ? '18px 70px 8px 16px' : '18px 46px 8px 16px',
             fontSize: 15, color: textColor, outline: 'none',
@@ -106,6 +77,7 @@ export default function DateTimePicker({
             boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
             colorScheme: t.bg.startsWith('#0') || t.bg.startsWith('#1') ? 'dark' : 'light',
+            height: '50px',
           }}
           autoComplete="off"
         />
@@ -117,7 +89,7 @@ export default function DateTimePicker({
             top: floated ? 0 : '50%',
             transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(-50%)',
             transformOrigin: 'left center',
-            color: error ? t.danger : floated ? t.labelFloat : t.placeholder,
+            color: floated ? t.labelFloat : t.placeholder,
             fontSize: 15, pointerEvents: 'none',
             transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
             background: floated ? t.labelBg : 'transparent',
@@ -163,13 +135,6 @@ export default function DateTimePicker({
           </button>
         </div>
       </div>
-
-      <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingLeft: 4 }}>
-        {onToggleDate && <Toggle active={enableDate} onChange={onToggleDate} label="Дата" t={t} />}
-        {onToggleTime && <Toggle active={enableTime} onChange={onToggleTime} label="Время" t={t} />}
-      </div>
-
-      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
   )
 }

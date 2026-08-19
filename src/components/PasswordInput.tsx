@@ -81,6 +81,7 @@ export default function PasswordInput({
             boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
             letterSpacing: visible ? 'normal' : value ? '2px' : 'normal',
+            height: '50px',
           }}
           autoComplete="new-password"
         />

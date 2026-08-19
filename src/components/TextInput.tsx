@@ -80,6 +80,7 @@ export default function TextInput({
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
             boxShadow: focused ? `0 0 0 3px ${error ? '#ef444422' : t.accentGlow}` : 'none',
             fontFamily: 'inherit',
+            height: '50px',
           }}
           autoComplete="off"
         />
