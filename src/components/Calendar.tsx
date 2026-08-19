@@ -25,6 +25,7 @@ interface CalendarProps {
   onAssignmentsChange?: (assignments: Record<string, string>) => void;
 }
 
+// Вспомогательные функции
 function formatLocalDate(year: number, month: number, day: number): string {
   const m = String(month + 1).padStart(2, '0');
   const d = String(day).padStart(2, '0');
@@ -67,6 +68,9 @@ export default function Calendar({
     templateOptions.length > 0 ? templateOptions[0].value : ''
   );
 
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -81,30 +85,38 @@ export default function Calendar({
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
+    resetRange();
   };
 
   const handleNextMonth = () => {
     setCurrentDate(new Date(year, month + 1, 1));
+    resetRange();
   };
 
-  const handleApply = () => {
-    if (!startDate || !endDate || !selectedTemplate) return;
-    const start = parseLocalDate(startDate);
-    const end = parseLocalDate(endDate);
-    if (!start || !end) return;
-    if (start.year > end.year ||
-        (start.year === end.year && start.month > end.month) ||
-        (start.year === end.year && start.month === end.month && start.day > end.day)) {
-      return;
-    }
+  const resetRange = () => {
+    setRangeStart(null);
+    setRangeEnd(null);
+    setStartDate('');
+    setEndDate('');
+  };
+
+  // Основная функция для применения или удаления назначений
+  const applyOrRemoveAssignments = (start: string, end: string, template: string) => {
+    const startParsed = parseLocalDate(start);
+    const endParsed = parseLocalDate(end);
+    if (!startParsed || !endParsed) return;
 
     const newAssignments = { ...assignments };
-    const current = { year: start.year, month: start.month, day: start.day };
-    while (current.year < end.year ||
-           (current.year === end.year && current.month < end.month) ||
-           (current.year === end.year && current.month === end.month && current.day <= end.day)) {
+    const current = { year: startParsed.year, month: startParsed.month, day: startParsed.day };
+    while (current.year < endParsed.year ||
+           (current.year === endParsed.year && current.month < endParsed.month) ||
+           (current.year === endParsed.year && current.month === endParsed.month && current.day <= endParsed.day)) {
       const dateStr = formatLocalDate(current.year, current.month, current.day);
-      newAssignments[dateStr] = selectedTemplate;
+      if (template) {
+        newAssignments[dateStr] = template;
+      } else {
+        delete newAssignments[dateStr]; // удаляем, если шаблон пустой
+      }
       const next = new Date(current.year, current.month, current.day + 1);
       current.year = next.getFullYear();
       current.month = next.getMonth();
@@ -114,6 +126,56 @@ export default function Calendar({
     if (onAssignmentsChange) {
       onAssignmentsChange(newAssignments);
     }
+  };
+
+  const handleDateClick = (dateStr: string, isCurrentMonth: boolean) => {
+    if (!isCurrentMonth) return;
+
+    if (rangeStart !== null && rangeEnd !== null) {
+      resetRange();
+      return;
+    }
+
+    if (rangeStart === null) {
+      setRangeStart(dateStr);
+      setStartDate(dateStr);
+      setRangeEnd(null);
+      setEndDate('');
+      return;
+    }
+
+    if (rangeEnd === null) {
+      const startParsed = parseLocalDate(rangeStart);
+      const endParsed = parseLocalDate(dateStr);
+      if (!startParsed || !endParsed) return;
+
+      const startTime = new Date(startParsed.year, startParsed.month, startParsed.day).getTime();
+      const endTime = new Date(endParsed.year, endParsed.month, endParsed.day).getTime();
+      if (endTime < startTime) {
+        setRangeStart(dateStr);
+        setRangeEnd(rangeStart);
+        setStartDate(dateStr);
+        setEndDate(rangeStart);
+        if (selectedTemplate) {
+          applyOrRemoveAssignments(dateStr, rangeStart, selectedTemplate);
+        }
+        return;
+      }
+
+      setRangeEnd(dateStr);
+      setEndDate(dateStr);
+      // Автоприменяем только если выбран шаблон
+      if (selectedTemplate) {
+        applyOrRemoveAssignments(rangeStart, dateStr, selectedTemplate);
+      }
+    }
+  };
+
+  const handleApply = () => {
+    if (!startDate || !endDate) return;
+    // Применяем или удаляем в зависимости от выбранного шаблона
+    applyOrRemoveAssignments(startDate, endDate, selectedTemplate);
+    resetRange();
   };
 
   const days: DayInfo[] = [];
@@ -153,6 +215,20 @@ export default function Calendar({
   const getTemplate = (value: string) => {
     return templateOptions.find(o => o.value === value);
   };
+
+  const isDateInRange = (dateStr: string) => {
+    if (!rangeStart || !rangeEnd) return false;
+    const start = parseLocalDate(rangeStart);
+    const end = parseLocalDate(rangeEnd);
+    const current = parseLocalDate(dateStr);
+    if (!start || !end || !current) return false;
+    const startTime = new Date(start.year, start.month, start.day).getTime();
+    const endTime = new Date(end.year, end.month, end.day).getTime();
+    const currentTime = new Date(current.year, current.month, current.day).getTime();
+    return currentTime >= startTime && currentTime <= endTime;
+  };
+
+  const cellWidth = '14.285%';
 
   return (
     <div
@@ -208,7 +284,13 @@ export default function Calendar({
         </div>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table
+        style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
+        }}
+      >
         <thead>
           <tr>
             {weekDays.map((day) => (
@@ -221,6 +303,7 @@ export default function Calendar({
                   fontSize: 14,
                   color: t.placeholder,
                   borderBottom: `1px solid ${t.border}`,
+                  width: cellWidth,
                 }}
               >
                 {day}
@@ -244,19 +327,50 @@ export default function Calendar({
                     : 'rgba(46, 204, 113, 0.25)';
                   const textColor = template?.color || '#27ae60';
 
+                  const inRange = isDateInRange(dateStr);
+
                   return (
                     <td
                       key={dateStr}
+                      onClick={() => handleDateClick(dateStr, isCurrentMonth)}
                       style={{
                         padding: '6px 4px',
                         textAlign: 'center',
                         fontSize: 14,
                         color: isCurrentMonth ? t.text : t.placeholder,
-                        background: assignment ? bgColor : (isWeekend ? t.bg : 'transparent'),
+                        background: assignment
+                          ? bgColor
+                          : isCurrentMonth && inRange
+                          ? t.accentGlow
+                          : isWeekend
+                          ? t.bg
+                          : 'transparent',
                         borderRadius: 6,
-                        cursor: 'default',
-                        minWidth: 36,
-                        border: '1px solid transparent',
+                        cursor: isCurrentMonth ? 'pointer' : 'default',
+                        width: cellWidth,
+                        border: `1px solid ${
+                          isCurrentMonth && inRange
+                            ? t.accent
+                            : 'transparent'
+                        }`,
+                        transition: 'background 0.15s, border 0.15s',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isCurrentMonth && !assignment) {
+                          e.currentTarget.style.background = t.navHoverBg;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (isCurrentMonth && !assignment) {
+                          e.currentTarget.style.background = inRange
+                            ? t.accentGlow
+                            : isWeekend
+                            ? t.bg
+                            : 'transparent';
+                        }
                       }}
                     >
                       <div style={{ fontWeight: isCurrentMonth ? 500 : 300 }}>{day}</div>
@@ -307,7 +421,10 @@ export default function Calendar({
               label="Начало"
               theme={t}
               value={startDate}
-              onChange={setStartDate}
+              onChange={(val) => {
+                setStartDate(val);
+                if (val && rangeEnd) resetRange();
+              }}
               enableDate
               enableTime={false}
             />
@@ -317,7 +434,10 @@ export default function Calendar({
               label="Конец"
               theme={t}
               value={endDate}
-              onChange={setEndDate}
+              onChange={(val) => {
+                setEndDate(val);
+                if (val && rangeStart) resetRange();
+              }}
               enableDate
               enableTime={false}
             />
@@ -334,11 +454,11 @@ export default function Calendar({
           <div style={{  }}>
             <Button
               theme={t}
-              variant="primary"
+              variant={selectedTemplate ? "primary" : "danger"}
               onClick={handleApply}
               size="md"
             >
-              Применить
+              {selectedTemplate ? 'Применить' : 'Удалить'}
             </Button>
           </div>
         </div>
