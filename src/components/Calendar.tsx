@@ -7,13 +7,8 @@ import Button from './Button';
 export interface TemplateOption {
   value: string;
   label: string;
-}
-
-interface CalendarProps {
-  theme: Theme;
-  templateOptions: TemplateOption[];
-  initialAssignments?: Record<string, string>;
-  onAssignmentsChange?: (assignments: Record<string, string>) => void;
+  color?: string;
+  backgroundColor?: string;
 }
 
 interface DayInfo {
@@ -21,6 +16,13 @@ interface DayInfo {
   dateStr: string;
   isCurrentMonth: boolean;
   assignment?: string;
+}
+
+interface CalendarProps {
+  theme: Theme;
+  templateOptions: TemplateOption[];
+  initialAssignments?: Record<string, string>;
+  onAssignmentsChange?: (assignments: Record<string, string>) => void;
 }
 
 function formatLocalDate(year: number, month: number, day: number): string {
@@ -44,7 +46,7 @@ function getDaysInMonth(year: number, month: number): number {
 }
 
 function getFirstDayOfMonth(year: number, month: number): number {
-  return new Date(year, month, 1).getDay(); // 0 – воскресенье
+  return new Date(year, month, 1).getDay();
 }
 
 function getMondayBasedDay(day: number): number {
@@ -58,7 +60,7 @@ export default function Calendar({
   onAssignmentsChange,
 }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [assignments, setAssignments] = useState<Record<string, string>>(initialAssignments);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(
@@ -103,7 +105,6 @@ export default function Calendar({
            (current.year === end.year && current.month === end.month && current.day <= end.day)) {
       const dateStr = formatLocalDate(current.year, current.month, current.day);
       newAssignments[dateStr] = selectedTemplate;
-      // увеличиваем день
       const next = new Date(current.year, current.month, current.day + 1);
       current.year = next.getFullYear();
       current.month = next.getMonth();
@@ -149,6 +150,10 @@ export default function Calendar({
     return found ? found.label : value;
   };
 
+  const getTemplate = (value: string) => {
+    return templateOptions.find(o => o.value === value);
+  };
+
   return (
     <div
       style={{
@@ -159,7 +164,6 @@ export default function Calendar({
         color: t.text,
       }}
     >
-      {/* Заголовок с переключением месяца */}
       <div
         style={{
           display: 'flex',
@@ -204,7 +208,6 @@ export default function Calendar({
         </div>
       </div>
 
-      {/* Таблица календаря */}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
@@ -233,6 +236,14 @@ export default function Calendar({
                 {rowDays.map((dayInfo, colIndex) => {
                   const { day, dateStr, isCurrentMonth, assignment } = dayInfo;
                   const isWeekend = colIndex === 5 || colIndex === 6;
+                  const template = assignment ? getTemplate(assignment) : undefined;
+                  const bgColor = template?.backgroundColor
+                    ? template.backgroundColor
+                    : template?.color
+                    ? `${template.color}40`
+                    : 'rgba(46, 204, 113, 0.25)';
+                  const textColor = template?.color || '#27ae60';
+
                   return (
                     <td
                       key={dateStr}
@@ -241,11 +252,7 @@ export default function Calendar({
                         textAlign: 'center',
                         fontSize: 14,
                         color: isCurrentMonth ? t.text : t.placeholder,
-                        background: assignment
-                          ? 'rgba(46, 204, 113, 0.25)'
-                          : isWeekend
-                          ? t.bg
-                          : 'transparent',
+                        background: assignment ? bgColor : (isWeekend ? t.bg : 'transparent'),
                         borderRadius: 6,
                         cursor: 'default',
                         minWidth: 36,
@@ -257,10 +264,10 @@ export default function Calendar({
                         <div
                           style={{
                             fontSize: 10,
-                            color: '#27ae60',
+                            color: textColor,
                             fontWeight: 500,
                             marginTop: 2,
-                            background: 'rgba(46, 204, 113, 0.15)',
+                            background: 'rgba(255,255,255,0.15)',
                             borderRadius: 4,
                             padding: '1px 4px',
                             whiteSpace: 'nowrap',
@@ -280,7 +287,6 @@ export default function Calendar({
         </tbody>
       </table>
 
-      {/* Панель управления с компонентами библиотеки */}
       <div
         style={{
           marginTop: 20,
@@ -293,9 +299,10 @@ export default function Calendar({
             display: 'flex',
             flexWrap: 'wrap',
             gap: 12,
+            alignItems: 'center'
           }}
         >
-          <div style={{ flex: 1, minWidth: 170 }}>
+          <div style={{ flex: 1, minWidth: 170, maxWidth: 180 }}>
             <DateTimePicker
               label="Начало"
               theme={t}
@@ -305,7 +312,7 @@ export default function Calendar({
               enableTime={false}
             />
           </div>
-          <div style={{ flex: 1, minWidth: 170 }}>
+          <div style={{ flex: 1, minWidth: 170, maxWidth: 180 }}>
             <DateTimePicker
               label="Конец"
               theme={t}
@@ -315,11 +322,11 @@ export default function Calendar({
               enableTime={false}
             />
           </div>
-          <div style={{ flex: 1, minWidth: 170 }}>
+          <div style={{ flex: 1, minWidth: 170, maxWidth: 300 }}>
             <SearchableSelect
               label="Шаблон"
               theme={t}
-              options={templateOptions}
+              options={templateOptions.map(({ value, label }) => ({ value, label }))}
               value={selectedTemplate}
               onChange={setSelectedTemplate}
             />
