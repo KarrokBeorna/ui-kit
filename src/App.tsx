@@ -64,6 +64,12 @@ function App() {
     { id: 'settings', label: 'Настройки', icon: '⚙' },
   ];
 
+  const templateOptions = [
+    { value: 'work', label: 'Рабочий', color: '#2ecc71' },
+    { value: 'weekend', label: 'Выходной', color: '#f39c12' },
+    { value: 'holiday', label: 'Праздничный', color: '#e74c3c' },
+  ];
+
   const showMenu = activeTab === 'settings';
 
   // Фильтры для FilterBar
@@ -391,7 +397,7 @@ function App() {
         {/* ------------------- Calendar (НОВЫЙ КОМПОНЕНТ) ------------------- */}
         <section style={{ marginBottom: 48 }}>
           <h2>Calendar (рабочий график)</h2>
-          <Calendar theme={t} />
+          <Calendar theme={t} templateOptions={templateOptions} />
         </section>
 
         {/* ------------------- Headers + Menu + Content (главная демонстрация) ------------------- */}

@@ -4,11 +4,41 @@ import DateTimePicker from './DateTimePicker';
 import SearchableSelect from './SearchableSelect';
 import Button from './Button';
 
-interface CalendarProps {
-  theme: Theme;
+export interface TemplateOption {
+  value: string;
+  label: string;
 }
 
-// Вспомогательные функции для работы с датами
+interface CalendarProps {
+  theme: Theme;
+  templateOptions: TemplateOption[];
+  initialAssignments?: Record<string, string>;
+  onAssignmentsChange?: (assignments: Record<string, string>) => void;
+}
+
+interface DayInfo {
+  day: number;
+  dateStr: string;
+  isCurrentMonth: boolean;
+  assignment?: string;
+}
+
+function formatLocalDate(year: number, month: number, day: number): string {
+  const m = String(month + 1).padStart(2, '0');
+  const d = String(day).padStart(2, '0');
+  return `${year}-${m}-${d}`;
+}
+
+function parseLocalDate(dateStr: string): { year: number; month: number; day: number } | null {
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+  return { year, month, day };
+}
+
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
@@ -21,12 +51,19 @@ function getMondayBasedDay(day: number): number {
   return day === 0 ? 6 : day - 1;
 }
 
-export default function Calendar({ theme: t }: CalendarProps) {
+export default function Calendar({
+  theme: t,
+  templateOptions,
+  initialAssignments = {},
+  onAssignmentsChange,
+}: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('work');
+  const [selectedTemplate, setSelectedTemplate] = useState(
+    templateOptions.length > 0 ? templateOptions[0].value : ''
+  );
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -34,13 +71,9 @@ export default function Calendar({ theme: t }: CalendarProps) {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDayIndex = getMondayBasedDay(getFirstDayOfMonth(year, month));
 
-  // Данные для пустых ячеек (предыдущий/следующий месяц)
   const prevMonthYear = month === 0 ? year - 1 : year;
   const prevMonth = month === 0 ? 11 : month - 1;
   const daysInPrevMonth = getDaysInMonth(prevMonthYear, prevMonth);
-
-  const nextMonthYear = month === 11 ? year + 1 : year;
-  const nextMonth = month === 0 ? 11 : month - 1; // не используется, но для ясности
 
   const totalCells = Math.ceil((firstDayIndex + daysInMonth) / 7) * 7;
 
@@ -54,19 +87,35 @@ export default function Calendar({ theme: t }: CalendarProps) {
 
   const handleApply = () => {
     if (!startDate || !endDate || !selectedTemplate) return;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (start > end) return;
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
+    if (!start || !end) return;
+    if (start.year > end.year ||
+        (start.year === end.year && start.month > end.month) ||
+        (start.year === end.year && start.month === end.month && start.day > end.day)) {
+      return;
+    }
+
     const newAssignments = { ...assignments };
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
+    const current = { year: start.year, month: start.month, day: start.day };
+    while (current.year < end.year ||
+           (current.year === end.year && current.month < end.month) ||
+           (current.year === end.year && current.month === end.month && current.day <= end.day)) {
+      const dateStr = formatLocalDate(current.year, current.month, current.day);
       newAssignments[dateStr] = selectedTemplate;
+      // увеличиваем день
+      const next = new Date(current.year, current.month, current.day + 1);
+      current.year = next.getFullYear();
+      current.month = next.getMonth();
+      current.day = next.getDate();
     }
     setAssignments(newAssignments);
+    if (onAssignmentsChange) {
+      onAssignmentsChange(newAssignments);
+    }
   };
 
-  // Формируем массив дней
-  const days = [];
+  const days: DayInfo[] = [];
   for (let i = 0; i < totalCells; i++) {
     let day: number;
     let dateStr: string;
@@ -87,23 +136,14 @@ export default function Calendar({ theme: t }: CalendarProps) {
       monthForDate = month;
       yearForDate = year;
     }
-    const dateObj = new Date(yearForDate, monthForDate, day);
-    const dateStrFull = dateObj.toISOString().split('T')[0];
+    dateStr = formatLocalDate(yearForDate, monthForDate, day);
     const isCurrentMonth = (monthForDate === month && yearForDate === year);
-    const assignment = assignments[dateStrFull];
-    days.push({ day, dateStr: dateStrFull, isCurrentMonth, assignment });
+    const assignment = assignments[dateStr];
+    days.push({ day, dateStr, isCurrentMonth, assignment });
   }
 
   const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-  // Опции для выбора шаблона
-  const templateOptions = [
-    { value: 'work', label: 'Рабочий' },
-    { value: 'weekend', label: 'Выходной' },
-    { value: 'holiday', label: 'Праздничный' },
-  ];
-
-  // Функция для форматирования названия шаблона (для отображения в ячейке)
   const getTemplateLabel = (value: string) => {
     const found = templateOptions.find(o => o.value === value);
     return found ? found.label : value;
@@ -190,10 +230,8 @@ export default function Calendar({ theme: t }: CalendarProps) {
             const rowDays = days.slice(rowIndex * 7, (rowIndex + 1) * 7);
             return (
               <tr key={rowIndex}>
-                {rowDays.map((dayInfo) => {
+                {rowDays.map((dayInfo, colIndex) => {
                   const { day, dateStr, isCurrentMonth, assignment } = dayInfo;
-                  // Выходные – последние два столбца (индекс 5 и 6)
-                  const colIndex = rowDays.indexOf(dayInfo);
                   const isWeekend = colIndex === 5 || colIndex === 6;
                   return (
                     <td
