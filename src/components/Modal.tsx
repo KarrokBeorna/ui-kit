@@ -162,7 +162,7 @@ export default function Modal({
               gridTemplateColumns: `repeat(${columns}, 1fr)`,
               gridTemplateRows: `repeat(${rows}, auto)`,
               gap: 12,
-              alignItems: 'start',
+              alignItems: 'end',
             }}
           >
             {grid.map((row, ri) =>

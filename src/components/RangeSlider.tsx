@@ -1,3 +1,4 @@
+// RangeSlider.tsx
 import { useState, useRef, useId } from 'react'
 import type { Theme } from '../themes/theme'
 import { IcoX } from './icons'
@@ -24,6 +25,7 @@ type RangeSliderProps = (SingleProps | RangeProps) & {
   step?: number
   formatValue?: (v: number | null) => string
   parseValue?: (s: string) => number | null
+  disabled?: boolean
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -46,6 +48,7 @@ function ManualInput({
   parse,
   t,
   label,
+  disabled,
 }: {
   value: number | null
   onCommit: (v: number | null) => void
@@ -53,11 +56,13 @@ function ManualInput({
   parse: (s: string) => number | null
   t: Theme
   label?: string
+  disabled?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [raw, setRaw] = useState('')
 
   const startEdit = () => {
+    if (disabled) return
     setEditing(true)
     setRaw(value !== null ? String(value) : '')
   }
@@ -75,6 +80,7 @@ function ManualInput({
   }
 
   const handleClear = () => {
+    if (disabled) return
     setEditing(false)
     onCommit(null)
   }
@@ -96,6 +102,7 @@ function ManualInput({
           onKeyDown={(e) => {
             if (e.key === 'Enter') commit()
           }}
+          disabled={disabled}
           style={{
             width: '100%',
             boxSizing: 'border-box',
@@ -112,9 +119,11 @@ function ManualInput({
             boxShadow: editing ? `0 0 0 3px ${t.borderFocus}22` : 'none',
             fontFamily: 'inherit',
             fontVariantNumeric: 'tabular-nums',
+            opacity: disabled ? 0.5 : 1,
+            cursor: disabled ? 'not-allowed' : 'text',
           }}
         />
-        {value !== null && (
+        {value !== null && !disabled && (
           <button
             type="button"
             onClick={handleClear}
@@ -157,6 +166,7 @@ export default function RangeSlider(props: RangeSliderProps) {
     step = 1,
     formatValue = (v) => (v !== null ? String(v) : ''),
     parseValue,
+    disabled = false,
   } = props
 
   const defaultParse = (s: string) => {
@@ -176,12 +186,11 @@ export default function RangeSlider(props: RangeSliderProps) {
 
   // ─── Изменённые функции установки значений ────────────────────────────────
   const setLo = (v: number | null) => {
+    if (disabled) return
     if (isRange) {
       if (v === null) {
-        // Оставляем hi неизменным (даже если hi === null)
         ;(props as RangeProps).onChange([null, hi])
       } else {
-        // Если hi существует, ограничиваем сверху hi, иначе только max
         const upper = hi !== null ? hi : max
         const clamped = clamp(v, min, upper)
         ;(props as RangeProps).onChange([clamped, hi])
@@ -192,9 +201,8 @@ export default function RangeSlider(props: RangeSliderProps) {
   }
 
   const setHi = (v: number | null) => {
-    if (!isRange) return
+    if (disabled || !isRange) return
     if (v === null) {
-      // Оставляем lo неизменным
       ;(props as RangeProps).onChange([lo, null])
     } else {
       const lower = lo !== null ? lo : min
@@ -214,12 +222,12 @@ export default function RangeSlider(props: RangeSliderProps) {
   }
 
   const startDrag = (thumb: 'lo' | 'hi') => (e: React.MouseEvent) => {
+    if (disabled) return
     e.preventDefault()
     dragging.current = thumb
     const move = (ev: MouseEvent) => {
       const v = valueFromEvent(ev.clientX)
       if (dragging.current === 'lo') {
-        // Устанавливаем lo, не трогая hi (даже если hi null)
         setLo(v)
       } else if (dragging.current === 'hi') {
         setHi(v)
@@ -234,20 +242,33 @@ export default function RangeSlider(props: RangeSliderProps) {
     document.addEventListener('mouseup', up)
   }
 
+  // ─── Обновлённая обработка клика по треку ──────────────────────────────────
   const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragging.current) return
+    if (disabled || dragging.current) return
     const v = valueFromEvent(e.clientX)
+
     if (!isRange) {
       setLo(v)
       return
     }
-    // Если хотя бы одна граница отсутствует — клик игнорируется
-    if (lo === null || hi === null) return
-    // Обе границы существуют — выбираем ближайшую
-    const distLo = Math.abs(v - lo)
-    const distHi = Math.abs(v - hi)
-    if (distLo <= distHi) setLo(Math.min(v, hi))
-    else setHi(Math.max(v, lo))
+
+    // Режим диапазона
+    if (lo === null) {
+      // Первый клик – устанавливаем левую границу
+      setLo(v)
+    } else if (hi === null) {
+      // Второй клик – устанавливаем правую границу
+      setHi(v)
+    } else {
+      // Обе границы существуют – выбираем ближайшую
+      const distLo = Math.abs(v - lo)
+      const distHi = Math.abs(v - hi)
+      if (distLo <= distHi) {
+        setLo(Math.min(v, hi))
+      } else {
+        setHi(Math.max(v, lo))
+      }
+    }
   }
 
   const thumbStyle = (active: boolean): React.CSSProperties => ({
@@ -262,14 +283,15 @@ export default function RangeSlider(props: RangeSliderProps) {
     boxShadow: active
       ? `0 0 0 4px ${t.accent}44, 0 2px 8px ${t.accent}55`
       : `0 2px 6px ${t.accent}55`,
-    cursor: 'grab',
+    cursor: disabled ? 'not-allowed' : 'grab',
     transition: 'box-shadow 0.2s ease',
     outline: 'none',
     zIndex: active ? 3 : 2,
+    opacity: disabled ? 0.5 : 1,
   })
 
   const keyDown = (thumb: 'lo' | 'hi') => (e: React.KeyboardEvent) => {
-    if (!isRange) return
+    if (disabled || !isRange) return
     const isLo = thumb === 'lo'
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
       e.preventDefault()
@@ -302,7 +324,7 @@ export default function RangeSlider(props: RangeSliderProps) {
   }
 
   return (
-    <div style={{ width: '100%' }}>
+    <div style={{ width: '100%', opacity: disabled ? 0.5 : 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
         <span
           style={{
@@ -315,19 +337,20 @@ export default function RangeSlider(props: RangeSliderProps) {
         >
           {label}
         </span>
-        {/* ─── Добавлена кнопка полной очистки (только в режиме Range) ─── */}
         {isRange && (
           <button
             type="button"
-            onClick={() => (props as RangeProps).onChange([null, null])}
+            onClick={() => { if (!disabled) (props as RangeProps).onChange([null, null]) }}
+            disabled={disabled}
             style={{
               background: 'none',
               border: 'none',
               color: t.placeholder,
               fontSize: 11,
-              cursor: 'pointer',
+              cursor: disabled ? 'not-allowed' : 'pointer',
               textDecoration: 'underline',
               padding: 0,
+              opacity: disabled ? 0.5 : 1,
             }}
             title="Очистить оба значения"
           >
@@ -341,7 +364,7 @@ export default function RangeSlider(props: RangeSliderProps) {
         <div
           ref={trackRef}
           onClick={handleTrackClick}
-          style={{ position: 'relative', height: 6, borderRadius: 3, background: t.border, cursor: 'pointer' }}
+          style={{ position: 'relative', height: 6, borderRadius: 3, background: t.border, cursor: disabled ? 'not-allowed' : 'pointer' }}
         >
           {/* Fill bar */}
           <div
@@ -362,10 +385,10 @@ export default function RangeSlider(props: RangeSliderProps) {
             <div
               style={{ ...thumbStyle(focusedThumb === 'lo'), left: `${pctLo}%` }}
               onMouseDown={startDrag('lo')}
-              onFocus={() => setFocusedThumb('lo')}
+              onFocus={() => { if (!disabled) setFocusedThumb('lo') }}
               onBlur={() => setFocusedThumb(null)}
               onKeyDown={isRange ? keyDown('lo') : undefined}
-              tabIndex={0}
+              tabIndex={disabled ? -1 : 0}
               role="slider"
               aria-valuemin={min}
               aria-valuemax={isRange && hi !== null ? hi : max}
@@ -378,10 +401,10 @@ export default function RangeSlider(props: RangeSliderProps) {
             <div
               style={{ ...thumbStyle(focusedThumb === 'hi'), left: `${pctHi}%` }}
               onMouseDown={startDrag('hi')}
-              onFocus={() => setFocusedThumb('hi')}
+              onFocus={() => { if (!disabled) setFocusedThumb('hi') }}
               onBlur={() => setFocusedThumb(null)}
               onKeyDown={keyDown('hi')}
-              tabIndex={0}
+              tabIndex={disabled ? -1 : 0}
               role="slider"
               aria-valuemin={lo !== null ? lo : min}
               aria-valuemax={max}
@@ -412,6 +435,7 @@ export default function RangeSlider(props: RangeSliderProps) {
           parse={parse}
           t={t}
           label={isRange ? 'От' : undefined}
+          disabled={disabled}
         />
         {isRange && (
           <>
@@ -435,6 +459,7 @@ export default function RangeSlider(props: RangeSliderProps) {
               parse={parse}
               t={t}
               label="До"
+              disabled={disabled}
             />
           </>
         )}

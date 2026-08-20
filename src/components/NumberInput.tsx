@@ -12,11 +12,13 @@ interface NumberInputProps {
   max?: number;
   step?: number;
   error?: string;
+  disabled?: boolean;
 }
 
 export default function NumberInput({
   label, theme: t, value, onChange,
   allowDecimal = true, min, max, step, error,
+  disabled = false,
 }: NumberInputProps) {
   const [focused, setFocused] = useState(false);
   const id = useId();
@@ -30,18 +32,27 @@ export default function NumberInput({
   const floated = focused || value.length > 0;
 
   const handleChange = (raw: string) => {
+    if (disabled) return;
     if (raw === '' || raw === '-') { onChange(raw); return; }
     const pattern = allowDecimal ? /^-?\d*\.?\d*$/ : /^-?\d*$/;
     if (pattern.test(raw)) onChange(raw);
   };
 
   const step_ = (dir: 1 | -1) => {
+    if (disabled) return;
     const cur = parseFloat(value) || 0;
     const inc = step ?? (allowDecimal ? 0.1 : 1);
     let next = Math.round((cur + dir * inc) * 1e10) / 1e10;
     if (min !== undefined) next = Math.max(min, next);
     if (max !== undefined) next = Math.min(max, next);
     onChange(String(next));
+  };
+
+  const handleFocus = () => {
+    if (!disabled) setFocused(true);
+  };
+  const handleBlur = () => {
+    setFocused(false);
   };
 
   return (
@@ -51,10 +62,11 @@ export default function NumberInput({
           id={id}
           inputMode={allowDecimal ? 'decimal' : 'numeric'}
           value={value}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onChange={e => handleChange(e.target.value)}
           placeholder=""
+          disabled={disabled}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
@@ -66,6 +78,8 @@ export default function NumberInput({
             boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
             height: '50px',
+            opacity: disabled ? 0.5 : 1,
+            cursor: disabled ? 'not-allowed' : 'text',
           }}
           autoComplete="off"
         />
@@ -94,14 +108,17 @@ export default function NumberInput({
           {value && (
             <button
               type="button"
-              onClick={() => onChange('')}
+              onClick={() => { if (!disabled) onChange('') }}
+              disabled={disabled}
               style={{
                 width: 24, height: 24, background: 'transparent', border: 'none',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: t.iconColor, borderRadius: 4, transition: 'color 0.15s', padding: 0,
+                opacity: disabled ? 0.5 : 1,
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = t.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
             >
               <IcoX s={12} />
             </button>
@@ -110,26 +127,32 @@ export default function NumberInput({
             <button
               type="button"
               onMouseDown={e => { e.preventDefault(); step_(1); }}
+              disabled={disabled}
               style={{
                 width: 22, height: 16, background: 'transparent', border: 'none',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
+                opacity: disabled ? 0.5 : 1,
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = t.accent)}
-              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.accent }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
             >
               <IcoArrowUp s={12} />
             </button>
             <button
               type="button"
               onMouseDown={e => { e.preventDefault(); step_(-1); }}
+              disabled={disabled}
               style={{
                 width: 22, height: 16, background: 'transparent', border: 'none',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
+                opacity: disabled ? 0.5 : 1,
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = t.accent)}
-              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.accent }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
             >
               <IcoArrowDown s={12} />
             </button>

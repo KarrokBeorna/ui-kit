@@ -10,10 +10,12 @@ interface TextareaProps {
   rows?: number;
   maxLength?: number;
   error?: string;
+  disabled?: boolean;
 }
 
 export default function Textarea({
   label, theme: t, value, onChange, rows = 4, maxLength, error,
+  disabled = false,
 }: TextareaProps) {
   const [focused, setFocused] = useState(false);
   const id = useId();
@@ -26,18 +28,26 @@ export default function Textarea({
 
   const floated = focused || value.length > 0;
 
+  const handleFocus = () => {
+    if (!disabled) setFocused(true);
+  };
+  const handleBlur = () => {
+    setFocused(false);
+  };
+
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <textarea
           id={id}
           value={value}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onChange={e => onChange(e.target.value)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onChange={e => { if (!disabled) onChange(e.target.value) }}
           rows={rows}
           maxLength={maxLength}
           placeholder=""
+          disabled={disabled}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
@@ -50,6 +60,8 @@ export default function Textarea({
             boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit', lineHeight: 1.6,
             minHeight: 80,
+            opacity: disabled ? 0.5 : 1,
+            cursor: disabled ? 'not-allowed' : 'text',
           }}
           autoComplete="off"
         />
@@ -74,15 +86,17 @@ export default function Textarea({
         {value && (
           <button
             type="button"
-            onClick={() => onChange('')}
+            onClick={() => { if (!disabled) onChange('') }}
+            disabled={disabled}
             style={{
               position: 'absolute', right: 10, top: 12,
-              background: 'transparent', border: 'none', cursor: 'pointer',
+              background: 'transparent', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
               color: t.iconColor, padding: 4, display: 'flex', alignItems: 'center',
               transition: 'color 0.15s', borderRadius: 6,
+              opacity: disabled ? 0.5 : 1,
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = t.text)}
-            onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+            onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
+            onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
           >
             <IcoX s={13} />
           </button>

@@ -13,6 +13,7 @@ interface MultiSelectProps {
   onChange: (vals: string[]) => void;
   error?: string;
   usePortal?: boolean;
+  disabled?: boolean;
 }
 
 function pluralValue(n: number) {
@@ -24,6 +25,7 @@ function pluralValue(n: number) {
 export default function MultiSelect({
   label, theme: t, options, value, onChange, error,
   usePortal = true,
+  disabled = false,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -46,23 +48,26 @@ export default function MultiSelect({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      if (disabled) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false); setQuery(''); setFocused(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [disabled]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (disabled) return;
       if (e.key === 'Escape') { setOpen(false); setQuery(''); setFocused(false); }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, []);
+  }, [disabled]);
 
   const openDropdown = () => {
+    if (disabled) return;
     if (!open) {
       setOpen(true);
       setFocused(true);
@@ -71,6 +76,7 @@ export default function MultiSelect({
   };
 
   const toggleDropdown = () => {
+    if (disabled) return;
     if (open) {
       setOpen(false);
       setQuery('');
@@ -83,10 +89,13 @@ export default function MultiSelect({
     }
   };
 
-  const toggle = (val: string) =>
+  const toggle = (val: string) => {
+    if (disabled) return;
     onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val]);
+  };
 
   const toggleAll = () => {
+    if (disabled) return;
     if (allFilteredSelected) {
       onChange(value.filter(v => !filtered.some(o => o.value === v)));
     } else {
@@ -102,10 +111,11 @@ export default function MultiSelect({
   })();
 
   const handleClear = (e: React.MouseEvent) => {
+    if (disabled) return;
     e.stopPropagation(); onChange([]); setOpen(false); setQuery('');
   };
 
-  const dropdownContent = open && (
+  const dropdownContent = open && !disabled && (
     <div
       ref={dropdownRef}
       style={{
@@ -186,20 +196,23 @@ export default function MultiSelect({
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <div
-        style={{ position: 'relative', cursor: 'pointer' }}
-        onMouseDown={(e) => { e.preventDefault(); openDropdown(); }}
+        style={{ position: 'relative', cursor: disabled ? 'not-allowed' : 'pointer' }}
+        onMouseDown={(e) => { e.preventDefault(); if (!disabled) openDropdown(); }}
       >
         <input
           ref={inputRef}
           id={id}
           value={open ? query : displayValue}
-          onChange={e => setQuery(e.target.value)}
+          onChange={e => { if (!disabled) setQuery(e.target.value) }}
           onFocus={() => {
-            setFocused(true);
-            if (!open) openDropdown();
+            if (!disabled) {
+              setFocused(true);
+              if (!open) openDropdown();
+            }
           }}
           readOnly={!open}
           placeholder=""
+          disabled={disabled}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
@@ -207,11 +220,12 @@ export default function MultiSelect({
             borderRadius: open ? '10px 10px 0 0' : 10,
             padding: '18px 68px 8px 16px',
             fontSize: 15, color: t.text, outline: 'none',
-            cursor: open ? 'text' : 'pointer',
+            cursor: disabled ? 'not-allowed' : (open ? 'text' : 'pointer'),
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease, border-radius 0.15s ease',
             boxShadow: open ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
             height: '50px',
+            opacity: disabled ? 0.5 : 1,
           }}
           autoComplete="off"
         />
@@ -241,19 +255,22 @@ export default function MultiSelect({
             <button
               type="button"
               onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleClear(e); }}
+              disabled={disabled}
               style={{
                 width: 28, height: 28, background: 'transparent', border: 'none',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: t.iconColor, borderRadius: 6, transition: 'color 0.15s', padding: 0,
+                opacity: disabled ? 0.5 : 1,
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = t.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
             >
               <IcoX s={12} />
             </button>
           )}
           <div
-            style={{ color: t.iconColor, display: 'flex', alignItems: 'center' }}
+            style={{ color: t.iconColor, display: 'flex', alignItems: 'center', opacity: disabled ? 0.5 : 1 }}
             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); toggleDropdown(); }}
           >
             <IcoChevronDown s={16} open={open} />

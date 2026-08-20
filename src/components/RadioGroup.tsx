@@ -14,14 +14,16 @@ interface RadioGroupProps {
   onChange: (val: string) => void;
   direction?: 'horizontal' | 'vertical';
   error?: string;
+  disabled?: boolean;
 }
 
 export default function RadioGroup({
   label, theme: t, options, value, onChange,
   direction = 'vertical', error,
+  disabled = false,
 }: RadioGroupProps) {
   return (
-    <div style={{ width: '100%' }}>
+    <div style={{ width: '100%', opacity: disabled ? 0.5 : 1 }}>
       <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: t.placeholder, marginBottom: 12 }}>
         {label}
       </div>
@@ -36,8 +38,8 @@ export default function RadioGroup({
           return (
             <label
               key={opt.value}
-              onClick={() => onChange(opt.value)}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => { if (!disabled) onChange(opt.value) }}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: disabled ? 'not-allowed' : 'pointer', userSelect: 'none' }}
             >
               <div style={{
                 width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 1,

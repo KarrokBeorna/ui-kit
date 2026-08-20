@@ -44,6 +44,7 @@ interface PasswordInputProps {
   onChange: (val: string) => void;
   error?: string;
   showStrength?: boolean;
+  disabled?: boolean;
 }
 
 export default function PasswordInput({
@@ -53,11 +54,19 @@ export default function PasswordInput({
   onChange,
   error,
   showStrength = false,
+  disabled = false,
 }: PasswordInputProps) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   const id = useId();
   const floated = focused || value.length > 0;
+
+  const handleFocus = () => {
+    if (!disabled) setFocused(true);
+  };
+  const handleBlur = () => {
+    setFocused(false);
+  };
 
   return (
     <div style={{ width: '100%' }}>
@@ -66,10 +75,11 @@ export default function PasswordInput({
           id={id}
           type={visible ? 'text' : 'password'}
           value={value}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onChange={e => onChange(e.target.value)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onChange={e => { if (!disabled) onChange(e.target.value) }}
           placeholder=""
+          disabled={disabled}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
@@ -82,6 +92,8 @@ export default function PasswordInput({
             fontFamily: 'inherit',
             letterSpacing: visible ? 'normal' : value ? '2px' : 'normal',
             height: '50px',
+            opacity: disabled ? 0.5 : 1,
+            cursor: disabled ? 'not-allowed' : 'text',
           }}
           autoComplete="new-password"
         />
@@ -111,27 +123,33 @@ export default function PasswordInput({
           {value && (
             <button
               type="button"
-              onClick={() => onChange('')}
+              onClick={() => { if (!disabled) onChange('') }}
+              disabled={disabled}
               style={{
                 width: 28, height: 28, background: 'transparent', border: 'none',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: t.iconColor, borderRadius: 6, transition: 'color 0.15s', padding: 0,
+                opacity: disabled ? 0.5 : 1,
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = t.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
             >
               <IcoX s={12} />
             </button>
           )}
           <button
             type="button"
-            onClick={() => setVisible(v => !v)}
+            onClick={() => { if (!disabled) setVisible(v => !v) }}
+            disabled={disabled}
             style={{
               width: 28, height: 28, background: 'transparent', border: 'none',
-              cursor: 'pointer', padding: 4,
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              padding: 4,
               color: visible ? t.accent : t.iconColor,
               transition: 'color 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
               borderRadius: 6,
+              opacity: disabled ? 0.5 : 1,
             }}
           >
             <IcoEye s={18} off={!visible} />

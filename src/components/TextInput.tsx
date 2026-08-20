@@ -34,11 +34,13 @@ interface TextInputProps {
   onTypeChange?: (t: TextInputType) => void;
   error?: string;
   autoFocus?: boolean;
+  disabled?: boolean;
 }
 
 export default function TextInput({
   label, theme: t, value, onChange,
   inputType = 'text', onTypeChange, error: externalError, autoFocus = false,
+  disabled = false,
 }: TextInputProps) {
   const [focused, setFocused] = useState(false)
   const [touched, setTouched] = useState(false)
@@ -49,12 +51,17 @@ export default function TextInput({
   const error = externalError || internalError
 
   const handleChange = (raw: string) => {
+    if (disabled) return
     onChange(inputType === 'tel' ? sanitizeTel(raw) : raw)
   }
 
   const handleBlur = () => {
     setFocused(false)
     setTouched(true)
+  }
+
+  const handleFocus = () => {
+    if (!disabled) setFocused(true)
   }
 
   return (
@@ -65,11 +72,12 @@ export default function TextInput({
           type={inputType === 'tel' ? 'text' : inputType}
           inputMode={inputType === 'tel' ? 'tel' : undefined}
           value={value}
-          onFocus={() => setFocused(true)}
+          onFocus={handleFocus}
           onBlur={handleBlur}
           onChange={e => handleChange(e.target.value)}
           placeholder=""
           autoFocus={autoFocus}
+          disabled={disabled}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
@@ -81,6 +89,8 @@ export default function TextInput({
             boxShadow: focused ? `0 0 0 3px ${error ? '#ef444422' : t.accentGlow}` : 'none',
             fontFamily: 'inherit',
             height: '50px',
+            opacity: disabled ? 0.5 : 1,
+            cursor: disabled ? 'not-allowed' : 'text',
           }}
           autoComplete="off"
         />
@@ -105,15 +115,17 @@ export default function TextInput({
         {value && (
           <button
             type="button"
-            onClick={() => { onChange(''); setTouched(false) }}
+            onClick={() => { if (!disabled) { onChange(''); setTouched(false) } }}
+            disabled={disabled}
             style={{
               position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-              background: 'transparent', border: 'none', cursor: 'pointer',
+              background: 'transparent', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
               color: t.iconColor, padding: 4, display: 'flex', alignItems: 'center',
               transition: 'color 0.15s', borderRadius: 4,
+              opacity: disabled ? 0.5 : 1,
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = t.text)}
-            onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+            onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
+            onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
           >
             <IcoX s={14} />
           </button>
@@ -121,44 +133,6 @@ export default function TextInput({
       </div>
 
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
-
-      {onTypeChange && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 10, paddingLeft: 2 }}>
-          {TYPE_OPTIONS.map(opt => {
-            const active = inputType === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => { onTypeChange(opt.value); onChange(''); setTouched(false) }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '4px 10px', borderRadius: 6,
-                  border: `1px solid ${active ? t.accent : t.border}`,
-                  background: active ? `${t.accent}18` : 'transparent',
-                  color: active ? t.accent : t.placeholder,
-                  fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  transition: 'all 0.18s ease',
-                  fontFamily: 'inherit',
-                  letterSpacing: '0.02em',
-                }}
-              >
-                <span style={{
-                  width: 16, height: 16, borderRadius: 4,
-                  background: active ? t.accent : t.border,
-                  color: active ? t.accentText : t.placeholder,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 9, fontWeight: 700, flexShrink: 0,
-                  transition: 'all 0.18s ease',
-                }}>
-                  {opt.icon}
-                </span>
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

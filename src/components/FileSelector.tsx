@@ -10,6 +10,7 @@ interface FileSelectorProps {
   maxSizeMb?: number;
   onFiles?: (files: File[]) => void;
   error?: string;
+  disabled?: boolean;
 }
 
 function formatSize(bytes: number) {
@@ -27,6 +28,7 @@ function FileIcon({ type }: { type: string }) {
 
 export default function FileSelector({
   label, theme: t, accept, multiple = false, maxSizeMb, onFiles, error: externalError,
+  disabled = false,
 }: FileSelectorProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -36,7 +38,7 @@ export default function FileSelector({
   const error = externalError || sizeError;
 
   const processFiles = (incoming: FileList | null) => {
-    if (!incoming) return;
+    if (disabled || !incoming) return;
     const arr = Array.from(incoming);
     if (maxSizeMb) {
       const oversized = arr.filter(f => f.size > maxSizeMb * 1024 * 1024);
@@ -52,30 +54,32 @@ export default function FileSelector({
   };
 
   const removeFile = (i: number) => {
+    if (disabled) return;
     const next = files.filter((_, idx) => idx !== i);
     setFiles(next);
     onFiles?.(next);
   };
 
   return (
-    <div style={{ width: '100%' }}>
+    <div style={{ width: '100%', opacity: disabled ? 0.5 : 1 }}>
       <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: t.placeholder, marginBottom: 10 }}>
         {label}
       </div>
 
       <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={e => { e.preventDefault(); setDragging(true) }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={e => { e.preventDefault(); setDragging(false); processFiles(e.dataTransfer.files) }}
+        onClick={() => { if (!disabled) inputRef.current?.click() }}
+        onDragOver={e => { if (!disabled) { e.preventDefault(); setDragging(true) } }}
+        onDragLeave={() => { if (!disabled) setDragging(false) }}
+        onDrop={e => { if (!disabled) { e.preventDefault(); setDragging(false); processFiles(e.dataTransfer.files) } }}
         style={{
           border: `1.5px dashed ${error ? t.danger : dragging ? t.accent : t.border}`,
           borderRadius: 12,
           padding: '28px 20px',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
           background: dragging ? `${t.accent}0a` : t.bg,
           transition: 'all 0.2s ease',
+          pointerEvents: disabled ? 'none' : 'auto',
         }}
       >
         <div style={{
@@ -103,6 +107,7 @@ export default function FileSelector({
           multiple={multiple}
           style={{ display: 'none' }}
           onChange={e => processFiles(e.target.files)}
+          disabled={disabled}
         />
       </div>
 
@@ -130,14 +135,16 @@ export default function FileSelector({
               <button
                 type="button"
                 onClick={() => removeFile(i)}
+                disabled={disabled}
                 style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  background: 'transparent', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
                   color: t.iconColor, padding: 4, borderRadius: 4,
                   display: 'flex', alignItems: 'center',
                   transition: 'color 0.15s',
+                  opacity: disabled ? 0.5 : 1,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.color = t.danger)}
-                onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+                onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.danger }}
+                onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
               >
                 <IcoX s={14} />
               </button>
