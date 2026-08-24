@@ -30,6 +30,83 @@ interface HeaderBaseProps {
   onLayoutChange?: (mode: LayoutMode) => void;
   currentTheme?: ThemeName;
   onThemeChange?: (theme: ThemeName) => void;
+  showMoscowTime?: boolean;
+}
+
+// ── Виджет московского времени ──────────────────────────────
+function MoscowTimeWidget({ t, stacked = false }: { t: Theme; stacked?: boolean }) {
+  const [time, setTime] = useState({ hours: '00', minutes: '00' });
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(now);
+      const hours = parts.find(p => p.type === 'hour')?.value || '00';
+      const minutes = parts.find(p => p.type === 'minute')?.value || '00';
+      setTime({ hours, minutes });
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (stacked) {
+    return (
+      <>
+        <style>{`
+          .moscow-time-stacked {
+            font-family: 'TT Octosquares', monospace !important;
+            font-size: 46px !important;
+            font-weight: 500;
+            color: ${t.textMuted};
+            letter-spacing: 0.02em;
+            user-select: none;
+            line-height: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+          }
+          .moscow-time-stacked .hours {
+            font-size: inherit;
+            line-height: 1;
+          }
+          .moscow-time-stacked .minutes {
+            font-size: inherit;
+            line-height: 1;
+            margin-top: -2px;
+          }
+        `}</style>
+        <div className="moscow-time-stacked">
+          <span className="hours">{time.hours}</span>
+          <span className="minutes">{time.minutes}</span>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <style>{`
+        .moscow-time-widget {
+          font-family: 'TT Octosquares', monospace !important;
+          font-size: 46px !important;
+          font-weight: 500;
+          color: ${t.textMuted};
+          letter-spacing: 0.02em;
+          user-select: none;
+          line-height: 1.2;
+        }
+      `}</style>
+      <span className="moscow-time-widget">{time.hours}:{time.minutes}</span>
+    </>
+  );
 }
 
 // ── Горизонтальный Header ──────────────────────────────────────
@@ -52,6 +129,7 @@ export function HorizontalHeader({
   onLayoutChange,
   currentTheme,
   onThemeChange,
+  showMoscowTime = false,
 }: HeaderBaseProps) {
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -100,13 +178,13 @@ export function HorizontalHeader({
         {showThemeSwitcher && currentTheme && onThemeChange && (
           <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact />
         )}
+        {showMoscowTime && <MoscowTimeWidget t={t} stacked={false} />}
         {isLoggedIn ? (
           <div style={{ position: 'relative' }} ref={dropRef}>
             <button onClick={() => setDropOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 24, border: `1px solid ${t.border}`, background: t.bgSurface, cursor: 'pointer', transition: 'all 0.2s', boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui' }}>{userName?.[0]?.toUpperCase()}</div>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.2 }}>{userName}</div>
-                {/*<div style={{ fontSize: 11, color: t.textMuted, fontFamily: 'system-ui', lineHeight: 1.2 }}>Pro plan</div>*/}
               </div>
               <span style={{ color: t.textMuted, fontSize: 10, transition: 'transform 0.2s', transform: dropOpen ? 'rotate(180deg)' : 'none', display: 'flex' }}>▾</span>
             </button>
@@ -146,6 +224,7 @@ export function VerticalHeader({
   onLayoutChange,
   currentTheme,
   onThemeChange,
+  showMoscowTime = false,
 }: HeaderBaseProps) {
   const [collapsed, setCollapsed] = useState(false);
   const w = collapsed ? 64 : 220;
@@ -187,7 +266,6 @@ export function VerticalHeader({
           );
         })}
       </nav>
-      {/* Блок переключателей (виден только когда не свернут) */}
       {!collapsed && (showLayoutToggle || showThemeSwitcher) && (
         <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, display: 'flex', justifyContent: 'center', gap: 6 }}>
           {showLayoutToggle && layoutMode && onLayoutChange && (
@@ -204,7 +282,6 @@ export function VerticalHeader({
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', flexShrink: 0 }}>{userName?.[0]?.toUpperCase()}</div>
             <div style={{ flex: 1, overflow: 'hidden', opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
-              {/*<div style={{ fontSize: 11, color: t.textMuted, fontFamily: 'system-ui', lineHeight: 1.3 }}>Pro plan</div>*/}
             </div>
             {!collapsed && (
               <button onClick={onSignOut} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', padding: 4, borderRadius: 6, flexShrink: 0, transition: 'color 0.15s' }} title="Sign out" onMouseEnter={e => e.currentTarget.style.color = t.danger} onMouseLeave={e => e.currentTarget.style.color = t.textMuted}>
@@ -213,10 +290,13 @@ export function VerticalHeader({
             )}
           </div>
         ) : (
-          <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 8, justifyContent: 'center', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}`, whiteSpace: 'nowrap', overflow: 'hidden' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-            <IcoLogIn s={15} />
-            <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s', overflow: 'hidden' }}>Войти</span>
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            {showMoscowTime && <MoscowTimeWidget t={t} stacked={collapsed} />}
+            <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 8, justifyContent: 'center', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}`, whiteSpace: 'nowrap', overflow: 'hidden' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              <IcoLogIn s={15} />
+              <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s', overflow: 'hidden' }}>Войти</span>
+            </button>
+          </div>
         )}
       </div>
     </aside>

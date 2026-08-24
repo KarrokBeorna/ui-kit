@@ -220,10 +220,11 @@ function App() {
               onLayoutChange={setHeaderMode}
               currentTheme={themeName}
               onThemeChange={setThemeName}
+              showMoscowTime={true} // <-- включаем виджет времени
             />
           </div>
           <h2 style={{ marginTop: 24 }}>VerticalHeader</h2>
-          <div style={{ display: 'flex', height: 300, border: `1px solid ${t.border}`, borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', height: 400, border: `1px solid ${t.border}`, borderRadius: 12, overflow: 'hidden' }}>
             <VerticalHeader
               t={t}
               activeTab={activeTab}
@@ -247,6 +248,7 @@ function App() {
               onLayoutChange={setHeaderMode}
               currentTheme={themeName}
               onThemeChange={setThemeName}
+              showMoscowTime={true} // <-- включаем виджет времени
             />
             <div style={{ flex: 1, padding: 24, background: t.bg }}>
               <p>Содержимое страницы</p>
@@ -440,6 +442,7 @@ function App() {
                   showSettings={false}
                   showLayoutToggle={false}
                   showThemeSwitcher={false}
+                  showMoscowTime={true} // <-- включаем виджет времени
                 />
                 <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                   {showMenu && (
@@ -495,6 +498,7 @@ function App() {
                   }
                   showLayoutToggle={false}
                   showThemeSwitcher={false}
+                  showMoscowTime={true} // <-- включаем виджет времени
                 />
                 {showMenu && (
                   <Menu
