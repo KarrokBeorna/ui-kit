@@ -22,6 +22,9 @@ import {
   Menu,
   MenuTab,
   Calendar,
+  DirectoryTree,
+  DirectoryItem,
+  DirectoryApi
 } from './index';
 
 function App() {
@@ -79,6 +82,116 @@ function App() {
     { component: <NumberInput label="Количество" theme={t} value={numberVal} onChange={setNumberVal} />, row: 2 },
   ];
 
+  // ----- Данные для DirectoryTree (mock) -----
+  const [mockData, setMockData] = useState<DirectoryItem[]>([
+    { id: 1, name: 'Контрагенты', type: 'root', parent_id: null, sort_order: 1 },
+    { id: 2, name: 'Товары', type: 'root', parent_id: null, sort_order: 2 },
+    { id: 3, name: 'ООО "Ромашка"', type: 'group', parent_id: 1, sort_order: 1 },
+    { id: 4, name: 'ИП Иванов', type: 'group', parent_id: 1, sort_order: 2 },
+    { id: 5, name: 'Телефоны', type: 'item', parent_id: 2, sort_order: 1 },
+    { id: 6, name: 'Ноутбуки', type: 'item', parent_id: 2, sort_order: 2 },
+  ]);
+
+  // Реализация API (замыкание на mockData)
+  const mockApi: DirectoryApi = {
+    getRoots: () => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          const roots = mockData.filter(item => item.parent_id === null);
+          resolve(roots);
+        }, 300);
+      });
+    },
+    getChildren: (parentId) => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          const children = mockData.filter(item => item.parent_id === parentId);
+          resolve(children);
+        }, 300);
+      });
+    },
+    createItem: (data) => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          const newItem: DirectoryItem = {
+            id: Date.now(),
+            name: data.name,
+            type: data.type,
+            parent_id: data.parent_id,
+            sort_order: mockData.filter(i => i.parent_id === data.parent_id).length + 1,
+          };
+          setMockData(prev => [...prev, newItem]);
+          resolve(newItem);
+        }, 300);
+      });
+    },
+    updateItem: (id, data) => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          setMockData(prev => prev.map(item =>
+            item.id === id ? { ...item, ...data } : item
+          ));
+          resolve();
+        }, 300);
+      });
+    },
+    deleteItem: (id) => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          // Удаляем элемент и всех его потомков (рекурсивно)
+          const idsToDelete = new Set<number>();
+          const collect = (parentId: number) => {
+            mockData.filter(i => i.parent_id === parentId).forEach(child => {
+              idsToDelete.add(child.id);
+              collect(child.id);
+            });
+          };
+          idsToDelete.add(id);
+          collect(id);
+          setMockData(prev => prev.filter(item => !idsToDelete.has(item.id)));
+          resolve();
+        }, 300);
+      });
+    },
+    moveItem: (id, direction) => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          setMockData(prev => {
+            const item = prev.find(i => i.id === id);
+            if (!item) return prev;
+            const siblings = prev.filter(i => i.parent_id === item.parent_id).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            const index = siblings.findIndex(i => i.id === id);
+            if (index === -1) return prev;
+            const swapIndex = direction === 'up' ? index - 1 : index + 1;
+            if (swapIndex < 0 || swapIndex >= siblings.length) return prev;
+            // Меняем sort_order местами
+            const newSiblings = [...siblings];
+            const temp = newSiblings[index].sort_order;
+            newSiblings[index].sort_order = newSiblings[swapIndex].sort_order;
+            newSiblings[swapIndex].sort_order = temp;
+            // Обновляем в основном массиве
+            return prev.map(i => {
+              const found = newSiblings.find(s => s.id === i.id);
+              return found ? { ...i, sort_order: found.sort_order } : i;
+            });
+          });
+          resolve();
+        }, 300);
+      });
+    },
+  };
+
+  const directoryTypes = [
+    { value: 'group', label: 'Группа' },
+    { value: 'item', label: 'Элемент' },
+  ];
+  const typeLabels = {
+    root: 'Корневой',
+    group: 'Группа',
+    item: 'Элемент',
+  };
+
+  // Функция рендеринга содержимого
   const renderContent = () => {
     if (activeTab === 'dashboard') {
       return <div>Содержимое панели управления</div>;
@@ -220,7 +333,7 @@ function App() {
               onLayoutChange={setHeaderMode}
               currentTheme={themeName}
               onThemeChange={setThemeName}
-              showMoscowTime={true} // <-- включаем виджет времени
+              showMoscowTime={true}
             />
           </div>
           <h2 style={{ marginTop: 24 }}>VerticalHeader</h2>
@@ -248,7 +361,7 @@ function App() {
               onLayoutChange={setHeaderMode}
               currentTheme={themeName}
               onThemeChange={setThemeName}
-              showMoscowTime={true} // <-- включаем виджет времени
+              showMoscowTime={true}
             />
             <div style={{ flex: 1, padding: 24, background: t.bg }}>
               <p>Содержимое страницы</p>
@@ -396,13 +509,13 @@ function App() {
           </div>
         </section>
 
-        {/* ------------------- Calendar (НОВЫЙ КОМПОНЕНТ) ------------------- */}
+        {/* ------------------- Calendar ------------------- */}
         <section style={{ marginBottom: 48 }}>
           <h2>Calendar (рабочий график)</h2>
           <Calendar theme={t} templateOptions={templateOptions} />
         </section>
 
-        {/* ------------------- Headers + Menu + Content (главная демонстрация) ------------------- */}
+        {/* ------------------- Headers + Menu + Content ------------------- */}
         <section style={{ marginBottom: 48 }}>
           <h2>Header + Menu (вложенная навигация)</h2>
           <div
@@ -442,7 +555,7 @@ function App() {
                   showSettings={false}
                   showLayoutToggle={false}
                   showThemeSwitcher={false}
-                  showMoscowTime={true} // <-- включаем виджет времени
+                  showMoscowTime={true}
                 />
                 <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                   {showMenu && (
@@ -498,7 +611,7 @@ function App() {
                   }
                   showLayoutToggle={false}
                   showThemeSwitcher={false}
-                  showMoscowTime={true} // <-- включаем виджет времени
+                  showMoscowTime={true}
                 />
                 {showMenu && (
                   <Menu
@@ -527,6 +640,21 @@ function App() {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* ------------------- DirectoryTree (самодостаточный справочник) ------------------- */}
+        <section style={{ marginBottom: 48 }}>
+          <h2>DirectoryTree (самодостаточный справочник)</h2>
+          <div style={{ border: `1px solid ${t.border}`, borderRadius: 12, padding: '16px', background: t.bgSurface }}>
+            <DirectoryTree
+              theme={t}
+              isAuthenticated={!!authUser}
+              api={mockApi}
+              directoryTypes={directoryTypes}
+              typeLabels={typeLabels}
+              storageKey="demo_directory_type"
+            />
           </div>
         </section>
       </div>
