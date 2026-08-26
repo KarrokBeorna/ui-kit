@@ -276,9 +276,11 @@ export function VerticalHeader({
           )}
         </div>
       )}
-      <div style={{ padding: '12px 8px', borderTop: `1px solid ${t.borderSubtle}`, flexShrink: 0 }}>
+
+      <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        {showMoscowTime && <MoscowTimeWidget t={t} stacked={collapsed} />}
         {isLoggedIn ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgSurface, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgSurface, overflow: 'hidden', width: '90%' }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', flexShrink: 0 }}>{userName?.[0]?.toUpperCase()}</div>
             <div style={{ flex: 1, overflow: 'hidden', opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
@@ -290,13 +292,10 @@ export function VerticalHeader({
             )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            {showMoscowTime && <MoscowTimeWidget t={t} stacked={collapsed} />}
-            <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 8, justifyContent: 'center', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}`, whiteSpace: 'nowrap', overflow: 'hidden' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-              <IcoLogIn s={15} />
-              <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s', overflow: 'hidden' }}>Войти</span>
-            </button>
-          </div>
+          <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 8, justifyContent: 'center', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}`, whiteSpace: 'nowrap', overflow: 'hidden' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+            <IcoLogIn s={15} />
+            <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s', overflow: 'hidden' }}>Войти</span>
+          </button>
         )}
       </div>
     </aside>
