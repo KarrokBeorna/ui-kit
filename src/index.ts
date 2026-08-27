@@ -23,6 +23,7 @@ export { default as Badge } from './components/Badge';
 export { default as Button } from './components/Button';
 export { Menu } from './components/Menu';
 export { default as Calendar } from './components/Calendar';
+export type { TemplateOption } from './components/Calendar';
 export { default as DirectoryTree } from './components/DirectoryTree';
 export type { DirectoryApi, DirectoryItem } from './components/DirectoryTree';
 export type { MenuTab } from './components/Menu';
