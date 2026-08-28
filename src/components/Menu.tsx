@@ -4,7 +4,7 @@ import { Theme } from '../themes/theme';
 export interface MenuTab {
   id: string;
   label: string;
-  icon?: string;
+  icon?: React.ReactNode;
 }
 
 interface MenuProps {
@@ -73,7 +73,11 @@ export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: 
               }
             }}
           >
-            {tab.icon && <span style={{ fontSize: 18, lineHeight: 1 }}>{tab.icon}</span>}
+            {tab.icon && (
+              <span style={{ display: 'inline-flex', fontSize: 18, lineHeight: 1 }}>
+                {typeof tab.icon === 'string' ? tab.icon : tab.icon}
+              </span>
+            )}
             <span>{tab.label}</span>
           </button>
         );
