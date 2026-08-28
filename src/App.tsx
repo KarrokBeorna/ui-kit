@@ -512,7 +512,7 @@ function App() {
         {/* ------------------- Calendar ------------------- */}
         <section style={{ marginBottom: 48 }}>
           <h2>Calendar (рабочий график)</h2>
-          <Calendar theme={t} templateOptions={templateOptions} />
+          {/*<Calendar theme={t} templateOptions={templateOptions} />*/}
         </section>
 
         {/* ------------------- Headers + Menu + Content ------------------- */}

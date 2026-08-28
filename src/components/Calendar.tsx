@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Theme } from '../themes/theme';
 import DateTimePicker from './DateTimePicker';
 import SearchableSelect from './SearchableSelect';
@@ -21,11 +21,10 @@ interface DayInfo {
 interface CalendarProps {
   theme: Theme;
   templateOptions: TemplateOption[];
-  initialAssignments?: Record<string, string>;
+  assignments: Record<string, string>;
   onAssignmentsChange?: (assignments: Record<string, string>) => void;
 }
 
-// Вспомогательные функции
 function formatLocalDate(year: number, month: number, day: number): string {
   const m = String(month + 1).padStart(2, '0');
   const d = String(day).padStart(2, '0');
@@ -57,23 +56,17 @@ function getMondayBasedDay(day: number): number {
 export default function Calendar({
   theme: t,
   templateOptions,
-  initialAssignments = {},
+  assignments,
   onAssignmentsChange,
 }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [assignments, setAssignments] = useState<Record<string, string>>(initialAssignments);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(
     templateOptions.length > 0 ? templateOptions[0].value : ''
   );
-
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
-
-  useEffect(() => {
-    setAssignments(initialAssignments);
-  }, [initialAssignments]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -84,7 +77,6 @@ export default function Calendar({
   const prevMonthYear = month === 0 ? year - 1 : year;
   const prevMonth = month === 0 ? 11 : month - 1;
   const daysInPrevMonth = getDaysInMonth(prevMonthYear, prevMonth);
-
   const totalCells = Math.ceil((firstDayIndex + daysInMonth) / 7) * 7;
 
   const handlePrevMonth = () => {
@@ -104,7 +96,6 @@ export default function Calendar({
     setEndDate('');
   };
 
-  // Основная функция для применения или удаления назначений
   const applyOrRemoveAssignments = (start: string, end: string, template: string) => {
     const startParsed = parseLocalDate(start);
     const endParsed = parseLocalDate(end);
@@ -112,9 +103,11 @@ export default function Calendar({
 
     const newAssignments = { ...assignments };
     const current = { year: startParsed.year, month: startParsed.month, day: startParsed.day };
-    while (current.year < endParsed.year ||
-           (current.year === endParsed.year && current.month < endParsed.month) ||
-           (current.year === endParsed.year && current.month === endParsed.month && current.day <= endParsed.day)) {
+    while (
+      current.year < endParsed.year ||
+      (current.year === endParsed.year && current.month < endParsed.month) ||
+      (current.year === endParsed.year && current.month === endParsed.month && current.day <= endParsed.day)
+    ) {
       const dateStr = formatLocalDate(current.year, current.month, current.day);
       if (template) {
         newAssignments[dateStr] = template;
@@ -126,7 +119,6 @@ export default function Calendar({
       current.month = next.getMonth();
       current.day = next.getDate();
     }
-    setAssignments(newAssignments);
     if (onAssignmentsChange) {
       onAssignmentsChange(newAssignments);
     }
@@ -180,6 +172,7 @@ export default function Calendar({
     resetRange();
   };
 
+  // Формируем массив дней на основе текущих assignments
   const days: DayInfo[] = [];
   for (let i = 0; i < totalCells; i++) {
     let day: number;
@@ -202,7 +195,7 @@ export default function Calendar({
       yearForDate = year;
     }
     dateStr = formatLocalDate(yearForDate, monthForDate, day);
-    const isCurrentMonth = (monthForDate === month && yearForDate === year);
+    const isCurrentMonth = monthForDate === month && yearForDate === year;
     const assignment = assignments[dateStr];
     days.push({ day, dateStr, isCurrentMonth, assignment });
   }
@@ -351,9 +344,7 @@ export default function Calendar({
                         cursor: isCurrentMonth ? 'pointer' : 'default',
                         width: cellWidth,
                         border: `1px solid ${
-                          isCurrentMonth && inRange
-                            ? t.accent
-                            : 'transparent'
+                          isCurrentMonth && inRange ? t.accent : 'transparent'
                         }`,
                         transition: 'background 0.15s, border 0.15s',
                         overflow: 'hidden',
@@ -415,7 +406,7 @@ export default function Calendar({
             display: 'flex',
             flexWrap: 'wrap',
             gap: 12,
-            alignItems: 'center'
+            alignItems: 'center',
           }}
         >
           <div style={{ flex: 1, minWidth: 170, maxWidth: 180 }}>
@@ -453,10 +444,10 @@ export default function Calendar({
               onChange={setSelectedTemplate}
             />
           </div>
-          <div style={{  }}>
+          <div>
             <Button
               theme={t}
-              variant={selectedTemplate ? "primary" : "danger"}
+              variant={selectedTemplate ? 'primary' : 'danger'}
               onClick={handleApply}
               size="md"
             >
