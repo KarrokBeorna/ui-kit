@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import DateTimePicker from './DateTimePicker';
 import SearchableSelect from './SearchableSelect';
@@ -71,6 +71,10 @@ export default function Calendar({
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
+  useEffect(() => {
+    setAssignments(initialAssignments);
+  }, [initialAssignments]);
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -115,7 +119,7 @@ export default function Calendar({
       if (template) {
         newAssignments[dateStr] = template;
       } else {
-        delete newAssignments[dateStr]; // удаляем, если шаблон пустой
+        delete newAssignments[dateStr];
       }
       const next = new Date(current.year, current.month, current.day + 1);
       current.year = next.getFullYear();
@@ -164,7 +168,6 @@ export default function Calendar({
 
       setRangeEnd(dateStr);
       setEndDate(dateStr);
-      // Автоприменяем только если выбран шаблон
       if (selectedTemplate) {
         applyOrRemoveAssignments(rangeStart, dateStr, selectedTemplate);
       }
@@ -173,7 +176,6 @@ export default function Calendar({
 
   const handleApply = () => {
     if (!startDate || !endDate) return;
-    // Применяем или удаляем в зависимости от выбранного шаблона
     applyOrRemoveAssignments(startDate, endDate, selectedTemplate);
     resetRange();
   };
