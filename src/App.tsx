@@ -24,7 +24,11 @@ import {
   Calendar,
   DirectoryTree,
   DirectoryItem,
-  DirectoryApi
+  DirectoryApi,
+  PieChart,
+  PieDataItem,
+  Histogram,
+  HistogramDataItem
 } from './index';
 
 function App() {
@@ -46,6 +50,13 @@ function App() {
   const [textarea, setTextarea] = useState('');
   const [authUser, setAuthUser] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [histogramMode, setHistogramMode] = useState<'stacked' | 'grouped'>('grouped');
+  const [showXAxis, setShowXAxis] = useState(true);
+  const [showYAxis, setShowYAxis] = useState(true);
+  const [showValues, setShowValues] = useState(false);
+  const [xAxisLabel, setXAxisLabel] = useState('Квартал');
+  const [yAxisLabel, setYAxisLabel] = useState('Продажи');
+  const [groupGap, setGroupGap] = useState(0.2);
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -91,6 +102,46 @@ function App() {
     { id: 5, name: 'Телефоны', type: 'item', parent_id: 2, sort_order: 1 },
     { id: 6, name: 'Ноутбуки', type: 'item', parent_id: 2, sort_order: 2 },
   ]);
+
+  // Пример данных для круговой диаграммы (многоуровневой)
+  const pieData: PieDataItem[] = [
+    { id: 1, label: 'Фрукты', value: 100, level: 0, parent: null },
+    { id: 2, label: 'Овощи', value: 80, level: 0, parent: null },
+    { id: 3, label: 'Ягоды', value: 40, level: 0, parent: null },
+
+    { id: 11, label: 'Яблоки', value: 60, level: 1, parent: 1 },
+    { id: 12, label: 'Бананы', value: 30, level: 1, parent: 1 },
+    { id: 13, label: 'Апельсины', value: 10, level: 1, parent: 1 },
+
+    { id: 21, label: 'Морковь', value: 40, level: 1, parent: 2 },
+    { id: 22, label: 'Картофель', value: 30, level: 1, parent: 2 },
+    { id: 23, label: 'Лук', value: 10, level: 1, parent: 2 },
+
+    { id: 31, label: 'Клубника', value: 25, level: 1, parent: 3 },
+    { id: 32, label: 'Малина', value: 15, level: 1, parent: 3 },
+
+    { id: 111, label: 'Гала', value: 30, level: 2, parent: 11 },
+    { id: 112, label: 'Гренни', value: 20, level: 2, parent: 11 },
+    { id: 113, label: 'Фуджи', value: 10, level: 2, parent: 11 },
+
+    { id: 121, label: 'Кавендиш', value: 20, level: 2, parent: 12 },
+    { id: 122, label: 'Плантан', value: 10, level: 2, parent: 12 },
+
+    { id: 211, label: 'Нантская', value: 20, level: 2, parent: 21 },
+    { id: 212, label: 'Шантенэ', value: 20, level: 2, parent: 21 },
+  ];
+
+  // подготовим данные для гистограммы (продажи по кварталам за два года)
+  const histData: HistogramDataItem[] = [
+    { id: 1, label: 'Q1', value: 120, series: '2024', color: '#4e79a7' },
+    { id: 2, label: 'Q2', value: 150, series: '2024' },
+    { id: 3, label: 'Q3', value: 180, series: '2024' },
+    { id: 4, label: 'Q4', value: 200, series: '2024' },
+    { id: 5, label: 'Q1', value: 90, series: '2025', color: '#f28e2b' },
+    { id: 6, label: 'Q2', value: 110, series: '2025' },
+    { id: 7, label: 'Q3', value: 130, series: '2025' },
+    { id: 8, label: 'Q4', value: 160, series: '2025' },
+  ];
 
   // Реализация API (замыкание на mockData)
   const mockApi: DirectoryApi = {
@@ -654,6 +705,75 @@ function App() {
               directoryTypes={directoryTypes}
               typeLabels={typeLabels}
               storageKey="demo_directory_type"
+            />
+          </div>
+        </section>
+
+        <section style={{ marginBottom: 48 }}>
+          <h2>PieChart – подписи radial90 (поворот 90°, читаются идеально)</h2>
+          <div style={{ border: `1px solid ${t.border}`, borderRadius: 12, padding: '20px', background: t.bgSurface }}>
+            <PieChart
+              data={pieData}
+              theme={t}
+              width={1100}
+              height={850}
+              showLegend
+              legendPosition="right"
+              showLabels
+              labelFontSize={12}
+              labelOrientation="horizontal"
+              innerRadius={80}
+              ringThickness={80}
+              dimOpacity={0.25}
+              onSegmentHover={(item) => console.log('Hover:', item?.label)}
+            />
+          </div>
+        </section>
+
+        <section style={{ marginBottom: 48 }}>
+          <h2>Histogram – настраиваемая</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', marginBottom: 16, background: t.bgSurface, padding: 12, borderRadius: 8, border: `1px solid ${t.border}` }}>
+            <label style={{ color: t.text }}>
+              Режим:
+              <select value={histogramMode} onChange={(e) => setHistogramMode(e.target.value as any)} style={{ marginLeft: 6, background: t.bg, color: t.text, border: `1px solid ${t.border}` }}>
+                <option value="grouped">Рядом</option>
+                <option value="stacked">Наложение</option>
+              </select>
+            </label>
+            <label style={{ color: t.text }}>
+              <input type="checkbox" checked={showXAxis} onChange={() => setShowXAxis(!showXAxis)} /> Ось X
+            </label>
+            <label style={{ color: t.text }}>
+              <input type="checkbox" checked={showYAxis} onChange={() => setShowYAxis(!showYAxis)} /> Ось Y
+            </label>
+            <label style={{ color: t.text }}>
+              <input type="checkbox" checked={showValues} onChange={() => setShowValues(!showValues)} /> Значения
+            </label>
+            <label style={{ color: t.text }}>
+              Отступ между группами:
+              <input type="range" min="0" max="0.8" step="0.05" value={groupGap} onChange={(e) => setGroupGap(parseFloat(e.target.value))} style={{ width: 100 }} />
+              {groupGap.toFixed(2)}
+            </label>
+          </div>
+          <div style={{ border: `1px solid ${t.border}`, borderRadius: 12, padding: '20px', background: t.bgSurface }}>
+            <Histogram
+              data={histData}
+              theme={t}
+              width={800}
+              height={450}
+              showLegend
+              barMode={histogramMode}
+              stepSize={50}
+              dimOpacity={0.25}
+              xAxisLabel={xAxisLabel}
+              yAxisLabel={yAxisLabel}
+              showXAxis={showXAxis}
+              showYAxis={showYAxis}
+              showValues={showValues}
+              groupGap={groupGap}
+              axisLabelFontSize={12}
+              valuesFontSize={14}
+              onBarHover={(item) => console.log('Hover:', item?.label, item?.series)}
             />
           </div>
         </section>
