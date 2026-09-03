@@ -46,6 +46,8 @@ export interface HistogramProps {
   dimOpacity?: number;
   /** Колбэк при наведении на бар */
   onBarHover?: (item: HistogramDataItem | null) => void;
+  /** Колбэк при клике на бар */
+  onBarClick?: (item: HistogramDataItem | null) => void;
 }
 
 // ─── Вспомогательные функции ──────────────────────────────────
@@ -127,6 +129,7 @@ export function Histogram({
   groupGap = 0.2,
   dimOpacity = 0.25,
   onBarHover,
+  onBarClick,
 }: HistogramProps) {
   const [hoveredSeries, setHoveredSeries] = useState<string | null>(null);
 
@@ -174,12 +177,9 @@ export function Histogram({
     if (!showYAxis) return 60;
     const maxTick = Math.ceil(maxValue / computedStepSize) * computedStepSize;
     const maxStr = String(maxTick);
-    // Приблизительная ширина символа для шрифта axisLabelFontSize
     const charWidth = axisLabelFontSize * 0.6;
     const textWidth = maxStr.length * charWidth;
-    // Добавляем место для подписи оси Y (если есть)
     const yLabelWidth = yAxisLabel ? axisLabelFontSize * 1.2 : 0;
-    // Запас на поля и отступ от текста до оси
     return Math.max(60, textWidth + yLabelWidth + 16);
   }, [showYAxis, maxValue, computedStepSize, axisLabelFontSize, yAxisLabel]);
 
@@ -209,6 +209,10 @@ export function Histogram({
     if (onBarHover) onBarHover(null);
   };
 
+  const handleBarClick = (item: HistogramDataItem) => {
+    if (onBarClick) onBarClick(item);
+  };
+
   const renderBars = () => {
     const bars: JSX.Element[] = [];
 
@@ -230,6 +234,9 @@ export function Histogram({
           const x = xGroup + groupWidth * 0.15;
           const w = groupWidth * 0.7;
 
+          // Находим элемент данных для этого бара
+          const dataItem = data.find(d => d.label === label && (d.series ?? String(d.id)) === series) || null;
+
           bars.push(
             <rect
               key={`${label}-${series}`}
@@ -244,14 +251,18 @@ export function Histogram({
               rx={2}
               style={{
                 transition: 'opacity 0.25s ease, filter 0.25s ease',
-                cursor: 'pointer',
+                cursor: onBarClick ? 'pointer' : 'default',
                 filter: isHovered ? 'brightness(1.1) drop-shadow(0 0 6px rgba(255,255,255,0.2))' : 'none',
               }}
               onMouseEnter={() => {
-                const item = data.find(d => d.label === label && (d.series ?? String(d.id)) === series) || null;
-                handleMouseEnter(series, item);
+                handleMouseEnter(series, dataItem);
               }}
               onMouseLeave={handleMouseLeave}
+              onClick={() => {
+                if (dataItem && onBarClick) {
+                  handleBarClick(dataItem);
+                }
+              }}
             />
           );
 
@@ -293,6 +304,8 @@ export function Histogram({
           const isHovered = hoveredSeries === series;
           const opacity = hoveredSeries !== null ? (isHovered ? 1 : dimOpacity) : 1;
 
+          const dataItem = data.find(d => d.label === label && (d.series ?? String(d.id)) === series) || null;
+
           bars.push(
             <rect
               key={`${label}-${series}`}
@@ -307,14 +320,18 @@ export function Histogram({
               rx={2}
               style={{
                 transition: 'opacity 0.25s ease, filter 0.25s ease',
-                cursor: 'pointer',
+                cursor: onBarClick ? 'pointer' : 'default',
                 filter: isHovered ? 'brightness(1.1) drop-shadow(0 0 6px rgba(255,255,255,0.2))' : 'none',
               }}
               onMouseEnter={() => {
-                const item = data.find(d => d.label === label && (d.series ?? String(d.id)) === series) || null;
-                handleMouseEnter(series, item);
+                handleMouseEnter(series, dataItem);
               }}
               onMouseLeave={handleMouseLeave}
+              onClick={() => {
+                if (dataItem && onBarClick) {
+                  handleBarClick(dataItem);
+                }
+              }}
             />
           );
 
