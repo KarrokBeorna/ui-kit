@@ -103,13 +103,13 @@ export default function Textarea({
         )}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-        {maxLength && (
+      {maxLength && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
           <span style={{ fontSize: 11, color: value.length >= maxLength ? t.danger : t.placeholder }}>
             {value.length} / {maxLength}
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {error && <p style={{ margin: '2px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
