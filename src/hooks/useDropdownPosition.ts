@@ -1,9 +1,19 @@
-import { useState, useEffect, RefObject } from 'react';
+import { useState, useLayoutEffect, RefObject } from 'react';
 
-export function useDropdownPosition(open: boolean, inputRef: RefObject<HTMLElement>) {
-  const [style, setStyle] = useState<React.CSSProperties>({});
+export function useDropdownPosition(
+  open: boolean,
+  inputRef: RefObject<HTMLElement>
+) {
+  const [style, setStyle] = useState<React.CSSProperties>({
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: 0,
+    zIndex: 9999,
+    visibility: 'hidden',
+  });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !inputRef.current) return;
 
     const updatePosition = () => {
@@ -14,6 +24,7 @@ export function useDropdownPosition(open: boolean, inputRef: RefObject<HTMLEleme
         left: rect.left,
         width: rect.width,
         zIndex: 9999,
+        visibility: 'visible',
       });
     };
 

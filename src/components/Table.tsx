@@ -61,55 +61,71 @@ export default function Table<T extends Record<string, any>>({
 }: TableProps<T>) {
   // ---------- Сортировка ----------
   const [internalSortState, setInternalSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
+
   const sortState = externalSortState !== undefined ? externalSortState : internalSortState;
+
   const updateSortState = (newState: { key: string; direction: 'asc' | 'desc' }[]) => {
-    if (onSortChange) {
-      onSortChange(newState);
-    } else {
-      setInternalSortState(newState);
-    }
+    if (onSortChange) onSortChange(newState);
+    else setInternalSortState(newState);
   };
 
-  // ---------- Управление видимостью и порядком ----------
-  const [internalOrder, setInternalOrder] = useState<string[]>(columns.map(c => c.key));
-  const [internalVisible, setInternalVisible] = useState<Set<string>>(new Set(columns.map(c => c.key)));
+  // ---------- Видимость и порядок ----------
+  const [internalOrder, setInternalOrder] = useState<string[]>(() => columns.map(c => c.key),);
+  const [internalVisible, setInternalVisible] = useState<Set<string>>(() => new Set(columns.map(c => c.key)),);
 
-  const order = useMemo(() => {
-    return externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
-  }, [externalColumnOrder, internalOrder]);
+  const order = externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
 
-  const visibleKeys = useMemo(() => {
-    return externalVisibleColumns !== undefined ? new Set(externalVisibleColumns) : internalVisible;
-  }, [externalVisibleColumns, internalVisible]);
+  const visibleKeys = useMemo(
+    () =>
+      externalVisibleColumns !== undefined
+        ? new Set(externalVisibleColumns)
+        : internalVisible,
+    [externalVisibleColumns, internalVisible],
+  );
 
-  const updateOrder = useCallback((newOrder: string[]) => {
-    if (onColumnOrderChange) {
-      onColumnOrderChange(newOrder);
-    } else {
-      setInternalOrder(newOrder);
-    }
-  }, [onColumnOrderChange]);
+  // ---------- Быстрые индексы (O(1) вместо O(n) в рендере) ----------
+  const columnByKey = useMemo(() => {
+    const map = new Map<string, Column<T>>();
+    for (const col of columns) map.set(col.key, col);
+    return map;
+  }, [columns]);
 
-  const updateVisible = useCallback((newVisible: Set<string>) => {
-    if (onVisibleColumnsChange) {
-      onVisibleColumnsChange(Array.from(newVisible));
-    } else {
-      setInternalVisible(newVisible);
-    }
-  }, [onVisibleColumnsChange]);
+  const columnIndexByKey = useMemo(() => {
+    const map = new Map<string, number>();
+    columns.forEach((col, idx) => map.set(col.key, idx));
+    return map;
+  }, [columns]);
+
+  const stickyRightSet = useMemo(() => new Set(stickyRight), [stickyRight]);
+
+  const updateOrder = useCallback(
+    (newOrder: string[]) => {
+      if (onColumnOrderChange) onColumnOrderChange(newOrder);
+      else setInternalOrder(newOrder);
+    },
+    [onColumnOrderChange],
+  );
+
+  const updateVisible = useCallback(
+    (newVisible: Set<string>) => {
+      if (onVisibleColumnsChange) onVisibleColumnsChange(Array.from(newVisible));
+      else setInternalVisible(newVisible);
+    },
+    [onVisibleColumnsChange],
+  );
 
   // ---------- Модалка настроек ----------
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsOrder, setSettingsOrder] = useState<string[]>([]);
   const [settingsVisible, setSettingsVisible] = useState<Set<string>>(new Set());
 
-  const openSettings = () => {
+  const openSettings = useCallback(() => {
     setSettingsOrder([...order]);
     setSettingsVisible(new Set(visibleKeys));
     setSettingsOpen(true);
-  };
+  }, [order, visibleKeys]);
 
-  const applySettings = () => {
+  const applySettings = useCallback(() => {
     if (onApplySettings) {
       onApplySettings(Array.from(settingsVisible), settingsOrder);
     } else {
@@ -117,37 +133,49 @@ export default function Table<T extends Record<string, any>>({
       updateVisible(settingsVisible);
     }
     setSettingsOpen(false);
-  };
+  }, [onApplySettings, settingsVisible, settingsOrder, updateOrder, updateVisible]);
 
-  const toggleVisible = (key: string) => {
-    const newSet = new Set(settingsVisible);
-    if (newSet.has(key)) newSet.delete(key);
-    else newSet.add(key);
-    setSettingsVisible(newSet);
-  };
+  const toggleVisible = useCallback((key: string) => {
+    setSettingsVisible(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   // ---------- Перемещение с защитой от закреплённых колонок ----------
-  const moveUp = (key: string) => {
-    const idx = settingsOrder.indexOf(key);
-    if (idx <= 0) return;
-    if (stickyRight.includes(key)) return;
-    if (stickyRight.includes(settingsOrder[idx - 1])) return;
-    const newOrder = [...settingsOrder];
-    [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
-    setSettingsOrder(newOrder);
-  };
+  const moveUp = useCallback(
+    (key: string) => {
+      setSettingsOrder(prev => {
+        const idx = prev.indexOf(key);
+        if (idx <= 0) return prev;
+        if (stickyRightSet.has(key)) return prev;
+        if (stickyRightSet.has(prev[idx - 1])) return prev;
+        const next = [...prev];
+        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+        return next;
+      });
+    },
+    [stickyRightSet],
+  );
 
-  const moveDown = (key: string) => {
-    const idx = settingsOrder.indexOf(key);
-    if (idx === -1 || idx === settingsOrder.length - 1) return;
-    if (stickyRight.includes(key)) return;
-    if (stickyRight.includes(settingsOrder[idx + 1])) return;
-    const newOrder = [...settingsOrder];
-    [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
-    setSettingsOrder(newOrder);
-  };
+  const moveDown = useCallback(
+    (key: string) => {
+      setSettingsOrder(prev => {
+        const idx = prev.indexOf(key);
+        if (idx === -1 || idx === prev.length - 1) return prev;
+        if (stickyRightSet.has(key)) return prev;
+        if (stickyRightSet.has(prev[idx + 1])) return prev;
+        const next = [...prev];
+        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+        return next;
+      });
+    },
+    [stickyRightSet],
+  );
 
-  // ---------- Обработка клика по заголовку ----------
+  // ---------- Клик по заголовку ----------
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
     let newState: { key: string; direction: 'asc' | 'desc' }[] = [];
@@ -157,23 +185,16 @@ export default function Table<T extends Record<string, any>>({
       const existing = newState.findIndex(s => s.key === key);
       if (existing !== -1) {
         const current = newState[existing];
-        if (current.direction === 'asc') {
-          newState[existing] = { key, direction: 'desc' };
-        } else {
-          newState.splice(existing, 1);
-        }
+        if (current.direction === 'asc') newState[existing] = { key, direction: 'desc' };
+        else newState.splice(existing, 1);
       } else {
         newState.push({ key, direction: 'asc' });
       }
     } else {
       const existing = sortState.findIndex(s => s.key === key);
       if (existing !== -1) {
-        const current = sortState[existing];
-        if (current.direction === 'asc') {
-          newState = [{ key, direction: 'desc' }];
-        } else {
-          newState = [];
-        }
+        if (sortState[existing].direction === 'asc') newState = [{ key, direction: 'desc' }];
+        else newState = [];
       } else {
         newState = [{ key, direction: 'asc' }];
       }
@@ -181,47 +202,30 @@ export default function Table<T extends Record<string, any>>({
     updateSortState(newState);
   };
 
-  // ---------- Сортировка данных ----------
-  const sortedData = useMemo(() => {
-    const sorted = [...data];
-    if (sortState.length === 0) return sorted;
-
-    sorted.sort((a, b) => {
-      for (const { key, direction } of sortState) {
-        let aVal = (a as any)[key];
-        let bVal = (b as any)[key];
-
-        const aIsNull = aVal === null || aVal === undefined;
-        const bIsNull = bVal === null || bVal === undefined;
-
-        if (aIsNull && bIsNull) continue;
-        if (aIsNull) return 1;
-        if (bIsNull) return -1;
-        if (aVal === bVal) continue;
-
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          const cmp = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' });
-          if (cmp !== 0) return direction === 'asc' ? cmp : -cmp;
-          continue;
-        }
-
-        const cmp = aVal < bVal ? -1 : 1;
-        return direction === 'asc' ? cmp : -cmp;
-      }
-      return 0;
-    });
-    return sorted;
-  }, [data, sortState]);
-
   // ---------- Sticky ----------
-  const stickyIndices = columns
-    .map((col, index) => (stickyRight.includes(col.key) ? index : -1))
-    .filter(idx => idx !== -1);
-  const firstStickyIndex = stickyIndices.length > 0 ? stickyIndices[0] : -1;
+  const firstStickyIndex = useMemo(() => {
+    for (let i = 0; i < columns.length; i++) {
+      if (stickyRightSet.has(columns[i].key)) return i;
+    }
+    return -1;
+  }, [columns, stickyRightSet]);
 
-  const isStickyRight = (key: string) => stickyRight.includes(key);
-  const isFirstSticky = (index: number) => index === firstStickyIndex;
+  const getStickyStyle = useCallback(
+    (colIndex: number, isHeader: boolean = false): React.CSSProperties => {
+      const key = columns[colIndex]?.key;
+      if (!key || !stickyRightSet.has(key)) return {};
+      return {
+        position: 'sticky',
+        right: 0,
+        zIndex: isHeader ? 5 : 3,
+        background: t.bgSurface,
+        boxShadow: colIndex === firstStickyIndex ? `inset 2px 0 ${t.border}` : 'none',
+      };
+    },
+    [columns, stickyRightSet, firstStickyIndex, t.bgSurface, t.border],
+  );
 
+  // ---------- Базовые стили ----------
   const cellBaseStyle: React.CSSProperties = {
     padding: '10px 14px',
     whiteSpace: 'nowrap',
@@ -232,18 +236,6 @@ export default function Table<T extends Record<string, any>>({
     color: t.text,
     textAlign: 'left',
     background: t.bgSurface,
-  };
-
-  const getStickyStyle = (colIndex: number, isHeader: boolean = false): React.CSSProperties => {
-    const key = columns[colIndex]?.key;
-    if (!key || !isStickyRight(key)) return {};
-    return {
-      position: 'sticky',
-      right: 0,
-      zIndex: isHeader ? 5 : 3,
-      background: t.bgSurface,
-      boxShadow: isFirstSticky(colIndex) ? `inset 2px 0 ${t.border}` : 'none',
-    };
   };
 
   const headerCellStyle: React.CSSProperties = {
@@ -266,17 +258,14 @@ export default function Table<T extends Record<string, any>>({
     background: t.bgSurface,
   };
 
-  // ---------- Позиционирование кнопки-шестерёнки ----------
+  // ---------- Позиционирование шестерёнки ----------
   const containerRef = useRef<HTMLDivElement>(null);
   const [buttonPosition, setButtonPosition] = useState({ top: 0, left: 0 });
 
   const updateButtonPosition = useCallback(() => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      setButtonPosition({
-        top: rect.top - 12,
-        left: rect.left - 12,
-      });
+      setButtonPosition({ top: rect.top - 12, left: rect.left - 12 });
     }
   }, []);
 
@@ -286,90 +275,168 @@ export default function Table<T extends Record<string, any>>({
     const handleResize = () => updateButtonPosition();
     window.addEventListener('scroll', handleScroll, true);
     window.addEventListener('resize', handleResize);
-    const resizeObserver = new ResizeObserver(() => updateButtonPosition());
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
+    const ro = new ResizeObserver(() => updateButtonPosition());
+    if (containerRef.current) ro.observe(containerRef.current);
     return () => {
       window.removeEventListener('scroll', handleScroll, true);
       window.removeEventListener('resize', handleResize);
-      resizeObserver.disconnect();
+      ro.disconnect();
     };
   }, [updateButtonPosition]);
 
   useEffect(() => {
     updateButtonPosition();
-  }, [sortedData, columns, visibleKeys, order, updateButtonPosition]);
+  }, [data, columns, visibleKeys, order, updateButtonPosition]);
 
-  // ---------- Отображаемые колонки (с защитой от дубликатов) ----------
+  // ---------- Отображаемые колонки ----------
   const displayColumns = useMemo(() => {
     const uniqueKeys = Array.from(new Set(order.filter(key => visibleKeys.has(key))));
     return uniqueKeys
-      .map(key => columns.find(c => c.key === key))
+      .map(key => columnByKey.get(key))
       .filter((col): col is Column<T> => col !== undefined);
-  }, [order, visibleKeys, columns]);
+  }, [order, visibleKeys, columnByKey]);
 
-  // ---------- Стили для кнопки-шестерёнки ----------
-  const gearButtonStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: buttonPosition.top,
-    left: buttonPosition.left,
-    zIndex: 5,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 24,
-    height: 24,
-    borderRadius: '50%',
-    background: t.bgSurface,
-    border: `1px solid ${t.border}`,
-    color: t.iconColor,
-    cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-    transition: 'background 0.2s',
-    padding: 0,
-    opacity: 1,
-    pointerEvents: 'auto',
-    fontSize: 18,
-  };
+  // ---------- Стили кнопки-шестерёнки ----------
+  const settingsButton = useMemo(() => {
+    if (settingsOpen) return null;
+    const style: React.CSSProperties = {
+      position: 'fixed',
+      top: buttonPosition.top,
+      left: buttonPosition.left,
+      zIndex: 5,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 24,
+      height: 24,
+      borderRadius: '50%',
+      background: t.bgSurface,
+      border: `1px solid ${t.border}`,
+      color: t.iconColor,
+      cursor: 'pointer',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      transition: 'background 0.2s',
+      padding: 0,
+      opacity: 1,
+      pointerEvents: 'auto',
+      fontSize: 18,
+    };
+    return createPortal(
+      <button
+        className="settings-button"
+        style={style}
+        onClick={openSettings}
+        onMouseEnter={e => (e.currentTarget.style.background = t.navHoverBg)}
+        onMouseLeave={e => (e.currentTarget.style.background = t.bgSurface)}
+        aria-label="Настройка таблицы"
+      >
+        ⚙
+      </button>,
+      document.body,
+    );
+  }, [settingsOpen, buttonPosition, t, openSettings]);
 
-  const settingsButton = !settingsOpen
-    ? createPortal(
-        <button
-          className="settings-button"
-          style={gearButtonStyle}
-          onClick={openSettings}
-          onMouseEnter={(e) => (e.currentTarget.style.background = t.navHoverBg)}
-          onMouseLeave={(e) => (e.currentTarget.style.background = t.bgSurface)}
-          aria-label="Настройка таблицы"
-        >
-          ⚙
-        </button>,
-        document.body
-      )
-    : null;
+  // ---------- Стиль кнопок перемещения ----------
+  const getMoveButtonStyle = useCallback(
+    (canMove: boolean): React.CSSProperties => ({
+      background: t.bgSurface,
+      border: `1px solid ${t.border}`,
+      borderRadius: 4,
+      cursor: canMove ? 'pointer' : 'default',
+      color: canMove ? t.iconColor : t.placeholder,
+      padding: '4px 6px',
+      display: 'flex',
+      alignItems: 'center',
+      lineHeight: 1,
+      transition: 'background 0.15s, opacity 0.15s',
+      opacity: canMove ? 1 : 0.3,
+      pointerEvents: canMove ? 'auto' : 'none',
+    }),
+    [t.bgSurface, t.border, t.iconColor, t.placeholder],
+  );
 
-  // ---------- Вспомогательная функция для стилей кнопок перемещения ----------
-  const getMoveButtonStyle = (canMove: boolean): React.CSSProperties => ({
-    background: t.bgSurface,
-    border: `1px solid ${t.border}`,
-    borderRadius: 4,
-    cursor: canMove ? 'pointer' : 'default',
-    color: canMove ? t.iconColor : t.placeholder,
-    padding: '4px 6px',
-    display: 'flex',
-    alignItems: 'center',
-    lineHeight: 1,
-    transition: 'background 0.15s, opacity 0.15s',
-    opacity: canMove ? 1 : 0.3,
-    pointerEvents: canMove ? 'auto' : 'none',
-  });
+  // ---------- Поля модалки настроек ----------
+  const modalFields = useMemo(() => {
+    return settingsOrder.map((key, index) => {
+      const col = columnByKey.get(key);
+      if (!col) return { row: index, col: 0, content: null };
+
+      const isSticky = stickyRightSet.has(key);
+      const canMoveUp =
+        !isSticky && index > 0 && !stickyRightSet.has(settingsOrder[index - 1]);
+      const canMoveDown =
+        !isSticky &&
+        index < settingsOrder.length - 1 &&
+        !stickyRightSet.has(settingsOrder[index + 1]);
+
+      const moveButtons = [
+        { key: 'up', Icon: IcoChevronUp, canMove: canMoveUp, handler: moveUp },
+        { key: 'down', Icon: IcoChevronDown, canMove: canMoveDown, handler: moveDown },
+      ];
+
+      return {
+        row: index,
+        col: 0,
+        content: (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <Checkbox
+              theme={t}
+              checked={settingsVisible.has(key)}
+              onChange={() => toggleVisible(key)}
+              label={String(col.header)}
+            />
+            <div style={{ display: 'flex', gap: 4 }}>
+              {moveButtons.map(btn => (
+                <button
+                  key={btn.key}
+                  onClick={() => btn.canMove && btn.handler(key)}
+                  style={getMoveButtonStyle(btn.canMove)}
+                  onMouseEnter={e => {
+                    if (btn.canMove) e.currentTarget.style.background = t.navHoverBg;
+                  }}
+                  onMouseLeave={e => {
+                    if (btn.canMove) e.currentTarget.style.background = t.bgSurface;
+                  }}
+                >
+                  <btn.Icon s={16} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ),
+      };
+    });
+  }, [
+    settingsOrder,
+    settingsVisible,
+    columnByKey,
+    stickyRightSet,
+    t,
+    moveUp,
+    moveDown,
+    toggleVisible,
+    getMoveButtonStyle,
+  ]);
 
   // ---------- Рендер ----------
   return (
     <>
       <div ref={containerRef} style={tableContainerStyle}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'auto' }}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: 14,
+            tableLayout: 'auto',
+          }}
+        >
           <thead
             style={{
               position: fixedHeader ? 'sticky' : 'static',
@@ -380,14 +447,14 @@ export default function Table<T extends Record<string, any>>({
             }}
           >
             <tr>
-              {displayColumns.map((col) => {
+              {displayColumns.map(col => {
                 const sortKey = col.key;
                 const sortIndex = sortState.findIndex(s => s.key === sortKey);
                 const isSorted = sortIndex !== -1;
                 const direction = isSorted ? sortState[sortIndex].direction : undefined;
-                const originalIndex = columns.findIndex(c => c.key === col.key);
-                const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, true) : {};
-
+                const originalIndex = columnIndexByKey.get(col.key);
+                const stickyStyle =
+                  originalIndex !== undefined ? getStickyStyle(originalIndex, true) : {};
                 const isSortable = col.sortable !== undefined ? col.sortable : true;
 
                 return (
@@ -399,11 +466,11 @@ export default function Table<T extends Record<string, any>>({
                       ...col.headerStyle,
                       cursor: isSortable ? 'pointer' : 'default',
                     }}
-                    onClick={(e) => isSortable && handleHeaderClick(sortKey, e)}
-                    onMouseEnter={(e) => {
+                    onClick={e => isSortable && handleHeaderClick(sortKey, e)}
+                    onMouseEnter={e => {
                       if (isSortable) e.currentTarget.style.background = t.navHoverBg;
                     }}
-                    onMouseLeave={(e) => {
+                    onMouseLeave={e => {
                       if (isSortable) e.currentTarget.style.background = t.bgSurface;
                     }}
                   >
@@ -424,7 +491,7 @@ export default function Table<T extends Record<string, any>>({
             </tr>
           </thead>
           <tbody>
-            {sortedData.length === 0 ? (
+            {data.length === 0 ? (
               <tr>
                 <td
                   colSpan={displayColumns.length}
@@ -439,8 +506,9 @@ export default function Table<T extends Record<string, any>>({
                 </td>
               </tr>
             ) : (
-              sortedData.map((row, rowIndex) => {
-                const isSelected = selectedRowKey !== undefined && row[rowKey] === selectedRowKey;
+              data.map((row, rowIndex) => {
+                const isSelected =
+                  selectedRowKey !== undefined && row[rowKey] === selectedRowKey;
                 const className = rowClassName ? rowClassName(row) : '';
                 const customRowStyle = rowStyle ? rowStyle(row) : {};
 
@@ -458,16 +526,21 @@ export default function Table<T extends Record<string, any>>({
                       animationDelay: `${rowIndex * 30}ms`,
                       ...customRowStyle,
                     }}
-                    onMouseEnter={(e) => {
-                      if (onRowClick && !isSelected) e.currentTarget.style.background = t.navHoverBg;
+                    onMouseEnter={e => {
+                      if (onRowClick && !isSelected)
+                        e.currentTarget.style.background = t.navHoverBg;
                     }}
-                    onMouseLeave={(e) => {
-                      if (onRowClick && !isSelected) e.currentTarget.style.background = t.bgSurface;
+                    onMouseLeave={e => {
+                      if (onRowClick && !isSelected)
+                        e.currentTarget.style.background = t.bgSurface;
                     }}
                   >
-                    {displayColumns.map((col) => {
-                      const originalIndex = columns.findIndex(c => c.key === col.key);
-                      const stickyStyle = originalIndex !== -1 ? getStickyStyle(originalIndex, false) : {};
+                    {displayColumns.map(col => {
+                      const originalIndex = columnIndexByKey.get(col.key);
+                      const stickyStyle =
+                        originalIndex !== undefined
+                          ? getStickyStyle(originalIndex, false)
+                          : {};
                       const cellContent = col.render
                         ? col.render((row as any)[col.key], row)
                         : (row as any)[col.key];
@@ -511,49 +584,7 @@ export default function Table<T extends Record<string, any>>({
         okText="Применить"
         cancelText="Отмена"
         canSubmit={true}
-        fields={settingsOrder.map((key, index) => {
-          const col = columns.find(c => c.key === key);
-          const isSticky = stickyRight.includes(key);
-          const canMoveUp = !isSticky && index > 0 && !stickyRight.includes(settingsOrder[index - 1]);
-          const canMoveDown = !isSticky && index < settingsOrder.length - 1 && !stickyRight.includes(settingsOrder[index + 1]);
-
-          const moveButtons = [
-            { key: 'up', Icon: IcoChevronUp, canMove: canMoveUp, handler: moveUp },
-            { key: 'down', Icon: IcoChevronDown, canMove: canMoveDown, handler: moveDown },
-          ];
-
-          return {
-            row: index,
-            col: 0,
-            content: col ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <Checkbox
-                  theme={t}
-                  checked={settingsVisible.has(key)}
-                  onChange={() => toggleVisible(key)}
-                  label={String(col.header)}
-                />
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {moveButtons.map((btn) => (
-                    <button
-                      key={btn.key}
-                      onClick={() => btn.canMove && btn.handler(key)}
-                      style={getMoveButtonStyle(btn.canMove)}
-                      onMouseEnter={(e) => {
-                        if (btn.canMove) e.currentTarget.style.background = t.navHoverBg;
-                      }}
-                      onMouseLeave={(e) => {
-                        if (btn.canMove) e.currentTarget.style.background = t.bgSurface;
-                      }}
-                    >
-                      <btn.Icon s={16} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null,
-          };
-        })}
+        fields={modalFields}
       />
     </>
   );
