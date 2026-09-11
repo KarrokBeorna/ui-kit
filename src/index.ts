@@ -11,6 +11,7 @@ export { default as Textarea } from './components/Textarea';
 export { default as TextInput } from './components/TextInput';
 
 export { ThemeSwitcher } from './components/ThemeSwitcher';
+export { ActionsColumn } from './components/ActionsColumn';
 export { FilterBar } from './components/FilterBar';
 export { Pagination } from './components/Pagination';
 export { HorizontalHeader, VerticalHeader } from './components/Header';
