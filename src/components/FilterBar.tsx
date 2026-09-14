@@ -95,32 +95,32 @@ export function FilterBar({
   }, [applyOnEnter, onApply, globalEnter, bodyRef.current]);
 
   const onApplyRef = useRef(onApply);
-  useEffect(() => { onApplyRef.current = onApply; }, [onApply]);
+  useEffect(() => { onApplyRef.current = onApply; });
 
   useEffect(() => {
-    if (!instantApply || !onApply) return;
+    if (!instantApply) return;
+
     const node = bodyRef.current;
     if (!node) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const handleChange = () => {
+    const scheduleApply = () => {
       if (timer) clearTimeout(timer);
-      // даём React сначала обработать onChange и закоммитить стейт
       timer = setTimeout(() => {
         onApplyRef.current?.();
-      }, 0);
+      }, 250); // подберите под вкус: 150–400 мс
     };
 
-    node.addEventListener('input', handleChange);
-    node.addEventListener('change', handleChange);
+    node.addEventListener('input', scheduleApply);
+    node.addEventListener('change', scheduleApply);
 
     return () => {
       if (timer) clearTimeout(timer);
-      node.removeEventListener('input', handleChange);
-      node.removeEventListener('change', handleChange);
+      node.removeEventListener('input', scheduleApply);
+      node.removeEventListener('change', scheduleApply);
     };
-  }, [instantApply, onApply, bodyRef.current]);
+  }, [instantApply]);
 
   const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
   filters.forEach(({ component, row, cols = gridCols }) => {
