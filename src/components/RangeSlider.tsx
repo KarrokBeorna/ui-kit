@@ -1,5 +1,5 @@
 // RangeSlider.tsx
-import { useState, useRef, useId } from 'react'
+import { useState, useRef } from 'react'
 import type { Theme } from '../themes/theme'
 import { IcoX } from './icons'
 
@@ -49,6 +49,7 @@ function ManualInput({
   t,
   label,
   disabled,
+  inputRef,
 }: {
   value: number | null
   onCommit: (v: number | null) => void
@@ -57,6 +58,7 @@ function ManualInput({
   t: Theme
   label?: string
   disabled?: boolean
+  inputRef?: React.RefObject<HTMLInputElement | null>
 }) {
   const [editing, setEditing] = useState(false)
   const [raw, setRaw] = useState('')
@@ -83,6 +85,10 @@ function ManualInput({
     if (disabled) return
     setEditing(false)
     onCommit(null)
+    setTimeout(() => {
+      (inputRef as { current: HTMLInputElement | null } | undefined)?.current
+        ?.dispatchEvent(new Event('change', { bubbles: true }))
+    }, 0)
   }
 
   return (
@@ -94,6 +100,12 @@ function ManualInput({
       )}
       <div style={{ position: 'relative', width: '100%' }}>
         <input
+          // callback-ref: не полагаемся на форму RefObject, принимаем node напрямую
+          ref={(node) => {
+            if (inputRef) {
+              (inputRef as { current: HTMLInputElement | null }).current = node
+            }
+          }}
           type="text"
           value={editing ? raw : format(value)}
           onFocus={startEdit}
@@ -178,13 +190,15 @@ export default function RangeSlider(props: RangeSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const dragging = useRef<'lo' | 'hi' | null>(null)
   const [focusedThumb, setFocusedThumb] = useState<'lo' | 'hi' | null>(null)
+  const loInputRef = useRef<HTMLInputElement | null>(null)
+  const hiInputRef = useRef<HTMLInputElement | null>(null)
 
   // Derive lo/hi from props
   const isRange = props.range === true
   const lo = isRange ? (props as RangeProps).value[0] : (props as SingleProps).value
   const hi = isRange ? (props as RangeProps).value[1] : (props as SingleProps).value
 
-  // ─── Изменённые функции установки значений ────────────────────────────────
+  // ─── Установка значений ───────────────────────────────────────────────────
   const setLo = (v: number | null) => {
     if (disabled) return
     if (isRange) {
@@ -242,7 +256,6 @@ export default function RangeSlider(props: RangeSliderProps) {
     document.addEventListener('mouseup', up)
   }
 
-  // ─── Обновлённая обработка клика по треку ──────────────────────────────────
   const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (disabled || dragging.current) return
     const v = valueFromEvent(e.clientX)
@@ -252,15 +265,11 @@ export default function RangeSlider(props: RangeSliderProps) {
       return
     }
 
-    // Режим диапазона
     if (lo === null) {
-      // Первый клик – устанавливаем левую границу
       setLo(v)
     } else if (hi === null) {
-      // Второй клик – устанавливаем правую границу
       setHi(v)
     } else {
-      // Обе границы существуют – выбираем ближайшую
       const distLo = Math.abs(v - lo)
       const distHi = Math.abs(v - hi)
       if (distLo <= distHi) {
@@ -269,6 +278,15 @@ export default function RangeSlider(props: RangeSliderProps) {
         setHi(Math.max(v, lo))
       }
     }
+  }
+
+  // Очистка обеих границ в range-режиме
+  const handleClearAll = () => {
+    if (disabled) return
+    ;(props as RangeProps).onChange([null, null])
+    setTimeout(() => {
+      loInputRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
+    }, 0)
   }
 
   const thumbStyle = (active: boolean): React.CSSProperties => ({
@@ -340,7 +358,7 @@ export default function RangeSlider(props: RangeSliderProps) {
         {isRange && (
           <button
             type="button"
-            onClick={() => { if (!disabled) (props as RangeProps).onChange([null, null]) }}
+            onClick={handleClearAll}
             disabled={disabled}
             style={{
               background: 'none',
@@ -380,7 +398,6 @@ export default function RangeSlider(props: RangeSliderProps) {
             }}
           />
 
-          {/* Lo thumb (also the single thumb) – only if lo is not null */}
           {lo !== null && (
             <div
               style={{ ...thumbStyle(focusedThumb === 'lo'), left: `${pctLo}%` }}
@@ -396,7 +413,6 @@ export default function RangeSlider(props: RangeSliderProps) {
             />
           )}
 
-          {/* Hi thumb (range only) – only if hi is not null */}
           {isRange && hi !== null && (
             <div
               style={{ ...thumbStyle(focusedThumb === 'hi'), left: `${pctHi}%` }}
@@ -429,6 +445,7 @@ export default function RangeSlider(props: RangeSliderProps) {
         }}
       >
         <ManualInput
+          inputRef={loInputRef}
           value={lo}
           onCommit={(v) => setLo(isRange ? (v !== null ? Math.min(v, hi !== null ? hi : max) : null) : v)}
           format={formatValue}
@@ -453,6 +470,7 @@ export default function RangeSlider(props: RangeSliderProps) {
               —
             </div>
             <ManualInput
+              inputRef={hiInputRef}
               value={hi}
               onCommit={(v) => setHi(v !== null ? Math.max(v, lo !== null ? lo : min) : null)}
               format={formatValue}

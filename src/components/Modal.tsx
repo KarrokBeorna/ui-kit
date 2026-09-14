@@ -24,6 +24,7 @@ interface ModalProps {
   cancelText?: string;
   width?: number | string;
   canSubmit?: boolean;
+  rowAlign?: React.CSSProperties['alignItems'][];
 }
 
 export default function Modal({
@@ -39,6 +40,7 @@ export default function Modal({
   cancelText = 'Отмена',
   width = 640,
   canSubmit = true,
+  rowAlign,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -162,7 +164,6 @@ export default function Modal({
               gridTemplateColumns: `repeat(${columns}, 1fr)`,
               gridTemplateRows: `repeat(${rows}, auto)`,
               gap: 12,
-              alignItems: 'end',
             }}
           >
             {grid.map((row, ri) =>
@@ -171,6 +172,10 @@ export default function Modal({
                 const rowspan = field?.rowspan || 1;
                 const colspan = field?.colspan || 1;
                 if (cell === null) return null;
+
+                // Значение для конкретной строки; по умолчанию — как раньше 'end'.
+                const alignSelf = rowAlign?.[ri] ?? 'end';
+
                 return (
                   <div
                     key={`${ri}-${ci}`}
@@ -179,6 +184,7 @@ export default function Modal({
                       gridColumn: `${ci + 1} / span ${colspan}`,
                       display: 'flex',
                       flexDirection: 'column',
+                      alignSelf,
                     }}
                   >
                     {field?.required && (

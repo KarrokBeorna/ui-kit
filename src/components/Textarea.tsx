@@ -1,4 +1,4 @@
-import {useState, useId, useEffect, useRef} from 'react';
+import { useState, useId, useEffect, useRef } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
 
@@ -35,10 +35,19 @@ export default function Textarea({
     setFocused(false);
   };
 
+  const handleClear = () => {
+    if (disabled) return;
+    onChange('');
+    setTimeout(() => {
+      textareaRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  };
+
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <textarea
+          ref={textareaRef}
           id={id}
           value={value}
           onFocus={handleFocus}
@@ -86,7 +95,7 @@ export default function Textarea({
         {value && (
           <button
             type="button"
-            onClick={() => { if (!disabled) onChange('') }}
+            onClick={handleClear}
             disabled={disabled}
             style={{
               position: 'absolute', right: 10, top: 12,

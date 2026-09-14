@@ -1,6 +1,6 @@
 import { useState, useId, useRef, useEffect } from 'react'
 import type { Theme } from '../themes/theme'
-import {CalendarIcon, ClockIcon, DateTimeIcon, IcoX} from "./icons";
+import { CalendarIcon, ClockIcon, DateTimeIcon, IcoX } from './icons'
 
 interface DateTimePickerProps {
   label: string
@@ -40,6 +40,14 @@ export default function DateTimePicker({
       ;(inputRef.current as any)?.showPicker?.()
     } catch {
     }
+  }
+
+  const handleClear = () => {
+    if (disabled) return
+    onChange('')
+    setTimeout(() => {
+      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
+    }, 0)
   }
 
   const PickerIcon = type === 'date' ? CalendarIcon : type === 'time' ? ClockIcon : DateTimeIcon
@@ -114,7 +122,7 @@ export default function DateTimePicker({
           {value && (
             <button
               type="button"
-              onClick={() => { if (!disabled) onChange('') }}
+              onClick={handleClear}
               disabled={disabled}
               style={{
                 width: 28, height: 28, background: 'transparent', border: 'none',

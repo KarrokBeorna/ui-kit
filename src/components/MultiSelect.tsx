@@ -112,7 +112,13 @@ export default function MultiSelect({
 
   const handleClear = (e: React.MouseEvent) => {
     if (disabled) return;
-    e.stopPropagation(); onChange([]); setOpen(false); setQuery('');
+    e.stopPropagation();
+    onChange([]);
+    setOpen(false);
+    setQuery('');
+    setTimeout(() => {
+      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
   };
 
   const dropdownContent = open && !disabled && (

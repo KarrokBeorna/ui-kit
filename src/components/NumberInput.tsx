@@ -1,4 +1,4 @@
-import {useState, useId, useEffect, useRef} from 'react';
+import { useState, useId, useEffect, useRef } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX, IcoArrowUp, IcoArrowDown } from './icons';
 
@@ -55,10 +55,19 @@ export default function NumberInput({
     setFocused(false);
   };
 
+  const handleClear = () => {
+    if (disabled) return;
+    onChange('');
+    setTimeout(() => {
+      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  };
+
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input
+          ref={inputRef}
           id={id}
           inputMode={allowDecimal ? 'decimal' : 'numeric'}
           value={value}
@@ -108,7 +117,7 @@ export default function NumberInput({
           {value && (
             <button
               type="button"
-              onClick={() => { if (!disabled) onChange('') }}
+              onClick={handleClear}
               disabled={disabled}
               style={{
                 width: 24, height: 24, background: 'transparent', border: 'none',

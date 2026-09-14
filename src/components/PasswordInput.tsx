@@ -1,4 +1,4 @@
-import { useState, useId } from 'react';
+import { useState, useId, useRef } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoEye, IcoX } from './icons';
 
@@ -59,6 +59,7 @@ export default function PasswordInput({
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   const id = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const floated = focused || String(value).length > 0;
 
   const handleFocus = () => {
@@ -68,10 +69,19 @@ export default function PasswordInput({
     setFocused(false);
   };
 
+  const handleClear = () => {
+    if (disabled) return;
+    onChange('');
+    setTimeout(() => {
+      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  };
+
   return (
     <div style={{ width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input
+          ref={inputRef}
           id={id}
           type={visible ? 'text' : 'password'}
           value={value}
@@ -123,7 +133,7 @@ export default function PasswordInput({
           {value && (
             <button
               type="button"
-              onClick={() => { if (!disabled) onChange('') }}
+              onClick={handleClear}
               disabled={disabled}
               style={{
                 width: 28, height: 28, background: 'transparent', border: 'none',
