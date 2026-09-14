@@ -3,6 +3,8 @@ import { Theme, ThemeName } from '../themes/theme';
 import { IcoLogIn, IcoLogOut, IcoChevronLeft, IcoChevronRight } from './icons';
 import { LayoutToggle, LayoutMode } from './LayoutToggle';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import Modal from './Modal';
+import PasswordInput from './PasswordInput';
 
 export interface NavTab {
   id: string;
@@ -31,6 +33,8 @@ interface HeaderBaseProps {
   currentTheme?: ThemeName;
   onThemeChange?: (theme: ThemeName) => void;
   showMoscowTime?: boolean;
+  /** Вызывается при подтверждении смены пароля. Если не передан — пункт меню скрыт. */
+  onPasswordChange?: (oldPassword: string, newPassword: string) => Promise<void> | void;
 }
 
 // ── Виджет московского времени ──────────────────────────────
@@ -109,6 +113,137 @@ function MoscowTimeWidget({ t, stacked = false }: { t: Theme; stacked?: boolean 
   );
 }
 
+// ── Модалка смены пароля ─────────────────────────────────────
+interface ChangePasswordModalProps {
+  t: Theme;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (oldPassword: string, newPassword: string) => Promise<void> | void;
+}
+
+function ChangePasswordModal({ t, isOpen, onClose, onSubmit }: ChangePasswordModalProps) {
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [oldError, setOldError] = useState('');
+  const [newError, setNewError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Сброс состояния при каждом открытии
+  useEffect(() => {
+    if (isOpen) {
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setOldError('');
+      setNewError('');
+      setConfirmError('');
+      setSubmitting(false);
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async () => {
+    setOldError('');
+    setNewError('');
+    setConfirmError('');
+
+    if (!oldPassword) {
+      setOldError('Введите старый пароль');
+      return;
+    }
+    if (!newPassword) {
+      setNewError('Введите новый пароль');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setNewError('Минимум 8 символов');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setConfirmError('Пароли не совпадают');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await onSubmit(oldPassword, newPassword);
+      onClose();
+    } catch (e) {
+      setOldError(e instanceof Error ? e.message : 'Не удалось сменить пароль');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const fields = [
+    {
+      row: 0,
+      col: 0,
+      required: true,
+      content: (
+        <PasswordInput
+          label="Старый пароль"
+          theme={t}
+          value={oldPassword}
+          onChange={setOldPassword}
+          error={oldError || undefined}
+          disabled={submitting}
+          showStrength={false}
+        />
+      ),
+    },
+    {
+      row: 1,
+      col: 0,
+      required: true,
+      content: (
+        <PasswordInput
+          label="Новый пароль"
+          theme={t}
+          value={newPassword}
+          onChange={setNewPassword}
+          showStrength
+          error={newError || undefined}
+          disabled={submitting}
+        />
+      ),
+    },
+    {
+      row: 2,
+      col: 0,
+      required: true,
+      content: (
+        <PasswordInput
+          label="Новый пароль (подтверждение)"
+          theme={t}
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          error={confirmError || undefined}
+          disabled={submitting}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <Modal
+      theme={t}
+      isOpen={isOpen}
+      onClose={onClose}
+      onOk={handleSubmit}
+      title="Смена пароля"
+      columns={1}
+      rows={3}
+      fields={fields}
+      okText={submitting ? 'Смена…' : 'Сменить'}
+      cancelText="Отмена"
+      width={420}
+      canSubmit={!submitting && !!oldPassword && !!newPassword && !!confirmPassword}
+    />
+  );
+}
+
 // ── Горизонтальный Header ──────────────────────────────────────
 export function HorizontalHeader({
   t,
@@ -130,8 +265,10 @@ export function HorizontalHeader({
   currentTheme,
   onThemeChange,
   showMoscowTime = false,
+  onPasswordChange,
 }: HeaderBaseProps) {
   const [dropOpen, setDropOpen] = useState(false);
+  const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -149,60 +286,87 @@ export function HorizontalHeader({
   const menuItems: [string, boolean][] = [];
   if (showProfile) menuItems.push(['◈ Profile', false]);
   if (showSettings) menuItems.push(['⚙ Settings', false]);
+  if (onPasswordChange) menuItems.push(['🕵︎ Change password', false]);
   menuItems.push(['— Sign out', true]);
 
+  const handleMenuClick = (label: string) => {
+    if (label.includes('Sign out')) {
+      onSignOut();
+    } else if (label.includes('Change password')) {
+      setDropOpen(false);
+      setPwdModalOpen(true);
+    }
+  };
+
   return (
-    <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 56, background: t.bgSurface, borderBottom: `1px solid ${t.border}`, boxShadow: t.shadow, position: 'sticky', top: 0, zIndex: 100, gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <div style={{ width: 28, height: 28, background: t.accent, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', boxShadow: `0 0 16px ${t.accentGlow}` }}>
-          {logoSvg}
-        </div>
-        <span style={{ fontFamily: 'system-ui', fontWeight: 700, fontSize: 15, color: t.text, letterSpacing: '-0.01em' }}>
-          {siteName}
-        </span>
-      </div>
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'center' }}>
-        {visibleTabs.map(tab => {
-          const active = activeTab === tab.id;
-          return (
-            <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui', fontWeight: active ? 600 : 400, color: active ? t.accentText : t.textMuted, background: active ? t.accent : 'transparent', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', whiteSpace: 'nowrap', boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}>
-              <span style={{ fontSize: 15, lineHeight: 1 }}>{tab.icon}</span>{tab.label}
-            </button>
-          );
-        })}
-      </nav>
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-        {showLayoutToggle && layoutMode && onLayoutChange && (
-          <LayoutToggle mode={layoutMode} onChange={onLayoutChange} theme={t} />
-        )}
-        {showThemeSwitcher && currentTheme && onThemeChange && (
-          <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact />
-        )}
-        {showMoscowTime && <MoscowTimeWidget t={t} stacked={false} />}
-        {isLoggedIn ? (
-          <div style={{ position: 'relative' }} ref={dropRef}>
-            <button onClick={() => setDropOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 24, border: `1px solid ${t.border}`, background: t.bgSurface, cursor: 'pointer', transition: 'all 0.2s', boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui' }}>{userName?.[0]?.toUpperCase()}</div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.2 }}>{userName}</div>
-              </div>
-              <span style={{ color: t.textMuted, fontSize: 10, transition: 'transform 0.2s', transform: dropOpen ? 'rotate(180deg)' : 'none', display: 'flex' }}>▾</span>
-            </button>
-            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: t.bgSurface, border: `1px solid ${t.border}`, borderRadius: 12, padding: '6px', minWidth: 160, boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 200 }}>
-              {menuItems.map(([label, danger]) => (
-                <button key={String(label)} onClick={String(label).includes('Sign out') ? onSignOut : undefined} style={{ display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'system-ui', color: danger ? t.danger : t.text, cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = danger ? `${t.danger}18` : t.navHoverBg; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-                  {String(label)}
-                </button>
-              ))}
-            </div>
+    <>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 56, background: t.bgSurface, borderBottom: `1px solid ${t.border}`, boxShadow: t.shadow, position: 'sticky', top: 0, zIndex: 100, gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ width: 28, height: 28, background: t.accent, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', boxShadow: `0 0 16px ${t.accentGlow}` }}>
+            {logoSvg}
           </div>
-        ) : (
-          <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 8, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}` }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-            <IcoLogIn s={15} /> Войти
-          </button>
-        )}
-      </div>
-    </header>
+          <span style={{ fontFamily: 'system-ui', fontWeight: 700, fontSize: 15, color: t.text, letterSpacing: '-0.01em' }}>
+            {siteName}
+          </span>
+        </div>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'center' }}>
+          {visibleTabs.map(tab => {
+            const active = activeTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui', fontWeight: active ? 600 : 400, color: active ? t.accentText : t.textMuted, background: active ? t.accent : 'transparent', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', whiteSpace: 'nowrap', boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none' }} onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }} onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}>
+                <span style={{ fontSize: 15, lineHeight: 1 }}>{tab.icon}</span>{tab.label}
+              </button>
+            );
+          })}
+        </nav>
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {showLayoutToggle && layoutMode && onLayoutChange && (
+            <LayoutToggle mode={layoutMode} onChange={onLayoutChange} theme={t} />
+          )}
+          {showThemeSwitcher && currentTheme && onThemeChange && (
+            <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact />
+          )}
+          {showMoscowTime && <MoscowTimeWidget t={t} stacked={false} />}
+          {isLoggedIn ? (
+            <div style={{ position: 'relative' }} ref={dropRef}>
+              <button onClick={() => setDropOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 24, border: `1px solid ${t.border}`, background: t.bgSurface, cursor: 'pointer', transition: 'all 0.2s', boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui' }}>{userName?.[0]?.toUpperCase()}</div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.2 }}>{userName}</div>
+                </div>
+                <span style={{ color: t.textMuted, fontSize: 10, transition: 'transform 0.2s', transform: dropOpen ? 'rotate(180deg)' : 'none', display: 'flex' }}>▾</span>
+              </button>
+              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: t.bgSurface, border: `1px solid ${t.border}`, borderRadius: 12, padding: '6px', minWidth: 180, boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 200 }}>
+                {menuItems.map(([label, danger]) => (
+                  <button
+                    key={String(label)}
+                    onClick={() => handleMenuClick(String(label))}
+                    style={{ display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'system-ui', color: danger ? t.danger : t.text, cursor: 'pointer', transition: 'background 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = danger ? `${t.danger}18` : t.navHoverBg; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {String(label)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 8, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}` }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              <IcoLogIn s={15} /> Войти
+            </button>
+          )}
+        </div>
+      </header>
+
+      {onPasswordChange && (
+        <ChangePasswordModal
+          t={t}
+          isOpen={pwdModalOpen}
+          onClose={() => setPwdModalOpen(false)}
+          onSubmit={onPasswordChange}
+        />
+      )}
+    </>
   );
 }
 
