@@ -26,7 +26,7 @@ export default function Textarea({
     valueRef.current = value;
   }, [value]);
 
-  const floated = focused || value.length > 0;
+  const floated = focused || String(value).length > 0;
 
   const handleFocus = () => {
     if (!disabled) setFocused(true);

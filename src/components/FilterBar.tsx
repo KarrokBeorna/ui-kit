@@ -94,22 +94,31 @@ export function FilterBar({
     return () => node.removeEventListener('keydown', handleKeyDown);
   }, [applyOnEnter, onApply, globalEnter, bodyRef.current]);
 
+  const onApplyRef = useRef(onApply);
+  useEffect(() => { onApplyRef.current = onApply; }, [onApply]);
+
   useEffect(() => {
     if (!instantApply || !onApply) return;
-
     const node = bodyRef.current;
     if (!node) return;
 
-    const handleChange = (e: Event) => {
-      onApply();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleChange = () => {
+      if (timer) clearTimeout(timer);
+      // даём React сначала обработать onChange и закоммитить стейт
+      timer = setTimeout(() => {
+        onApplyRef.current?.();
+      }, 0);
     };
 
-    node.addEventListener('change', handleChange);
     node.addEventListener('input', handleChange);
+    node.addEventListener('change', handleChange);
 
     return () => {
-      node.removeEventListener('change', handleChange);
+      if (timer) clearTimeout(timer);
       node.removeEventListener('input', handleChange);
+      node.removeEventListener('change', handleChange);
     };
   }, [instantApply, onApply, bodyRef.current]);
 

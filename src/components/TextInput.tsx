@@ -55,7 +55,7 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     const [focused, setFocused] = useState(false)
     const [touched, setTouched] = useState(false)
     const id = useId()
-    const floated = focused || value.length > 0
+    const floated = focused || String(value).length > 0;
 
     const internalError = touched ? validateOnBlur(value, inputType) : ''
     const error = externalError || internalError

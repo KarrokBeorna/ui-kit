@@ -36,7 +36,7 @@ export default function MultiSelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownStyle = useDropdownPosition(open, inputRef);
 
-  const floated = focused || open || value.length > 0;
+  const floated = focused || open || String(value).length > 0;
   const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
   const allFilteredSelected = filtered.length > 0 && filtered.every(o => value.includes(o.value));
   const someFilteredSelected = filtered.some(o => value.includes(o.value));

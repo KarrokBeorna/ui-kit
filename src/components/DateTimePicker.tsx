@@ -30,7 +30,7 @@ export default function DateTimePicker({
   }, [value])
 
   const type = enableDate && enableTime ? 'datetime-local' : enableDate ? 'date' : 'time'
-  const floated = focused || value.length > 0
+  const floated = focused || String(value).length > 0;
   const textColor = !focused && !value ? 'transparent' : t.text
 
   const openPicker = () => {

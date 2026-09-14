@@ -29,7 +29,7 @@ export default function NumberInput({
     valueRef.current = value;
   }, [value]);
 
-  const floated = focused || value.length > 0;
+  const floated = focused || String(value).length > 0;
 
   const handleChange = (raw: string) => {
     if (disabled) return;
