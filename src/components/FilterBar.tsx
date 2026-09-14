@@ -26,6 +26,8 @@ interface FilterBarProps {
   onOpenChange?: (open: boolean) => void;
   /** Если true – кнопка "Применить" не отображается, фильтры применяются мгновенно */
   instantApply?: boolean;
+  /** Задержка debounce для instantApply, мс (по умолчанию 250) */
+  instantApplyDelay?: number;
   /** Если true – нажатие Enter в любом поле ввода внутри фильтров вызывает onApply */
   applyOnEnter?: boolean;
   /** Коллбэк при нажатии "Экспорт в Excel" */
@@ -48,6 +50,7 @@ export function FilterBar({
   open: externalOpen,
   onOpenChange,
   instantApply = false,
+  instantApplyDelay = 250,
   applyOnEnter = false,
   onExport,
   exportLabel = 'Экспорт в Excel',
@@ -97,6 +100,8 @@ export function FilterBar({
   const onApplyRef = useRef(onApply);
   useEffect(() => { onApplyRef.current = onApply; });
 
+  const applyDelay = Math.max(0, instantApplyDelay);
+
   useEffect(() => {
     if (!instantApply) return;
 
@@ -105,22 +110,28 @@ export function FilterBar({
 
     let timer: ReturnType<typeof setTimeout> | null = null;
 
+    const applyNow = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      onApplyRef.current?.();
+    };
+
     const scheduleApply = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+        timer = null;
         onApplyRef.current?.();
-      }, 250); // подберите под вкус: 150–400 мс
+      }, applyDelay);
     };
 
     node.addEventListener('input', scheduleApply);
-    node.addEventListener('change', scheduleApply);
+    node.addEventListener('change', applyNow);
 
     return () => {
       if (timer) clearTimeout(timer);
       node.removeEventListener('input', scheduleApply);
-      node.removeEventListener('change', scheduleApply);
+      node.removeEventListener('change', applyNow);
     };
-  }, [instantApply]);
+  }, [instantApply, applyDelay]);
 
   const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
   filters.forEach(({ component, row, cols = gridCols }) => {
