@@ -1,7 +1,6 @@
 import React from 'react';
 import { Theme } from '../themes/theme';
 import Button from './Button';
-import { useResponsive } from '../context/ResponsiveContext';
 
 export interface ActionsColumnOptions<T> {
   /** Тема из @kbs/ui-kit. Обязательна. */
@@ -37,7 +36,7 @@ export interface ActionsColumnOptions<T> {
   restoreIcon?: React.ReactNode;
   logIcon?: React.ReactNode;
 
-  /** Отступ между кнопками, px. По умолчанию 6. */
+  /** Отступ между кнопками, px. Если не задан — 6 на десктопе, 8 на мобиле. */
   gap?: number;
 
   /** Дополнительные кнопки справа от стандартных. */
@@ -46,27 +45,46 @@ export interface ActionsColumnOptions<T> {
   /** Сортировка. По умолчанию false. */
   sortable?: boolean;
 
-  /** Принудительно размер кнопок. Если не задан — определяется по ширине экрана. */
+  /**
+   * Мобильный режим. Определяет размер кнопок (sm → md).
+   *
+   * ⚠️ ВАЖНО: если вызываете ActionsColumn внутри useMemo/useCallback,
+   * ОБЯЗАТЕЛЬНО передавайте этот проп явно из useResponsive() в вашем
+   * компоненте. Если не передать — значение будет прочитано через
+   * window.matchMedia синхронно, но без подписки на изменение ширины.
+   *
+   * ActionsColumn — не хук, поэтому НЕ вызывайте её через useResponsive
+   * внутри неё. Это ломает правила хуков.
+   */
+  isMobile?: boolean;
+
+  /**
+   * Принудительно размер кнопок. Если не задан — определяется
+   * по isMobile (sm на десктопе, md на мобиле).
+   */
   buttonSize?: 'sm' | 'md';
 }
 
 /**
  * Фабрика стандартной колонки «Действия».
  *
- * Использование:
+ * ⚠️ Это НЕ хук. Хуки внутри неё не вызываются.
+ * Если нужен адаптив — передайте `isMobile` явно.
+ *
+ * Пример:
+ *   const { isMobile } = useResponsive();
+ *
  *   const columns = useMemo(() => [
  *     ...,
- *     createActionsColumn<ScanRecord>({
+ *     ActionsColumn<ScanRecord>({
  *       theme: t,
  *       onEdit: handleEdit,
- *       onLog: handleEdit,
  *       onDelete: handleDelete,
- *       onRestore: handleRestore,
+ *       isMobile,
  *     }),
- *   ], [t, handleEdit, handleDelete, handleRestore]);
+ *   ], [t, handleEdit, handleDelete, isMobile]);
  */
 export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
-  const { isMobile } = useResponsive();
   const {
     theme,
     onEdit,
@@ -80,12 +98,21 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
     logIcon = '⌸',
     deleteIcon = '✕',
     restoreIcon = '⟳',
-    gap = isMobile ? 8 : 6,
     extraActions,
     sortable = false,
     buttonSize,
   } = options;
 
+  // Определяем мобильный режим БЕЗ хуков.
+  // Явный проп в приоритете; иначе синхронное чтение matchMedia (SSR-safe).
+  const isMobile =
+    options.isMobile ??
+    (typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 640px)').matches
+      : false);
+
+  const gap = options.gap ?? (isMobile ? 8 : 6);
   const size = buttonSize ?? (isMobile ? 'md' : 'sm');
 
   return {
@@ -118,13 +145,34 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
       return (
         <div style={{ display: 'flex', gap, alignItems: 'center' }}>
           {onEdit && (
-            <Button icon={editIcon} variant="primary" outline size={size} onClick={() => onEdit(row)} theme={theme} />
+            <Button
+              icon={editIcon}
+              variant="primary"
+              outline
+              size={size}
+              onClick={() => onEdit(row)}
+              theme={theme}
+            />
           )}
           {onLog && (
-            <Button icon={logIcon} variant="primary" outline size={size} onClick={() => onLog(row)} theme={theme} />
+            <Button
+              icon={logIcon}
+              variant="primary"
+              outline
+              size={size}
+              onClick={() => onLog(row)}
+              theme={theme}
+            />
           )}
           {onDelete && (
-            <Button icon={deleteIcon} variant="danger" outline size={size} onClick={() => onDelete(row)} theme={theme} />
+            <Button
+              icon={deleteIcon}
+              variant="danger"
+              outline
+              size={size}
+              onClick={() => onDelete(row)}
+              theme={theme}
+            />
           )}
           {extraActions?.(row)}
         </div>
