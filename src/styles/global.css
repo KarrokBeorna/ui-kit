@@ -8,3 +8,33 @@
     transform: translateY(0) scale(1);
   }
 }
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+}
+
+@media (max-width: 640px) {
+  /* iOS: не зумить инпуты при фокусе */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Тонкие скроллбары не отвлекают */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+  }
+}

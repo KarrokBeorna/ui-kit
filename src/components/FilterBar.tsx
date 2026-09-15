@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons';
 import Button from './Button';
+import { useResponsive } from '../context/ResponsiveContext';
 
 interface FilterItem {
   component: React.ReactNode;
@@ -57,6 +58,8 @@ export function FilterBar({
   gridCols = 1,
   globalEnter = false,
 }: FilterBarProps) {
+  const { isMobile } = useResponsive();
+  const effectiveCols = isMobile ? 1 : gridCols;
   const [internalOpen, setInternalOpen] = useState(true);
   const open = externalOpen ?? internalOpen;
   const setOpen = (v: boolean) => {
@@ -190,7 +193,7 @@ export function FilterBar({
                 key={rowKey}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+                  gridTemplateColumns: `repeat(${effectiveCols}, 1fr)`,
                   gap: '14px',
                 }}
               >
@@ -198,7 +201,7 @@ export function FilterBar({
                   <div
                     key={idx}
                     style={{
-                      gridColumn: `span ${Math.min(item.cols, gridCols)}`,
+                      gridColumn: `span ${Math.min(item.cols, effectiveCols)}`,
                       minWidth: 0,
                     }}
                   >

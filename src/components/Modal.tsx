@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
+import { useResponsive } from '../context/ResponsiveContext';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface ModalField {
   row: number;
@@ -25,6 +27,8 @@ interface ModalProps {
   width?: number | string;
   canSubmit?: boolean;
   rowAlign?: React.CSSProperties['alignItems'][];
+  /** Принудительно полноэкранный режим независимо от размера экрана */
+  fullscreen?: boolean;
 }
 
 export default function Modal({
@@ -41,36 +45,38 @@ export default function Modal({
   width = 640,
   canSubmit = true,
   rowAlign,
+  fullscreen: fullscreenProp,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const { isMobile } = useResponsive();
+
+  const fullscreen = fullscreenProp ?? isMobile;
+
+  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (!modalRef.current || !modalRef.current.contains(target)) return;
-
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      if (e.key === 'Escape') onClose();
       if (e.key === 'Enter' && canSubmit) {
         e.preventDefault();
         onOk();
       }
     };
-
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown, true);
-      document.body.style.overflow = 'hidden';
     }
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
-      document.body.style.overflow = '';
     };
   }, [isOpen, onClose, onOk, canSubmit]);
 
   if (!isOpen) return null;
 
-  const grid: (React.ReactNode | null)[][] = Array.from({ length: rows }, () => Array(columns).fill(null));
+  const grid: (React.ReactNode | null)[][] = Array.from({ length: rows }, () =>
+    Array(columns).fill(null)
+  );
 
   fields.forEach((field) => {
     const r = field.row;
@@ -92,6 +98,15 @@ export default function Modal({
     }
   });
 
+  // На мобиле — 1 колонка в любом случае, на десктопе — как просили
+  const effectiveColumns = fullscreen ? 1 : columns;
+  const effectiveRows = fullscreen ? fields.length : rows;
+
+  // Пере-собираем grid для мобильного режима, если разошлось
+  const gridToRender = fullscreen
+    ? fields.map((f) => [f.content])
+    : grid;
+
   return (
     <div
       ref={modalRef}
@@ -103,7 +118,7 @@ export default function Modal({
         backgroundColor: 'rgba(0,0,0,0.6)',
         backdropFilter: 'blur(4px)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: fullscreen ? 'stretch' : 'center',
         justifyContent: 'center',
         animation: 'fadeIn 0.2s ease',
       }}
@@ -111,16 +126,19 @@ export default function Modal({
       <div
         style={{
           background: t.bgSurface,
-          borderRadius: 16,
-          width: typeof width === 'number' ? width : width,
-          maxWidth: 'calc(100vw - 40px)',
-          maxHeight: 'calc(100vh - 40px)',
+          borderRadius: fullscreen ? 0 : 16,
+          width: fullscreen ? '100vw' : (typeof width === 'number' ? width : width),
+          maxWidth: fullscreen ? '100vw' : 'calc(100vw - 40px)',
+          maxHeight: fullscreen ? '100dvh' : 'calc(100vh - 40px)',
+          height: fullscreen ? '100dvh' : undefined,
           display: 'flex',
           flexDirection: 'column',
           boxShadow: t.shadowLg,
           animation: 'scaleIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          border: `1px solid ${t.border}`,
+          border: fullscreen ? 'none' : `1px solid ${t.border}`,
           overflow: 'hidden',
+          paddingTop: fullscreen ? 'env(safe-area-inset-top, 0px)' : 0,
+          paddingBottom: fullscreen ? 'env(safe-area-inset-bottom, 0px)' : 0,
         }}
       >
         {/* Заголовок */}
@@ -134,8 +152,12 @@ export default function Modal({
             flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 18, fontWeight: 600, color: t.text }}>{title}</span>
+          <span style={{ fontSize: 18, fontWeight: 600, color: t.text }}>
+            {title}
+          </span>
           <button
+            type="button"
+            aria-label="Закрыть"
             onClick={onClose}
             style={{
               background: 'transparent',
@@ -148,33 +170,44 @@ export default function Modal({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              minWidth: 40,
+              minHeight: 40,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.iconColor; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = t.navHoverBg;
+              e.currentTarget.style.color = t.text;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = t.iconColor;
+            }}
           >
             <IcoX s={18} />
           </button>
         </div>
 
-        {/* Содержимое со скроллом */}
-        <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+        {/* Содержимое */}
+        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${columns}, 1fr)`,
-              gridTemplateRows: `repeat(${rows}, auto)`,
+              gridTemplateColumns: `repeat(${effectiveColumns}, 1fr)`,
+              gridTemplateRows: `repeat(${effectiveRows}, auto)`,
               gap: 12,
             }}
           >
-            {grid.map((row, ri) =>
+            {gridToRender.map((row, ri) =>
               row.map((cell, ci) => {
-                const field = fields.find(f => f.row === ri && f.col === ci);
+                const field = fullscreen
+                  ? fields[ri]
+                  : fields.find((f) => f.row === ri && f.col === ci);
                 const rowspan = field?.rowspan || 1;
-                const colspan = field?.colspan || 1;
-                if (cell === null) return null;
+                const colspan = fullscreen ? 1 : field?.colspan || 1;
+                if (cell === null || cell === undefined) return null;
 
-                // Значение для конкретной строки; по умолчанию — как раньше 'end'.
-                const alignSelf = rowAlign?.[ri] ?? 'end';
+                const alignSelf = fullscreen
+                  ? 'stretch'
+                  : rowAlign?.[ri] ?? 'end';
 
                 return (
                   <div
@@ -188,7 +221,16 @@ export default function Modal({
                     }}
                   >
                     {field?.required && (
-                      <span style={{ color: t.danger, fontSize: 12, fontWeight: 600, marginRight: 4 }}>*</span>
+                      <span
+                        style={{
+                          color: t.danger,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          marginRight: 4,
+                        }}
+                      >
+                        *
+                      </span>
                     )}
                     {cell}
                   </div>
@@ -207,43 +249,62 @@ export default function Modal({
             justifyContent: 'flex-end',
             gap: 10,
             flexShrink: 0,
+            flexWrap: fullscreen ? 'wrap' : 'nowrap',
           }}
         >
           <button
+            type="button"
             onClick={onClose}
             style={{
               padding: '8px 20px',
+              minHeight: fullscreen ? 48 : undefined,
+              flex: fullscreen ? '1 1 auto' : undefined,
               borderRadius: 8,
               border: `1px solid ${t.border}`,
               background: 'transparent',
               color: t.textMuted,
               fontSize: 14,
+              fontFamily: 'inherit',
               cursor: 'pointer',
               transition: 'all 0.15s',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = t.navHoverBg;
+              e.currentTarget.style.color = t.text;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = t.textMuted;
+            }}
           >
             {cancelText}
           </button>
           <button
+            type="button"
             onClick={onOk}
             disabled={!canSubmit}
             style={{
               padding: '8px 24px',
+              minHeight: fullscreen ? 48 : undefined,
+              flex: fullscreen ? '1 1 auto' : undefined,
               borderRadius: 8,
               border: 'none',
               background: canSubmit ? t.accent : t.bgSubmit,
               color: canSubmit ? t.accentText : t.textMuted,
               fontSize: 14,
               fontWeight: 500,
+              fontFamily: 'inherit',
               cursor: canSubmit ? 'pointer' : 'not-allowed',
               transition: 'all 0.15s',
               boxShadow: canSubmit ? `0 0 0 2px ${t.accentGlow}` : 'none',
               opacity: canSubmit ? 1 : 0.6,
             }}
-            onMouseEnter={(e) => { if (canSubmit) e.currentTarget.style.opacity = '0.85'; }}
-            onMouseLeave={(e) => { if (canSubmit) e.currentTarget.style.opacity = '1'; }}
+            onMouseEnter={(e) => {
+              if (canSubmit) e.currentTarget.style.opacity = '0.85';
+            }}
+            onMouseLeave={(e) => {
+              if (canSubmit) e.currentTarget.style.opacity = '1';
+            }}
           >
             {okText}
           </button>
@@ -253,11 +314,11 @@ export default function Modal({
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }
-          to { opacity: 1; }
+          to   { opacity: 1; }
         }
         @keyframes scaleIn {
           from { transform: scale(0.94); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
+          to   { transform: scale(1);    opacity: 1; }
         }
       `}</style>
     </div>

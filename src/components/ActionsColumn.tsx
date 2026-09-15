@@ -1,6 +1,7 @@
 import React from 'react';
 import { Theme } from '../themes/theme';
 import Button from './Button';
+import { useResponsive } from '../context/ResponsiveContext';
 
 export interface ActionsColumnOptions<T> {
   /** Тема из @kbs/ui-kit. Обязательна. */
@@ -44,6 +45,9 @@ export interface ActionsColumnOptions<T> {
 
   /** Сортировка. По умолчанию false. */
   sortable?: boolean;
+
+  /** Принудительно размер кнопок. Если не задан — определяется по ширине экрана. */
+  buttonSize?: 'sm' | 'md';
 }
 
 /**
@@ -62,6 +66,7 @@ export interface ActionsColumnOptions<T> {
  *   ], [t, handleEdit, handleDelete, handleRestore]);
  */
 export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
+  const { isMobile } = useResponsive();
   const {
     theme,
     onEdit,
@@ -75,10 +80,13 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
     logIcon = '⌸',
     deleteIcon = '✕',
     restoreIcon = '⟳',
-    gap = 6,
+    gap = isMobile ? 8 : 6,
     extraActions,
     sortable = false,
+    buttonSize,
   } = options;
+
+  const size = buttonSize ?? (isMobile ? 'md' : 'sm');
 
   return {
     key,
@@ -86,7 +94,6 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
     sortable,
     render: (_: unknown, row: T): React.ReactNode => {
       if (isDeleted(row)) {
-        // Режим восстановления
         if (!onRestore && !extraActions) return null;
         return (
           <div style={{ display: 'flex', gap, alignItems: 'center' }}>
@@ -95,7 +102,7 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
                 icon={restoreIcon}
                 variant="primary"
                 outline
-                size="sm"
+                size={size}
                 onClick={() => onRestore(row)}
                 theme={theme}
               />
@@ -105,41 +112,19 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
         );
       }
 
-      // Обычный режим
-      const nothingToShow = !onEdit && !onDelete && !extraActions;
+      const nothingToShow = !onEdit && !onLog && !onDelete && !extraActions;
       if (nothingToShow) return null;
 
       return (
         <div style={{ display: 'flex', gap, alignItems: 'center' }}>
           {onEdit && (
-            <Button
-              icon={editIcon}
-              variant="primary"
-              outline
-              size="sm"
-              onClick={() => onEdit(row)}
-              theme={theme}
-            />
+            <Button icon={editIcon} variant="primary" outline size={size} onClick={() => onEdit(row)} theme={theme} />
           )}
           {onLog && (
-            <Button
-              icon={logIcon}
-              variant="primary"
-              outline
-              size="sm"
-              onClick={() => onLog(row)}
-              theme={theme}
-            />
+            <Button icon={logIcon} variant="primary" outline size={size} onClick={() => onLog(row)} theme={theme} />
           )}
           {onDelete && (
-            <Button
-              icon={deleteIcon}
-              variant="danger"
-              outline
-              size="sm"
-              onClick={() => onDelete(row)}
-              theme={theme}
-            />
+            <Button icon={deleteIcon} variant="danger" outline size={size} onClick={() => onDelete(row)} theme={theme} />
           )}
           {extraActions?.(row)}
         </div>
