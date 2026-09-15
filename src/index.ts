@@ -45,8 +45,12 @@ export type { MobileCardListProps, MobileCardField } from './components/MobileCa
 export { MobilePagination } from './components/MobilePagination';
 export type { MobilePaginationProps } from './components/MobilePagination';
 
+export { default as MobileDirectoryTree } from './components/MobileDirectoryTree';
+export type { MobileDirectoryTreeProps } from './components/MobileDirectoryTree';
+
 export { useMediaQuery } from './hooks/useMediaQuery';
 export { useBodyScrollLock } from './hooks/useBodyScrollLock';
+export { useResizeObserver } from './hooks/useResizeObserver';
 
 export * from './components/icons';
 

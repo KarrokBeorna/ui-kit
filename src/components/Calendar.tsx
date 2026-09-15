@@ -3,6 +3,7 @@ import type { Theme } from '../themes/theme';
 import DateTimePicker from './DateTimePicker';
 import SearchableSelect from './SearchableSelect';
 import Button from './Button';
+import { useResponsive } from '../context/ResponsiveContext';
 
 export interface TemplateOption {
   value: string;
@@ -59,6 +60,8 @@ export default function Calendar({
   assignments,
   onAssignmentsChange,
 }: CalendarProps) {
+  const { isMobile } = useResponsive();
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -172,7 +175,6 @@ export default function Calendar({
     resetRange();
   };
 
-  // Формируем массив дней на основе текущих assignments
   const days: DayInfo[] = [];
   for (let i = 0; i < totalCells; i++) {
     let day: number;
@@ -203,12 +205,12 @@ export default function Calendar({
   const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
   const getTemplateLabel = (value: string) => {
-    const found = templateOptions.find(o => o.value === value);
+    const found = templateOptions.find((o) => o.value === value);
     return found ? found.label : value;
   };
 
   const getTemplate = (value: string) => {
-    return templateOptions.find(o => o.value === value);
+    return templateOptions.find((o) => o.value === value);
   };
 
   const isDateInRange = (dateStr: string) => {
@@ -225,77 +227,60 @@ export default function Calendar({
 
   const cellWidth = '14.285%';
 
+  const navBtn: React.CSSProperties = {
+    background: 'transparent',
+    border: `1px solid ${t.border}`,
+    borderRadius: 8,
+    padding: isMobile ? '8px 12px' : '4px 12px',
+    minWidth: isMobile ? 40 : undefined,
+    minHeight: isMobile ? 40 : undefined,
+    cursor: 'pointer',
+    color: t.text,
+    fontSize: 14,
+  };
+
   return (
     <div
       style={{
         border: `1px solid ${t.border}`,
         borderRadius: 12,
-        padding: 20,
+        padding: isMobile ? 12 : 20,
         background: t.bgSurface,
         color: t.text,
       }}
     >
+      {/* Заголовок */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 16,
+          gap: 8,
+          flexWrap: 'wrap',
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>
+        <h2 style={{ margin: 0, fontSize: isMobile ? 16 : 20, fontWeight: 600 }}>
           {new Date(year, month).toLocaleString('ru', { month: 'long', year: 'numeric' })}
         </h2>
-        <div>
-          <button
-            onClick={handlePrevMonth}
-            style={{
-              background: 'transparent',
-              border: `1px solid ${t.border}`,
-              borderRadius: 6,
-              padding: '4px 12px',
-              cursor: 'pointer',
-              color: t.text,
-              marginRight: 8,
-              fontSize: 14,
-            }}
-          >
-            ◀
-          </button>
-          <button
-            onClick={handleNextMonth}
-            style={{
-              background: 'transparent',
-              border: `1px solid ${t.border}`,
-              borderRadius: 6,
-              padding: '4px 12px',
-              cursor: 'pointer',
-              color: t.text,
-              fontSize: 14,
-            }}
-          >
-            ▶
-          </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={handlePrevMonth} style={navBtn}>◀</button>
+          <button onClick={handleNextMonth} style={navBtn}>▶</button>
         </div>
       </div>
 
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          tableLayout: 'fixed',
-        }}
-      >
+      {/* Сетка дней */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <thead>
           <tr>
             {weekDays.map((day) => (
               <th
                 key={day}
                 style={{
-                  padding: '8px 0',
+                  padding: isMobile ? '6px 0' : '8px 0',
                   textAlign: 'center',
                   fontWeight: 600,
-                  fontSize: 14,
+                  fontSize: isMobile ? 12 : 14,
                   color: t.placeholder,
                   borderBottom: `1px solid ${t.border}`,
                   width: cellWidth,
@@ -329,9 +314,9 @@ export default function Calendar({
                       key={dateStr}
                       onClick={() => handleDateClick(dateStr, isCurrentMonth)}
                       style={{
-                        padding: '6px 4px',
+                        padding: isMobile ? '8px 2px' : '6px 4px',
                         textAlign: 'center',
-                        fontSize: 14,
+                        fontSize: isMobile ? 13 : 14,
                         color: isCurrentMonth ? t.text : t.placeholder,
                         background: assignment
                           ? bgColor
@@ -343,9 +328,7 @@ export default function Calendar({
                         borderRadius: 6,
                         cursor: isCurrentMonth ? 'pointer' : 'default',
                         width: cellWidth,
-                        border: `1px solid ${
-                          isCurrentMonth && inRange ? t.accent : 'transparent'
-                        }`,
+                        border: `1px solid ${isCurrentMonth && inRange ? t.accent : 'transparent'}`,
                         transition: 'background 0.15s, border 0.15s',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -370,7 +353,7 @@ export default function Calendar({
                       {assignment && (
                         <div
                           style={{
-                            fontSize: 10,
+                            fontSize: isMobile ? 9 : 10,
                             color: textColor,
                             fontWeight: 500,
                             marginTop: 2,
@@ -394,6 +377,7 @@ export default function Calendar({
         </tbody>
       </table>
 
+      {/* Нижние контролы */}
       <div
         style={{
           marginTop: 20,
@@ -404,12 +388,19 @@ export default function Calendar({
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             flexWrap: 'wrap',
             gap: 12,
-            alignItems: 'center',
+            alignItems: isMobile ? 'stretch' : 'center',
           }}
         >
-          <div style={{ flex: 1, minWidth: 170, maxWidth: 180 }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: isMobile ? 0 : 170,
+              maxWidth: isMobile ? 'none' : 180,
+            }}
+          >
             <DateTimePicker
               label="Начало"
               theme={t}
@@ -422,7 +413,13 @@ export default function Calendar({
               enableTime={false}
             />
           </div>
-          <div style={{ flex: 1, minWidth: 170, maxWidth: 180 }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: isMobile ? 0 : 170,
+              maxWidth: isMobile ? 'none' : 180,
+            }}
+          >
             <DateTimePicker
               label="Конец"
               theme={t}
@@ -435,7 +432,13 @@ export default function Calendar({
               enableTime={false}
             />
           </div>
-          <div style={{ flex: 1, minWidth: 170, maxWidth: 300 }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: isMobile ? 0 : 170,
+              maxWidth: isMobile ? 'none' : 300,
+            }}
+          >
             <SearchableSelect
               label="Шаблон"
               theme={t}
@@ -444,7 +447,7 @@ export default function Calendar({
               onChange={setSelectedTemplate}
             />
           </div>
-          <div>
+          <div style={{ width: isMobile ? '100%' : 'auto' }}>
             <Button
               theme={t}
               variant={selectedTemplate ? 'primary' : 'danger'}

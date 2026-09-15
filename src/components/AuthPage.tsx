@@ -3,7 +3,8 @@ import { Theme, ThemeName } from '../themes/theme';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { IcoLogIn } from './icons';
 import PasswordInput from './PasswordInput';
-import TextInput, {TextInputType} from './TextInput';
+import TextInput, { TextInputType } from './TextInput';
+import { useResponsive } from '../context/ResponsiveContext';
 
 interface AuthPageProps {
   t: Theme;
@@ -34,6 +35,8 @@ export function AuthPage({
   authError,
   onClearAuthError,
 }: AuthPageProps) {
+  const { isMobile } = useResponsive();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -76,6 +79,7 @@ export function AuthPage({
     try {
       await onSuccess(email, password);
     } catch (err) {
+      // ошибку показывает authError снаружи
     } finally {
       setLoading(false);
     }
@@ -88,26 +92,33 @@ export function AuthPage({
   const orbA = t.accent;
   const orbB = t.border;
 
+  const cardPadX = isMobile ? 20 : 32;
+  const cardPadTop = isMobile ? 22 : 28;
+  const cardPadBottom = isMobile ? 24 : 32;
+
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         background: t.bg,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
         overflow: 'hidden',
-        padding: 24,
+        padding: isMobile ? 16 : 24,
+        paddingTop: isMobile ? 'calc(16px + env(safe-area-inset-top, 0px))' : 24,
+        paddingBottom: isMobile ? 'calc(16px + env(safe-area-inset-bottom, 0px))' : 24,
       }}
     >
+      {/* Орбы */}
       <div
         style={{
           position: 'absolute',
           top: '-15%',
           right: '-10%',
-          width: 480,
-          height: 480,
+          width: isMobile ? 320 : 480,
+          height: isMobile ? 320 : 480,
           borderRadius: '50%',
           background: `radial-gradient(circle, ${orbA}22 0%, transparent 70%)`,
           pointerEvents: 'none',
@@ -118,34 +129,48 @@ export function AuthPage({
           position: 'absolute',
           bottom: '-20%',
           left: '-10%',
-          width: 560,
-          height: 560,
+          width: isMobile ? 360 : 560,
+          height: isMobile ? 360 : 560,
           borderRadius: '50%',
           background: `radial-gradient(circle, ${orbB}18 0%, transparent 70%)`,
           pointerEvents: 'none',
         }}
       />
 
-      <div style={{ position: 'absolute', top: 24, right: 24 }}>
-        <ThemeSwitcher theme={theme} onChange={onThemeChange} t={t} />
+      {/* Переключатель темы */}
+      <div
+        style={{
+          position: 'absolute',
+          top: isMobile ? 12 : 24,
+          right: isMobile ? 12 : 24,
+          transform: isMobile ? 'scale(0.9)' : 'none',
+          transformOrigin: 'top right',
+          zIndex: 2,
+        }}
+      >
+        <ThemeSwitcher theme={theme} onChange={onThemeChange} t={t} compact={isMobile} />
       </div>
 
+      {/* Карточка формы */}
       <div
         style={{
           width: '100%',
-          maxWidth: 420,
+          maxWidth: isMobile ? '100%' : 420,
           background: t.bgSurface,
           border: `1px solid ${t.border}`,
-          borderRadius: 20,
+          borderRadius: isMobile ? 16 : 20,
           boxShadow: t.shadowLg,
           overflow: 'hidden',
           opacity: mounted ? 1 : 0,
-          transform: mounted ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.98)',
+          transform: mounted
+            ? 'translateY(0) scale(1)'
+            : 'translateY(20px) scale(0.98)',
           transition:
             'opacity 0.4s cubic-bezier(0.4,0,0.2,1), transform 0.4s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
-        <div style={{ padding: '28px 32px 0' }}>
+        {/* Логотип */}
+        <div style={{ padding: `${cardPadTop}px ${cardPadX}px 0` }}>
           <div
             onClick={handleLogoClick}
             style={{
@@ -194,7 +219,16 @@ export function AuthPage({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Форма */}
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            padding: `0 ${cardPadX}px ${cardPadBottom}px`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
           <TextInput
             label={emailLabel}
             theme={t}
@@ -231,7 +265,8 @@ export function AuthPage({
             type="submit"
             disabled={loading || externalLoading}
             style={{
-              padding: '11px 0',
+              padding: isMobile ? '14px 0' : '11px 0',
+              minHeight: 48,
               borderRadius: 10,
               border: 'none',
               background: loading || externalLoading ? t.bgSubmit : t.accent,
@@ -241,7 +276,8 @@ export function AuthPage({
               fontFamily: 'system-ui',
               cursor: loading || externalLoading ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s',
-              boxShadow: loading || externalLoading ? 'none' : `0 4px 20px ${t.accentGlow}`,
+              boxShadow:
+                loading || externalLoading ? 'none' : `0 4px 20px ${t.accentGlow}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
