@@ -52,7 +52,7 @@ export function MobileHeader({
 
   const go = (id: string) => {
     onTabChange(id);
-    setOpen(false);
+    // setOpen(false);
   };
 
   const touchTarget = 48;
@@ -277,14 +277,14 @@ export function MobileHeader({
                 >
                   Тема
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <ThemeSwitcher
-                    theme={currentTheme}
-                    onChange={onThemeChange}
-                    t={t}
-                    compact
-                  />
-                </div>
+                <ThemeSwitcher
+                  theme={currentTheme}
+                  onChange={onThemeChange}
+                  t={t}
+                  compact
+                  stretch
+                  minButtonHeight={44}
+                />
               </div>
             )}
 
