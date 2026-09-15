@@ -156,8 +156,8 @@ function ChangePasswordModal({ t, isOpen, onClose, onSubmit }: ChangePasswordMod
       setNewError('Введите новый пароль');
       return;
     }
-    if (newPassword.length < 8) {
-      setNewError('Минимум 8 символов');
+    if (newPassword.length < 6) {
+      setNewError('Минимум 6 символов');
       return;
     }
     if (newPassword !== confirmPassword) {
