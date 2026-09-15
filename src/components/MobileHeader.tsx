@@ -3,6 +3,7 @@ import type { Theme, ThemeName } from '../themes/theme';
 import { themes } from '../themes/theme';
 import { IcoLogIn, IcoLogOut, IcoX } from './icons';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 export interface MobileNavTab {
   id: string;
@@ -261,45 +262,28 @@ export function MobileHeader({
                   padding: 14,
                   borderTop: `1px solid ${t.border}`,
                   flexShrink: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
                 }}
               >
                 <div
                   style={{
                     fontSize: 11,
                     color: t.textMuted,
-                    marginBottom: 8,
                     textTransform: 'uppercase',
                     letterSpacing: '0.07em',
                   }}
                 >
                   Тема
                 </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {(Object.keys(themes) as ThemeName[]).map((name) => {
-                    const active = currentTheme === name;
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => onThemeChange(name)}
-                        style={{
-                          flex: '1 1 45%',
-                          minHeight: 44,
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: `1px solid ${active ? t.accent : t.border}`,
-                          background: active ? t.navHoverBg : 'transparent',
-                          color: active ? t.accent : t.text,
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          fontFamily: 'inherit',
-                          fontWeight: active ? 600 : 400,
-                        }}
-                      >
-                        {themes[name].label}
-                      </button>
-                    );
-                  })}
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <ThemeSwitcher
+                    theme={currentTheme}
+                    onChange={onThemeChange}
+                    t={t}
+                    compact
+                  />
                 </div>
               </div>
             )}

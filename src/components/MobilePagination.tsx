@@ -7,6 +7,16 @@ export interface MobilePaginationProps {
   perPage: number;
   total: number;
   onPageChange: (page: number, perPage: number) => void;
+  /**
+   * Прижать пагинацию к низу scroll-контейнера.
+   * @default true
+   */
+  sticky?: boolean;
+  /**
+   * Отступ снизу от края, px (учитывает safe-area).
+   * @default 8
+   */
+  stickyOffset?: number;
 }
 
 export function MobilePagination({
@@ -15,6 +25,8 @@ export function MobilePagination({
   perPage,
   total,
   onPageChange,
+  sticky = true,
+  stickyOffset = 8,
 }: MobilePaginationProps) {
   const pages = Math.max(1, Math.ceil(total / perPage));
   const start = total === 0 ? 0 : (page - 1) * perPage + 1;
@@ -38,6 +50,13 @@ export function MobilePagination({
   return (
     <div
       style={{
+        ...(sticky
+          ? {
+              position: 'sticky',
+              bottom: `calc(${stickyOffset}px + env(safe-area-inset-bottom, 0px))`,
+              zIndex: 20,
+            }
+          : {}),
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -48,6 +67,7 @@ export function MobilePagination({
         borderRadius: 12,
         color: t.text,
         fontSize: 13,
+        boxShadow: sticky ? t.shadowLg : undefined,
       }}
     >
       <button

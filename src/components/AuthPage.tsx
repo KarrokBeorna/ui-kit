@@ -143,12 +143,15 @@ export function AuthPage({
           position: 'absolute',
           top: isMobile ? 12 : 24,
           right: isMobile ? 12 : 24,
-          transform: isMobile ? 'scale(0.9)' : 'none',
-          transformOrigin: 'top right',
           zIndex: 2,
         }}
       >
-        <ThemeSwitcher theme={theme} onChange={onThemeChange} t={t} compact={isMobile} />
+        <ThemeSwitcher
+          theme={theme}
+          onChange={onThemeChange}
+          t={t}
+          compact={isMobile}
+        />
       </div>
 
       {/* Карточка формы */}

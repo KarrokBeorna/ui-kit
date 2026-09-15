@@ -34,7 +34,7 @@ export default function MultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const dropdownStyle = useDropdownPosition(open, inputRef);
+  const dropdownStyle = useDropdownPosition(open, inputRef, { dropdownRef });
 
   const floated = focused || open || String(value).length > 0;
   const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
@@ -128,8 +128,6 @@ export default function MultiSelect({
         ...dropdownStyle,
         background: t.dropdownBg,
         border: `1.5px solid ${t.borderFocus}`,
-        borderRadius: '0 0 10px 10px',
-        maxHeight: 300,
         overflowY: 'auto',
         boxShadow: t.shadowLg,
         animation: 'dropDown 0.2s cubic-bezier(0.4,0,0.2,1)',

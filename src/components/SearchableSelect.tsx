@@ -32,7 +32,7 @@ export default function SearchableSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const dropdownStyle = useDropdownPosition(open, inputRef);
+  const dropdownStyle = useDropdownPosition(open, inputRef, { dropdownRef });
 
   const selected = options.find(o => o.value === value);
   const floated = focused || open || !!selected;
@@ -107,8 +107,6 @@ export default function SearchableSelect({
         ...dropdownStyle,
         background: t.dropdownBg,
         border: `1.5px solid ${t.borderFocus}`,
-        borderRadius: '0 0 10px 10px',
-        maxHeight: 240,
         overflowY: 'auto',
         boxShadow: t.shadowLg,
         animation: 'dropDown 0.2s cubic-bezier(0.4,0,0.2,1)',
@@ -116,33 +114,57 @@ export default function SearchableSelect({
       }}
     >
       {filtered.length === 0 ? (
-        <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>Ничего не найдено</div>
-      ) : filtered.map(opt => (
-        <div
-          key={opt.value}
-          onMouseDown={e => { e.preventDefault(); e.stopPropagation(); handleSelect(opt); }}
-          style={{
-            padding: '11px 16px', fontSize: 14, cursor: 'pointer',
-            color: opt.value === value ? t.dropdownSelectedText : t.text,
-            background: opt.value === value ? t.dropdownSelected : 'transparent',
-            transition: 'background 0.15s ease',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}
-          onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = t.dropdownHover; }}
-          onMouseLeave={e => { e.currentTarget.style.background = opt.value === value ? t.dropdownSelected : 'transparent'; }}
-        >
-          <div style={{
-            width: 16, height: 16, borderRadius: 4,
-            border: `1.5px solid ${opt.value === value ? t.accent : t.border}`,
-            background: opt.value === value ? t.accent : 'transparent',
-            transition: 'all 0.15s', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {opt.value === value && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
-          </div>
-          {opt.label}
+        <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>
+          Ничего не найдено
         </div>
-      ))}
+      ) : (
+        filtered.map((opt) => (
+          <div
+            key={opt.value}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSelect(opt);
+            }}
+            style={{
+              padding: '11px 16px',
+              fontSize: 14,
+              cursor: 'pointer',
+              color: opt.value === value ? t.dropdownSelectedText : t.text,
+              background: opt.value === value ? t.dropdownSelected : 'transparent',
+              transition: 'background 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={(e) => {
+              if (opt.value !== value) e.currentTarget.style.background = t.dropdownHover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background =
+                opt.value === value ? t.dropdownSelected : 'transparent';
+            }}
+          >
+            <div
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: 4,
+                border: `1.5px solid ${opt.value === value ? t.accent : t.border}`,
+                background: opt.value === value ? t.accent : 'transparent',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {opt.value === value && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
+            </div>
+            {opt.label}
+          </div>
+        ))
+      )}
     </div>
   );
 
