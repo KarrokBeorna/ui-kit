@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons';
-import Button from './inputs/Button';
+import Button from './Button';
 import { useResponsive } from '../context/ResponsiveContext';
 
 interface FilterItem {
@@ -39,6 +39,14 @@ interface FilterBarProps {
   gridCols?: number;
   /** Enter применяет фильтры на всей странице (кроме модалки) */
   globalEnter?: boolean;
+  /**
+   * Максимальная высота открытой панели на мобиле.
+   * По умолчанию `calc(100dvh - 140px)` — примерно «весь экран минус
+   * верхняя панель и некоторый запас». Можно переопределить.
+   *
+   * На десктопе игнорируется — используется высота контента.
+   */
+  mobileMaxHeight?: string;
 }
 
 export function FilterBar({
@@ -57,9 +65,11 @@ export function FilterBar({
   exportLabel = 'Экспорт в Excel',
   gridCols = 1,
   globalEnter = false,
+  mobileMaxHeight,
 }: FilterBarProps) {
   const { isMobile } = useResponsive();
   const effectiveCols = isMobile ? 1 : gridCols;
+
   const [internalOpen, setInternalOpen] = useState(true);
   const open = externalOpen ?? internalOpen;
   const setOpen = (v: boolean) => {
@@ -71,7 +81,7 @@ export function FilterBar({
   const [bodyH, setBodyH] = useState(0);
   useEffect(() => {
     if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight);
-  }, [filters, open]);
+  }, [filters, open, effectiveCols]);
 
   useEffect(() => {
     if (!applyOnEnter || !onApply) return;
@@ -101,7 +111,9 @@ export function FilterBar({
   }, [applyOnEnter, onApply, globalEnter, bodyRef.current]);
 
   const onApplyRef = useRef(onApply);
-  useEffect(() => { onApplyRef.current = onApply; });
+  useEffect(() => {
+    onApplyRef.current = onApply;
+  });
 
   const applyDelay = Math.max(0, instantApplyDelay);
 
@@ -114,7 +126,10 @@ export function FilterBar({
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const applyNow = () => {
-      if (timer) { clearTimeout(timer); timer = null; }
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       onApplyRef.current?.();
     };
 
@@ -137,24 +152,76 @@ export function FilterBar({
   }, [instantApply, applyDelay]);
 
   const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
-  filters.forEach(({ component, row, cols = gridCols }) => {
+  filters.forEach(({ component, row, cols = effectiveCols }) => {
     if (!rows[row]) rows[row] = [];
     rows[row].push({ component, cols });
   });
   const sortedRows = Object.keys(rows).sort((a, b) => Number(a) - Number(b));
 
+  // ── Высота скролл-контейнера тела ────────────────────
+  // На десктопе — точная высота контента (max-height = 0, если свёрнуто).
+  // На мобиле — ограничиваем viewport'ом, чтобы панель стала скроллируемой.
+  const maxBodyHeight: string | number = open
+    ? isMobile
+      ? `min(${bodyH || 600}px, ${mobileMaxHeight ?? 'calc(100dvh - 140px)'})`
+      : `${bodyH || 600}px`
+    : 0;
+
   return (
-    <div style={{ background: t.bgSurface, border: `1px solid ${t.border}`, borderRadius: 14, marginBottom: 16, overflow: 'hidden' }}>
+    <div
+      style={{
+        background: t.bgSurface,
+        border: `1px solid ${t.border}`,
+        borderRadius: 14,
+        marginBottom: 16,
+        overflow: 'hidden',
+      }}
+    >
       {/* Header */}
       <div
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', userSelect: 'none', gap: 12 }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 18px',
+          cursor: 'pointer',
+          userSelect: 'none',
+          gap: 12,
+        }}
         onClick={() => setOpen(!open)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color: t.accent, display: 'flex' }}><IcoFilter /></span>
-          <span style={{ fontFamily: 'system-ui', fontWeight: 600, fontSize: 14, color: t.text }}>Фильтры</span>
+          <span style={{ color: t.accent, display: 'flex' }}>
+            <IcoFilter />
+          </span>
+          <span
+            style={{
+              fontFamily: 'system-ui',
+              fontWeight: 600,
+              fontSize: 14,
+              color: t.text,
+            }}
+          >
+            Фильтры
+          </span>
           {activeCount > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, padding: '0 6px', borderRadius: 20, background: t.accent, color: t.accentText, fontSize: 11, fontWeight: 700, fontFamily: 'system-ui', boxShadow: `0 0 10px ${t.accentGlow}` }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 20,
+                height: 20,
+                padding: '0 6px',
+                borderRadius: 20,
+                background: t.accent,
+                color: t.accentText,
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: 'system-ui',
+                boxShadow: `0 0 10px ${t.accentGlow}`,
+              }}
+            >
               {activeCount}
             </span>
           )}
@@ -163,7 +230,21 @@ export function FilterBar({
           {!open && chips.length > 0 && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {chips.map((chip, i) => (
-                <span key={i} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontFamily: 'system-ui', fontWeight: 500, color: t.accent, background: t.navHoverBg, border: `1px solid ${t.border}` }}>{chip}</span>
+                <span
+                  key={i}
+                  style={{
+                    padding: '2px 9px',
+                    borderRadius: 20,
+                    fontSize: 11,
+                    fontFamily: 'system-ui',
+                    fontWeight: 500,
+                    color: t.accent,
+                    background: t.navHoverBg,
+                    border: `1px solid ${t.border}`,
+                  }}
+                >
+                  {chip}
+                </span>
               ))}
             </div>
           )}
@@ -173,19 +254,41 @@ export function FilterBar({
               variant="danger"
               outline
               size="sm"
-              onClick={(e) => { e.stopPropagation(); onReset(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onReset();
+              }}
               theme={t}
             >
               Сбросить
             </Button>
           )}
-          <span style={{ color: t.textMuted, display: 'flex' }}><IcoChevronDown open={open} /></span>
+          <span style={{ color: t.textMuted, display: 'flex' }}>
+            <IcoChevronDown open={open} />
+          </span>
         </div>
       </div>
 
-      {/* Collapsible body */}
-      <div ref={bodyRef} style={{ maxHeight: open ? bodyH || 600 : 0, overflow: 'hidden', transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)' }}>
-        <div style={{ padding: '16px 18px 0', borderTop: `1px solid ${t.borderSubtle}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Collapsible body — теперь скроллится, если не помещается */}
+      <div
+        ref={bodyRef}
+        style={{
+          maxHeight: maxBodyHeight,
+          overflow: open ? 'auto' : 'hidden',
+          overscrollBehavior: 'contain',
+          transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        <div
+          style={{
+            padding: '16px 18px 0',
+            borderTop: `1px solid ${t.borderSubtle}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
           {sortedRows.map((rowKey) => {
             const items = rows[Number(rowKey)];
             return (
@@ -212,7 +315,17 @@ export function FilterBar({
             );
           })}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              paddingTop: 4,
+              paddingBottom: 18,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+            }}
+          >
             {onApply && !instantApply && (
               <Button
                 icon={<IcoSearch s={12} />}
@@ -244,7 +357,10 @@ export function FilterBar({
                 variant="danger"
                 outline
                 size="md"
-                onClick={(e) => { e.stopPropagation(); onReset(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
                 theme={t}
               >
                 Сбросить
