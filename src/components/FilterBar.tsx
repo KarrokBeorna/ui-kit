@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons';
-import Button from './Button';
+import Button from './inputs/Button';
 import { useResponsive } from '../context/ResponsiveContext';
 
 interface FilterItem {
@@ -254,7 +254,7 @@ export function FilterBar({
               variant="danger"
               outline
               size="sm"
-              onClick={(e) => {
+              onClick={(e: any) => {
                 e.stopPropagation();
                 onReset();
               }}
@@ -357,7 +357,7 @@ export function FilterBar({
                 variant="danger"
                 outline
                 size="md"
-                onClick={(e) => {
+                onClick={(e: any) => {
                   e.stopPropagation();
                   onReset();
                 }}
