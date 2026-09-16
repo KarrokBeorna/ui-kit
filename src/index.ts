@@ -30,8 +30,8 @@ export { Menu } from './components/Menu';
 export type { MenuTab } from './components/Menu';
 export { default as Calendar } from './components/Calendar';
 export type { TemplateOption } from './components/Calendar';
-export { default as DirectoryTree } from './components/DirectoryTree';
-export type { DirectoryApi, DirectoryItem } from './components/DirectoryTree';
+export { default as DirectoryTree } from './components/desktop/DirectoryTree';
+export type { DirectoryApi, DirectoryItem } from './components/desktop/DirectoryTree';
 
 export { ResponsiveProvider, useResponsive } from './context/ResponsiveContext';
 export type { ResponsiveConfig, ResponsiveValue } from './context/ResponsiveContext';

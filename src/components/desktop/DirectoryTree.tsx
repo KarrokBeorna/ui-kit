@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {Theme} from "../themes/theme";
-import {Button, Modal, SearchableSelect, TextInput} from "../index";
+import {Theme} from "../../themes/theme";
+import {Button, Modal, SearchableSelect, TextInput} from "../../index";
 
 // ===== Типы данных =====
 export interface DirectoryItem {

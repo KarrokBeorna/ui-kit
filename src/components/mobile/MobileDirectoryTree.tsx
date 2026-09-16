@@ -4,7 +4,7 @@ import { Button } from '../../index';
 import Modal from '../Modal';
 import TextInput from '../inputs/TextInput';
 import SearchableSelect from '../inputs/SearchableSelect';
-import type { DirectoryApi, DirectoryItem } from '../DirectoryTree';
+import type { DirectoryApi, DirectoryItem } from '../desktop/DirectoryTree';
 import { IcoChevronLeft, IcoChevronRight } from '../icons';
 
 export interface MobileDirectoryTreeProps {
