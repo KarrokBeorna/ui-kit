@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Theme, ThemeName } from '../themes/theme';
-import { IcoLogIn, IcoLogOut, IcoChevronLeft, IcoChevronRight } from './icons';
+import { Theme, ThemeName } from '../../themes/theme';
+import { IcoLogIn, IcoLogOut, IcoChevronLeft, IcoChevronRight } from '../icons';
 import { LayoutToggle, LayoutMode } from './LayoutToggle';
-import { ThemeSwitcher } from './ThemeSwitcher';
-import Modal from './Modal';
-import PasswordInput from './PasswordInput';
+import { ThemeSwitcher } from '../ThemeSwitcher';
+import Modal from '../Modal';
+import PasswordInput from '../inputs/PasswordInput';
 
 export interface NavTab {
   id: string;

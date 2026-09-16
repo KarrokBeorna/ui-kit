@@ -1,102 +1,112 @@
-import { useState, useId, useRef, useEffect } from 'react'
-import type { Theme } from '../themes/theme'
-import { CalendarIcon, ClockIcon, DateTimeIcon, IcoX } from './icons'
+import { useState, useId, useRef } from 'react';
+import type { Theme } from '../../themes/theme';
+import { IcoEye, IcoX } from '../icons';
 
-interface DateTimePickerProps {
-  label: string
-  theme: Theme
-  value: string
-  onChange: (val: string) => void
-  enableDate?: boolean
-  enableTime?: boolean
-  disabled?: boolean
-  error?: string
+function StrengthBar({ value, t }: { value: string; t: Theme }) {
+  const score = (() => {
+    if (!value) return 0;
+    let s = 0;
+    if (value.length >= 8) s++;
+    if (/[A-Z]/.test(value)) s++;
+    if (/[0-9]/.test(value)) s++;
+    if (/[^a-zA-Z0-9]/.test(value)) s++;
+    return s;
+  })();
+  const levels = [
+    { label: 'Слабый', color: t.danger },
+    { label: 'Слабый', color: t.danger },
+    { label: 'Средний', color: '#f59e0b' },
+    { label: 'Хороший', color: '#22c55e' },
+    { label: 'Сильный', color: '#10b981' },
+  ];
+  if (!value) return null;
+  const { label, color } = levels[score];
+  return (
+    <div style={{ marginTop: 8, paddingLeft: 2 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} style={{
+            flex: 1, height: 3, borderRadius: 2,
+            background: i <= score ? color : t.border,
+            transition: 'background 0.3s ease',
+          }} />
+        ))}
+      </div>
+      <span style={{ fontSize: 11, color }}>{label}</span>
+    </div>
+  );
 }
 
-export default function DateTimePicker({
-  label, theme: t, value, onChange,
-  enableDate = true, enableTime = true,
-  disabled = false, error,
-}: DateTimePickerProps) {
-  const [focused, setFocused] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const valueRef = useRef(value)
-  const uid = useId()
-  const cls = 'dtp' + uid.replace(/[^a-z0-9]/gi, '')
-  const id = uid + 'input'
+interface PasswordInputProps {
+  label: string;
+  theme: Theme;
+  value: string;
+  onChange: (val: string) => void;
+  error?: string;
+  showStrength?: boolean;
+  disabled?: boolean;
+}
 
-  useEffect(() => {
-    valueRef.current = value
-  }, [value])
-
-  const type = enableDate && enableTime ? 'datetime-local' : enableDate ? 'date' : 'time'
+export default function PasswordInput({
+  label,
+  theme: t,
+  value,
+  onChange,
+  error,
+  showStrength = false,
+  disabled = false,
+}: PasswordInputProps) {
+  const [focused, setFocused] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const id = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const floated = focused || String(value).length > 0;
-  const textColor = !focused && !value ? 'transparent' : t.text
 
-  const openPicker = () => {
-    if (disabled) return
-    inputRef.current?.focus()
-    try {
-      ;(inputRef.current as any)?.showPicker?.()
-    } catch {
-    }
-  }
+  const handleFocus = () => {
+    if (!disabled) setFocused(true);
+  };
+  const handleBlur = () => {
+    setFocused(false);
+  };
 
   const handleClear = () => {
-    if (disabled) return
-    onChange('')
+    if (disabled) return;
+    onChange('');
     setTimeout(() => {
-      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
-    }, 0)
-  }
-
-  const PickerIcon = type === 'date' ? CalendarIcon : type === 'time' ? ClockIcon : DateTimeIcon
+      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  };
 
   return (
     <div style={{ width: '100%' }}>
-      <style>{`
-        .${cls}::-webkit-calendar-picker-indicator {
-          opacity: 0;
-          pointer-events: none;
-          position: absolute;
-          width: 0;
-          height: 0;
-        }
-        .${cls}::-webkit-inner-spin-button,
-        .${cls}::-webkit-clear-button {
-          display: none;
-        }
-      `}</style>
-
       <div style={{ position: 'relative' }}>
         <input
           ref={inputRef}
           id={id}
-          type={type}
+          type={visible ? 'text' : 'password'}
           value={value}
-          onFocus={() => { if (!disabled) setFocused(true) }}
-          onBlur={() => setFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onChange={e => { if (!disabled) onChange(e.target.value) }}
-          className={cls}
+          placeholder=""
           disabled={disabled}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: t.bg,
             border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
-            padding: value ? '18px 70px 8px 16px' : '18px 46px 8px 16px',
-            fontSize: 15, color: textColor, outline: 'none',
-            transition: 'border-color 0.25s ease, box-shadow 0.25s ease, color 0.15s ease, padding 0.15s ease',
+            padding: '18px 76px 8px 16px',
+            fontSize: 15, color: t.text, outline: 'none',
+            transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
             boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
-            colorScheme: t.bg.startsWith('#0') || t.bg.startsWith('#1') ? 'dark' : 'light',
+            letterSpacing: visible ? 'normal' : value ? '2px' : 'normal',
             height: '50px',
             opacity: disabled ? 0.5 : 1,
             cursor: disabled ? 'not-allowed' : 'text',
           }}
-          autoComplete="off"
+          autoComplete="new-password"
         />
-
         <label
           htmlFor={id}
           style={{
@@ -110,6 +120,7 @@ export default function DateTimePicker({
             background: floated ? t.labelBg : 'transparent',
             padding: floated ? '0 4px' : '0',
             borderRadius: 3, lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1,
+            letterSpacing: 'normal',
           }}
         >
           {label}
@@ -134,29 +145,28 @@ export default function DateTimePicker({
               onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
               onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
             >
-              <IcoX s={14} />
+              <IcoX s={12} />
             </button>
           )}
           <button
             type="button"
-            onClick={openPicker}
+            onClick={() => { if (!disabled) setVisible(v => !v) }}
             disabled={disabled}
             style={{
               width: 28, height: 28, background: 'transparent', border: 'none',
               cursor: disabled ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: focused ? t.accent : t.iconColor,
-              borderRadius: 6, transition: 'color 0.15s', padding: 0,
+              padding: 4,
+              color: visible ? t.accent : t.iconColor,
+              transition: 'color 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 6,
               opacity: disabled ? 0.5 : 1,
             }}
-            onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.accent }}
-            onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = focused ? t.accent : t.iconColor }}
           >
-            <PickerIcon />
+            <IcoEye s={18} off={!visible} />
           </button>
         </div>
       </div>
-
+      {showStrength && <StrengthBar value={value} t={t} />}
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
   );

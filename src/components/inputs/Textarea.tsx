@@ -1,6 +1,6 @@
 import { useState, useId, useEffect, useRef } from 'react';
-import type { Theme } from '../themes/theme';
-import { IcoX } from './icons';
+import type { Theme } from '../../themes/theme';
+import { IcoX } from '../icons';
 
 interface TextareaProps {
   label: string;

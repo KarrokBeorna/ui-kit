@@ -1,6 +1,6 @@
 import React from 'react';
 import { Theme } from '../themes/theme';
-import Button from './Button';
+import Button from './inputs/Button';
 
 export interface ActionsColumnOptions<T> {
   /** Тема из @kbs/ui-kit. Обязательна. */

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { themes, ThemeName } from './themes/theme';
-import { LayoutMode, LayoutToggle } from './components/LayoutToggle';
+import { LayoutMode, LayoutToggle } from './components/desktop/LayoutToggle';
 import {
   AuthPage,
   Checkbox,

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Theme } from '../themes/theme';
-import { IcoChevronLeft, IcoChevronRight, IcoChevronDown } from './icons';
-import { useResponsive } from '../context/ResponsiveContext';
-import { MobilePagination } from './MobilePagination';
+import { Theme } from '../../themes/theme';
+import { IcoChevronLeft, IcoChevronRight, IcoChevronDown } from '../icons';
+import { useResponsive } from '../../context/ResponsiveContext';
+import { MobilePagination } from '../mobile/MobilePagination';
 
 interface PaginationProps {
   t: Theme;

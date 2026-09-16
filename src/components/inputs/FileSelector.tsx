@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import type { Theme } from '../themes/theme';
-import { IcoFile, IcoX } from './icons';
+import type { Theme } from '../../themes/theme';
+import { IcoFile, IcoX } from '../icons';
 
 interface FileSelectorProps {
   label: string;

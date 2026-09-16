@@ -1,32 +1,30 @@
 import React, { useState, useId, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import type { Theme } from '../themes/theme';
-import type { SelectOption } from './SearchableSelect';
-import { IcoChevronDown, IcoX, IcoCheck } from './icons';
-import { useDropdownPosition } from '../hooks/useDropdownPosition';
+import type { Theme } from '../../themes/theme';
+import { IcoChevronDown, IcoX, IcoCheck } from '../icons';
+import { useDropdownPosition } from '../../hooks/useDropdownPosition';
 
-interface MultiSelectProps {
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface SearchableSelectProps {
   label: string;
   theme: Theme;
   options: SelectOption[];
-  value: string[];
-  onChange: (vals: string[]) => void;
+  value: string;
+  onChange: (val: string) => void;
   error?: string;
   usePortal?: boolean;
   disabled?: boolean;
 }
 
-function pluralValue(n: number) {
-  if (n === 1) return `${n} значение`;
-  if (n >= 2 && n <= 4) return `${n} значения`;
-  return `${n} значений`;
-}
-
-export default function MultiSelect({
+export default function SearchableSelect({
   label, theme: t, options, value, onChange, error,
   usePortal = true,
   disabled = false,
-}: MultiSelectProps) {
+}: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
@@ -36,10 +34,9 @@ export default function MultiSelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownStyle = useDropdownPosition(open, inputRef, { dropdownRef });
 
-  const floated = focused || open || String(value).length > 0;
+  const selected = options.find(o => o.value === value);
+  const floated = focused || open || !!selected;
   const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
-  const allFilteredSelected = filtered.length > 0 && filtered.every(o => value.includes(o.value));
-  const someFilteredSelected = filtered.some(o => value.includes(o.value));
 
   const queryRef = useRef(query);
   useEffect(() => {
@@ -89,33 +86,15 @@ export default function MultiSelect({
     }
   };
 
-  const toggle = (val: string) => {
+  const handleSelect = (opt: SelectOption) => {
     if (disabled) return;
-    onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val]);
+    onChange(opt.value); setOpen(false); setQuery(''); setFocused(false);
   };
-
-  const toggleAll = () => {
-    if (disabled) return;
-    if (allFilteredSelected) {
-      onChange(value.filter(v => !filtered.some(o => o.value === v)));
-    } else {
-      const toAdd = filtered.filter(o => !value.includes(o.value)).map(o => o.value);
-      onChange([...value, ...toAdd]);
-    }
-  };
-
-  const displayValue = (() => {
-    if (value.length === 0) return '';
-    if (value.length === 1) return options.find(o => o.value === value[0])?.label ?? '';
-    return pluralValue(value.length);
-  })();
 
   const handleClear = (e: React.MouseEvent) => {
     if (disabled) return;
     e.stopPropagation();
-    onChange([]);
-    setOpen(false);
-    setQuery('');
+    onChange(''); setOpen(false); setQuery('');
     setTimeout(() => {
       inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
     }, 0);
@@ -134,66 +113,58 @@ export default function MultiSelect({
         boxSizing: 'border-box',
       }}
     >
-      <div
-        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); toggleAll(); }}
-        style={{
-          padding: '10px 16px',
-          borderBottom: `1px solid ${t.border}`,
-          display: 'flex', alignItems: 'center', gap: 8,
-          cursor: 'pointer', transition: 'background 0.15s',
-        }}
-        onMouseEnter={e => e.currentTarget.style.background = t.dropdownHover}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-      >
-        <div style={{
-          width: 16, height: 16, borderRadius: 4,
-          border: `1.5px solid ${allFilteredSelected || someFilteredSelected ? t.accent : t.border}`,
-          background: allFilteredSelected ? t.accent : 'transparent',
-          transition: 'all 0.15s', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {allFilteredSelected ? (
-            <IcoCheck s={10} style={{ stroke: '#fff' }} />
-          ) : someFilteredSelected ? (
-            <div style={{ width: 8, height: 2, background: t.accent, borderRadius: 1 }} />
-          ) : null}
-        </div>
-        <span style={{ fontSize: 13, fontWeight: 600, color: t.accent }}>
-          Выбрать все {query ? `(${filtered.length})` : ''}
-        </span>
-      </div>
-
       {filtered.length === 0 ? (
-        <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>Ничего не найдено</div>
-      ) : filtered.map(opt => {
-        const sel = value.includes(opt.value);
-        return (
+        <div style={{ padding: '12px 16px', color: t.placeholder, fontSize: 14 }}>
+          Ничего не найдено
+        </div>
+      ) : (
+        filtered.map((opt) => (
           <div
             key={opt.value}
-            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); toggle(opt.value); }}
-            style={{
-              padding: '10px 16px', fontSize: 14, cursor: 'pointer',
-              color: sel ? t.dropdownSelectedText : t.text,
-              background: sel ? t.dropdownSelected : 'transparent',
-              transition: 'background 0.15s ease',
-              display: 'flex', alignItems: 'center', gap: 8,
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSelect(opt);
             }}
-            onMouseEnter={e => { if (!sel) e.currentTarget.style.background = t.dropdownHover; }}
-            onMouseLeave={e => { e.currentTarget.style.background = sel ? t.dropdownSelected : 'transparent'; }}
+            style={{
+              padding: '11px 16px',
+              fontSize: 14,
+              cursor: 'pointer',
+              color: opt.value === value ? t.dropdownSelectedText : t.text,
+              background: opt.value === value ? t.dropdownSelected : 'transparent',
+              transition: 'background 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={(e) => {
+              if (opt.value !== value) e.currentTarget.style.background = t.dropdownHover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background =
+                opt.value === value ? t.dropdownSelected : 'transparent';
+            }}
           >
-            <div style={{
-              width: 16, height: 16, borderRadius: 4,
-              border: `1.5px solid ${sel ? t.accent : t.border}`,
-              background: sel ? t.accent : 'transparent',
-              transition: 'all 0.15s', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {sel && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
+            <div
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: 4,
+                border: `1.5px solid ${opt.value === value ? t.accent : t.border}`,
+                background: opt.value === value ? t.accent : 'transparent',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {opt.value === value && <IcoCheck s={10} style={{ stroke: '#fff' }} />}
             </div>
             {opt.label}
           </div>
-        );
-      })}
+        ))
+      )}
     </div>
   );
 
@@ -206,7 +177,7 @@ export default function MultiSelect({
         <input
           ref={inputRef}
           id={id}
-          value={open ? query : displayValue}
+          value={open ? query : (selected?.label ?? '')}
           onChange={e => { if (!disabled) setQuery(e.target.value) }}
           onFocus={() => {
             if (!disabled) {
@@ -255,7 +226,7 @@ export default function MultiSelect({
           position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
           display: 'flex', alignItems: 'center', gap: 2,
         }}>
-          {value.length > 0 && (
+          {value && (
             <button
               type="button"
               onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleClear(e); }}

@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { ThemeName, themes } from './themes/theme';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
-import TextInput from './components/TextInput';
-import Textarea from './components/Textarea';
-import Checkbox from './components/Checkbox';
-import SearchableSelect from './components/SearchableSelect';
-import DateTimePicker from './components/DateTimePicker';
+import TextInput from './components/inputs/TextInput';
+import Textarea from './components/inputs/Textarea';
+import Checkbox from './components/inputs/Checkbox';
+import SearchableSelect from './components/inputs/SearchableSelect';
+import DateTimePicker from './components/inputs/DateTimePicker';
 import Modal from './components/Modal';
-import Table, { Column } from './components/Table';
-import Badge from './components/Badge';
+import Table, { Column } from './components/desktop/Table';
+import Badge from './components/inputs/Badge';
 
 const generateUserData = () => {
   const names = ['Алексей', 'Екатерина', 'Иван', 'Мария', 'Дмитрий', 'Ольга', 'Павел', 'Анна', 'Сергей', 'Татьяна'];

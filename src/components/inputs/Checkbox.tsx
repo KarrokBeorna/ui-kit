@@ -1,5 +1,5 @@
-import type { Theme } from '../themes/theme';
-import { IcoCheck } from './icons';
+import type { Theme } from '../../themes/theme';
+import { IcoCheck } from '../icons';
 
 interface CheckboxProps {
   label: string;

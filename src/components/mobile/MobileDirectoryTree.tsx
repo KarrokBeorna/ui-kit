@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Theme } from '../themes/theme';
-import { Button } from '../index';
-import Modal from './Modal';
-import TextInput from './TextInput';
-import SearchableSelect from './SearchableSelect';
-import type { DirectoryApi, DirectoryItem } from './DirectoryTree';
-import { IcoChevronLeft, IcoChevronRight } from './icons';
+import type { Theme } from '../../themes/theme';
+import { Button } from '../../index';
+import Modal from '../Modal';
+import TextInput from '../inputs/TextInput';
+import SearchableSelect from '../inputs/SearchableSelect';
+import type { DirectoryApi, DirectoryItem } from '../DirectoryTree';
+import { IcoChevronLeft, IcoChevronRight } from '../icons';
 
 export interface MobileDirectoryTreeProps {
   theme: Theme;

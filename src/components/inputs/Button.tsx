@@ -1,5 +1,5 @@
 import React from 'react';
-import {Theme} from '../themes/theme';
+import {Theme} from '../../themes/theme';
 
 interface ButtonProps {
   icon?: React.ReactNode;

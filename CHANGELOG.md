@@ -61,3 +61,6 @@
 ## 1.2.3 - Mobile:
 - ThemeSwitcher.tsx	Добавлен проп stretch + minButtonHeight; пересчёт пилюли через ResizeObserver
 - MobileHeader.tsx	ThemeSwitcher с stretch + minButtonHeight={44}; go() больше не закрывает drawer
+
+## 1.2.4 - Mobile
+- MobileHeader.tsx - Пропы open / onOpenChange, фолбэк на локальный useState

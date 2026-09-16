@@ -1,66 +1,52 @@
-import { useState, useId, useRef } from 'react';
-import type { Theme } from '../themes/theme';
-import { IcoEye, IcoX } from './icons';
+import { useState, useId, useEffect, useRef } from 'react';
+import type { Theme } from '../../themes/theme';
+import { IcoX, IcoArrowUp, IcoArrowDown } from '../icons';
 
-function StrengthBar({ value, t }: { value: string; t: Theme }) {
-  const score = (() => {
-    if (!value) return 0;
-    let s = 0;
-    if (value.length >= 8) s++;
-    if (/[A-Z]/.test(value)) s++;
-    if (/[0-9]/.test(value)) s++;
-    if (/[^a-zA-Z0-9]/.test(value)) s++;
-    return s;
-  })();
-  const levels = [
-    { label: 'Слабый', color: t.danger },
-    { label: 'Слабый', color: t.danger },
-    { label: 'Средний', color: '#f59e0b' },
-    { label: 'Хороший', color: '#22c55e' },
-    { label: 'Сильный', color: '#10b981' },
-  ];
-  if (!value) return null;
-  const { label, color } = levels[score];
-  return (
-    <div style={{ marginTop: 8, paddingLeft: 2 }}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} style={{
-            flex: 1, height: 3, borderRadius: 2,
-            background: i <= score ? color : t.border,
-            transition: 'background 0.3s ease',
-          }} />
-        ))}
-      </div>
-      <span style={{ fontSize: 11, color }}>{label}</span>
-    </div>
-  );
-}
-
-interface PasswordInputProps {
+interface NumberInputProps {
   label: string;
   theme: Theme;
   value: string;
   onChange: (val: string) => void;
+  allowDecimal?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
   error?: string;
-  showStrength?: boolean;
   disabled?: boolean;
 }
 
-export default function PasswordInput({
-  label,
-  theme: t,
-  value,
-  onChange,
-  error,
-  showStrength = false,
+export default function NumberInput({
+  label, theme: t, value, onChange,
+  allowDecimal = true, min, max, step, error,
   disabled = false,
-}: PasswordInputProps) {
+}: NumberInputProps) {
   const [focused, setFocused] = useState(false);
-  const [visible, setVisible] = useState(false);
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
   const floated = focused || String(value).length > 0;
+
+  const handleChange = (raw: string) => {
+    if (disabled) return;
+    if (raw === '' || raw === '-') { onChange(raw); return; }
+    const pattern = allowDecimal ? /^-?\d*\.?\d*$/ : /^-?\d*$/;
+    if (pattern.test(raw)) onChange(raw);
+  };
+
+  const step_ = (dir: 1 | -1) => {
+    if (disabled) return;
+    const cur = parseFloat(value) || 0;
+    const inc = step ?? (allowDecimal ? 0.1 : 1);
+    let next = Math.round((cur + dir * inc) * 1e10) / 1e10;
+    if (min !== undefined) next = Math.max(min, next);
+    if (max !== undefined) next = Math.min(max, next);
+    onChange(String(next));
+  };
 
   const handleFocus = () => {
     if (!disabled) setFocused(true);
@@ -83,11 +69,11 @@ export default function PasswordInput({
         <input
           ref={inputRef}
           id={id}
-          type={visible ? 'text' : 'password'}
+          inputMode={allowDecimal ? 'decimal' : 'numeric'}
           value={value}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          onChange={e => { if (!disabled) onChange(e.target.value) }}
+          onChange={e => handleChange(e.target.value)}
           placeholder=""
           disabled={disabled}
           style={{
@@ -95,17 +81,16 @@ export default function PasswordInput({
             background: t.bg,
             border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
             borderRadius: 10,
-            padding: '18px 76px 8px 16px',
+            padding: '18px 80px 8px 16px',
             fontSize: 15, color: t.text, outline: 'none',
             transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
             boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
             fontFamily: 'inherit',
-            letterSpacing: visible ? 'normal' : value ? '2px' : 'normal',
             height: '50px',
             opacity: disabled ? 0.5 : 1,
             cursor: disabled ? 'not-allowed' : 'text',
           }}
-          autoComplete="new-password"
+          autoComplete="off"
         />
         <label
           htmlFor={id}
@@ -120,7 +105,6 @@ export default function PasswordInput({
             background: floated ? t.labelBg : 'transparent',
             padding: floated ? '0 4px' : '0',
             borderRadius: 3, lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1,
-            letterSpacing: 'normal',
           }}
         >
           {label}
@@ -136,10 +120,10 @@ export default function PasswordInput({
               onClick={handleClear}
               disabled={disabled}
               style={{
-                width: 28, height: 28, background: 'transparent', border: 'none',
+                width: 24, height: 24, background: 'transparent', border: 'none',
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: t.iconColor, borderRadius: 6, transition: 'color 0.15s', padding: 0,
+                color: t.iconColor, borderRadius: 4, transition: 'color 0.15s', padding: 0,
                 opacity: disabled ? 0.5 : 1,
               }}
               onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
@@ -148,25 +132,42 @@ export default function PasswordInput({
               <IcoX s={12} />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => { if (!disabled) setVisible(v => !v) }}
-            disabled={disabled}
-            style={{
-              width: 28, height: 28, background: 'transparent', border: 'none',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              padding: 4,
-              color: visible ? t.accent : t.iconColor,
-              transition: 'color 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 6,
-              opacity: disabled ? 0.5 : 1,
-            }}
-          >
-            <IcoEye s={18} off={!visible} />
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); step_(1); }}
+              disabled={disabled}
+              style={{
+                width: 22, height: 16, background: 'transparent', border: 'none',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
+                opacity: disabled ? 0.5 : 1,
+              }}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.accent }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
+            >
+              <IcoArrowUp s={12} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); step_(-1); }}
+              disabled={disabled}
+              style={{
+                width: 22, height: 16, background: 'transparent', border: 'none',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
+                opacity: disabled ? 0.5 : 1,
+              }}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.accent }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
+            >
+              <IcoArrowDown s={12} />
+            </button>
+          </div>
         </div>
       </div>
-      {showStrength && <StrengthBar value={value} t={t} />}
       {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
     </div>
   );

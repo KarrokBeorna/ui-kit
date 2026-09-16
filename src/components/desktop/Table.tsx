@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { Theme } from '../themes/theme';
-import Modal from './Modal';
-import { IcoChevronUp, IcoChevronDown } from './icons';
-import Checkbox from './Checkbox';
+import type { Theme } from '../../themes/theme';
+import Modal from '../Modal';
+import { IcoChevronUp, IcoChevronDown } from '../icons';
+import Checkbox from '../inputs/Checkbox';
 
 export interface Column<T extends Record<string, any> = any> {
   key: string;

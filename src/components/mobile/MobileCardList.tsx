@@ -1,5 +1,5 @@
 import React, { Fragment } from 'react';
-import type { Theme } from '../themes/theme';
+import type { Theme } from '../../themes/theme';
 
 export interface MobileCardField<T> {
   label: string;

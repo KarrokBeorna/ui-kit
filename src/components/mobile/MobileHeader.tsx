@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import type { Theme, ThemeName } from '../themes/theme';
-import { themes } from '../themes/theme';
-import { IcoLogIn, IcoLogOut, IcoX } from './icons';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { ThemeSwitcher } from './ThemeSwitcher';
+import type { Theme, ThemeName } from '../../themes/theme';
+import { themes } from '../../themes/theme';
+import { IcoLogIn, IcoLogOut, IcoX } from '../icons';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { ThemeSwitcher } from '../ThemeSwitcher';
 
 export interface MobileNavTab {
   id: string;
@@ -26,6 +26,15 @@ export interface MobileHeaderProps {
   currentTheme?: ThemeName;
   onThemeChange?: (t: ThemeName) => void;
   showThemeSwitcher?: boolean;
+
+  /**
+   * Внешнее управление открытием drawer'а.
+   * Если передано вместе с onOpenChange — используется вместо
+   * внутреннего useState, что позволяет сохранять состояние между
+   * перемонтированиями (например, при навигации между страницами).
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function MobileHeader({
@@ -42,8 +51,18 @@ export function MobileHeader({
   currentTheme,
   onThemeChange,
   showThemeSwitcher = false,
+  open: externalOpen,
+  onOpenChange,
 }: MobileHeaderProps) {
-  const [open, setOpen] = useState(false);
+  // Внутреннее состояние — фолбэк, если внешнее не передано.
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const open = externalOpen ?? internalOpen;
+  const setOpen = (v: boolean) => {
+    if (onOpenChange) onOpenChange(v);
+    else setInternalOpen(v);
+  };
+
   useBodyScrollLock(open);
 
   const visibleTabs = navTabs.filter((tab) =>

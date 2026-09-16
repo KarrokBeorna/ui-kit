@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import type { Theme } from '../themes/theme';
-import DateTimePicker from './DateTimePicker';
-import SearchableSelect from './SearchableSelect';
-import Button from './Button';
+import DateTimePicker from './inputs/DateTimePicker';
+import SearchableSelect from './inputs/SearchableSelect';
+import Button from './inputs/Button';
 import { useResponsive } from '../context/ResponsiveContext';
 
 export interface TemplateOption {

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Theme, ThemeName } from '../themes/theme';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { IcoLogIn } from './icons';
-import PasswordInput from './PasswordInput';
-import TextInput, { TextInputType } from './TextInput';
+import PasswordInput from './inputs/PasswordInput';
+import TextInput, { TextInputType } from './inputs/TextInput';
 import { useResponsive } from '../context/ResponsiveContext';
 
 interface AuthPageProps {

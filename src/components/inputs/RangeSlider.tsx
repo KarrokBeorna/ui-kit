@@ -1,7 +1,7 @@
 // RangeSlider.tsx
 import { useState, useRef } from 'react'
-import type { Theme } from '../themes/theme'
-import { IcoX } from './icons'
+import type { Theme } from '../../themes/theme'
+import { IcoX } from '../icons'
 
 // ─── Single-value mode ───────────────────────────────────────────────────────
 interface SingleProps {

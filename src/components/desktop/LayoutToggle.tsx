@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import type { Theme } from '../themes/theme';
-import {IcoHorHeader, IcoVerHeader} from "./icons";
+import type { Theme } from '../../themes/theme';
+import {IcoHorHeader, IcoVerHeader} from "../icons";
 
 export type LayoutMode = "horizontal" | "vertical";
 

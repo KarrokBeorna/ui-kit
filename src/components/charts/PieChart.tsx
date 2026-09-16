@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Theme } from '../themes/theme';
-import { useResponsive } from '../context/ResponsiveContext';
-import { useResizeObserver } from '../hooks/useResizeObserver';
+import { Theme } from '../../themes/theme';
+import { useResponsive } from '../../context/ResponsiveContext';
+import { useResizeObserver } from '../../hooks/useResizeObserver';
 
 // ─── Типы данных ──────────────────────────────────────────────
 

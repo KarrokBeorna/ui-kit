@@ -1,5 +1,5 @@
-import type { Theme } from '../themes/theme';
-import { IcoChevronLeft, IcoChevronRight } from './icons';
+import type { Theme } from '../../themes/theme';
+import { IcoChevronLeft, IcoChevronRight } from '../icons';
 
 export interface MobilePaginationProps {
   t: Theme;

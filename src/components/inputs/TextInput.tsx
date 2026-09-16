@@ -1,6 +1,6 @@
 import { forwardRef, useState, useId, useRef, type ForwardedRef } from 'react';
-import type { Theme } from '../themes/theme';
-import { IcoX } from './icons';
+import type { Theme } from '../../themes/theme';
+import { IcoX } from '../icons';
 
 export type TextInputType = 'text' | 'email' | 'tel';
 
