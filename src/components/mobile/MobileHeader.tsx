@@ -152,223 +152,203 @@ export function MobileHeader({
         </div>
       </header>
 
-      {/* ── Drawer ─────────────────────────────────────── */}
-      {open && (
-        <div
-          onClick={() => setOpen(false)}
-          role="presentation"
+      {/* ── Drawer ─────────────────────────────────────── *
+       * Всегда в DOM. Видимость управляется transform + opacity,
+       * а не условным рендером и не CSS-анимацией.
+       * Так drawer не «прыгает» при перемонтировании MobileHeader
+       * во время навигации между страницами. */}
+      <div
+        onClick={() => setOpen(false)}
+        role="presentation"
+        aria-hidden={!open}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.5)',
+          zIndex: 1000,
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+          transition: 'opacity 0.2s ease',
+        }}
+      >
+        <aside
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
           style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 1000,
-            animation: 'kbs-fade-in 0.2s ease',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: '82%',
+            maxWidth: 340,
+            background: t.bgSurface,
+            color: t.text,
+            display: 'flex',
+            flexDirection: 'column',
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            boxShadow: t.shadowLg,
+            transform: open ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+            willChange: 'transform',
           }}
         >
-          <aside
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
+          {/* Шапка drawer */}
+          <div
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              bottom: 0,
-              width: '82%',
-              maxWidth: 340,
-              background: t.bgSurface,
-              color: t.text,
               display: 'flex',
-              flexDirection: 'column',
-              paddingTop: 'env(safe-area-inset-top, 0px)',
-              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-              boxShadow: t.shadowLg,
-              animation: 'kbs-slide-in 0.25s cubic-bezier(0.4,0,0.2,1)',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderBottom: `1px solid ${t.border}`,
+              flexShrink: 0,
             }}
           >
-            {/* Шапка drawer */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '14px 16px',
-                borderBottom: `1px solid ${t.border}`,
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    background: t.accent,
-                    borderRadius: 9,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 15,
-                    color: t.accentText,
-                    fontWeight: 700,
-                  }}
-                >
-                  {logoSvg}
-                </div>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>{siteName}</span>
-              </div>
-              <button
-                type="button"
-                aria-label="Закрыть меню"
-                onClick={() => setOpen(false)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: t.iconColor,
-                  padding: 0,
-                  cursor: 'pointer',
+                  width: 30,
+                  height: 30,
+                  background: t.accent,
+                  borderRadius: 9,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  minWidth: 40,
-                  minHeight: 40,
-                  borderRadius: 8,
+                  fontSize: 15,
+                  color: t.accentText,
+                  fontWeight: 700,
                 }}
               >
-                <IcoX s={18} />
-              </button>
+                {logoSvg}
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>{siteName}</span>
             </div>
+            <button
+              type="button"
+              aria-label="Закрыть меню"
+              onClick={() => setOpen(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: t.iconColor,
+                padding: 0,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 40,
+                minHeight: 40,
+                borderRadius: 8,
+              }}
+            >
+              <IcoX s={18} />
+            </button>
+          </div>
 
-            {/* Навигация */}
-            <nav style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
-              {visibleTabs.map((tab) => {
-                const active = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => go(tab.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      width: '100%',
-                      minHeight: touchTarget,
-                      padding: '12px 16px',
-                      marginBottom: 4,
-                      background: active ? t.accent : 'transparent',
-                      color: active ? t.accentText : t.text,
-                      border: 'none',
-                      borderRadius: 10,
-                      textAlign: 'left',
-                      fontSize: 15,
-                      fontFamily: 'inherit',
-                      fontWeight: active ? 600 : 400,
-                      cursor: 'pointer',
-                      boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
-                    }}
-                  >
-                    <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.icon}</span>
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            {/* Переключатель темы */}
-            {showThemeSwitcher && currentTheme && onThemeChange && (
-              <div
-                style={{
-                  padding: 14,
-                  borderTop: `1px solid ${t.border}`,
-                  flexShrink: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                <div
+          {/* Навигация */}
+          <nav style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+            {visibleTabs.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => go(tab.id)}
                   style={{
-                    fontSize: 11,
-                    color: t.textMuted,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.07em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    width: '100%',
+                    minHeight: touchTarget,
+                    padding: '12px 16px',
+                    marginBottom: 4,
+                    background: active ? t.accent : 'transparent',
+                    color: active ? t.accentText : t.text,
+                    border: 'none',
+                    borderRadius: 10,
+                    textAlign: 'left',
+                    fontSize: 15,
+                    fontFamily: 'inherit',
+                    fontWeight: active ? 600 : 400,
+                    cursor: 'pointer',
+                    boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
                   }}
                 >
-                  Тема
-                </div>
-                <ThemeSwitcher
-                  theme={currentTheme}
-                  onChange={onThemeChange}
-                  t={t}
-                  compact
-                  stretch
-                  minButtonHeight={44}
-                />
-              </div>
-            )}
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-            {/* Логин/логаут */}
+          {/* Переключатель темы */}
+          {showThemeSwitcher && currentTheme && onThemeChange && (
             <div
               style={{
                 padding: 14,
                 borderTop: `1px solid ${t.border}`,
                 flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
               }}
             >
-              {isLoggedIn ? (
-                <>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: t.textMuted,
-                      marginBottom: 10,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {userName}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      onSignOut();
-                    }}
-                    style={{
-                      width: '100%',
-                      minHeight: touchTarget,
-                      padding: '12px 16px',
-                      background: t.danger,
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: 10,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      fontFamily: 'inherit',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <IcoLogOut s={16} /> Выйти
-                  </button>
-                </>
-              ) : (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: t.textMuted,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.07em',
+                }}
+              >
+                Тема
+              </div>
+              <ThemeSwitcher
+                theme={currentTheme}
+                onChange={onThemeChange}
+                t={t}
+                compact
+                stretch
+                minButtonHeight={44}
+              />
+            </div>
+          )}
+
+          {/* Логин/логаут */}
+          <div
+            style={{
+              padding: 14,
+              borderTop: `1px solid ${t.border}`,
+              flexShrink: 0,
+            }}
+          >
+            {isLoggedIn ? (
+              <>
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: t.textMuted,
+                    marginBottom: 10,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {userName}
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    onSignIn();
+                    onSignOut();
                   }}
                   style={{
                     width: '100%',
                     minHeight: touchTarget,
                     padding: '12px 16px',
-                    background: t.accent,
-                    color: t.accentText,
+                    background: t.danger,
+                    color: '#ffffff',
                     border: 'none',
                     borderRadius: 10,
                     fontSize: 15,
@@ -379,27 +359,43 @@ export function MobileHeader({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    boxShadow: `0 2px 16px ${t.accentGlow}`,
                   }}
                 >
-                  <IcoLogIn s={16} /> Войти
+                  <IcoLogOut s={16} /> Выйти
                 </button>
-              )}
-            </div>
-          </aside>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes kbs-fade-in {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes kbs-slide-in {
-          from { transform: translateX(-100%); }
-          to   { transform: translateX(0); }
-        }
-      `}</style>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onSignIn();
+                }}
+                style={{
+                  width: '100%',
+                  minHeight: touchTarget,
+                  padding: '12px 16px',
+                  background: t.accent,
+                  color: t.accentText,
+                  border: 'none',
+                  borderRadius: 10,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: `0 2px 16px ${t.accentGlow}`,
+                }}
+              >
+                <IcoLogIn s={16} /> Войти
+              </button>
+            )}
+          </div>
+        </aside>
+      </div>
     </>
   );
 }
