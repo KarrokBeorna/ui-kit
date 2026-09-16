@@ -64,3 +64,23 @@
 
 ## 1.2.4 - Mobile
 - MobileHeader.tsx - Пропы open / onOpenChange, фолбэк на локальный useState
+
+## 1.3.0 — Reusable hooks moved into UI-Kit
+
+### Added
+- `useSort` — многоуровневая сортировка для `<Table>`.
+- `usePersistedTableColumns` — порядок/видимость колонок с персистом.
+- `useTabNavigation(navigate)` — обёртка над navigate без зависимости от роутера.
+- `useAuthActions({ logout, navigate })` — обёртки над входом/выходом
+  с инжекцией действий, без привязки к react-router и к конкретному AuthContext.
+
+### Migration (для сервисов на UI-Kit ≥ 1.3.0)
+Удаление локальных файлов:
+- `src/hooks/useSort.ts`
+- `src/hooks/usePersistedTableColumns.ts`
+- `src/hooks/useNavigation.ts`
+- `src/hooks/useAuthActions.ts`
+
+Импорт из `@kbs/ui-kit`.
+
+Для `useNavigation` / `useAuthActions` — небольшая адаптация вызовов

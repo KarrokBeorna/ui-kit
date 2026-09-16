@@ -52,6 +52,17 @@ export { useMediaQuery } from './hooks/useMediaQuery';
 export { useBodyScrollLock } from './hooks/useBodyScrollLock';
 export { useResizeObserver } from './hooks/useResizeObserver';
 
+export { useSort } from './hooks/useSort';
+export type { SortState, SortDirection } from './hooks/useSort';
+
+export { usePersistedTableColumns } from './hooks/usePersistedTableColumns';
+export type { UsePersistedTableColumnsOptions } from './hooks/usePersistedTableColumns';
+
+export { useTabNavigation } from './hooks/useTabNavigation';
+
+export { useAuthActions } from './hooks/useAuthActions';
+export type { UseAuthActionsOptions } from './hooks/useAuthActions';
+
 export * from './components/icons';
 
 export { themes } from './themes/theme';
