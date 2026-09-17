@@ -47,6 +47,18 @@ interface FilterBarProps {
    * На десктопе игнорируется — используется высота контента.
    */
   mobileMaxHeight?: string;
+  /**
+   * Может ли тело фильтров стать скроллируемым.
+   * На мобиле всегда true (нельзя переопределить) — иначе панель
+   * не помещается в viewport.
+   * На десктопе по умолчанию true (высота = высота содержимого).
+   * Если false — высота тела не ограничивается, панель занимает
+   * столько места, сколько нужно контенту. Удобно, когда фильтры
+   * на странице всегда помещаются и «прыжков» при разворачивании
+   * быть не должно.
+   * @default true
+   */
+  scrollable?: boolean;
 }
 
 export function FilterBar({
@@ -66,6 +78,7 @@ export function FilterBar({
   gridCols = 1,
   globalEnter = false,
   mobileMaxHeight,
+  scrollable = true,
 }: FilterBarProps) {
   const { isMobile } = useResponsive();
   const effectiveCols = isMobile ? 1 : gridCols;
@@ -161,10 +174,14 @@ export function FilterBar({
   // ── Высота скролл-контейнера тела ────────────────────
   // На десктопе — точная высота контента (max-height = 0, если свёрнуто).
   // На мобиле — ограничиваем viewport'ом, чтобы панель стала скроллируемой.
-  const maxBodyHeight: string | number = open
-    ? isMobile
-      ? `min(${bodyH || 600}px, ${mobileMaxHeight ?? 'calc(100dvh - 140px)'})`
-      : `${bodyH || 600}px`
+  const isScrollable = isMobile ? true : scrollable;
+
+  const maxBodyHeight: string | number | undefined = open
+    ? isScrollable
+      ? isMobile
+        ? `min(${bodyH || 600}px, ${mobileMaxHeight ?? 'calc(100dvh - 140px)'})`
+        : `${bodyH || 600}px`
+      : undefined
     : 0;
 
   return (
@@ -274,7 +291,7 @@ export function FilterBar({
         ref={bodyRef}
         style={{
           maxHeight: maxBodyHeight,
-          overflow: open ? 'auto' : 'hidden',
+          overflow: open ? (isScrollable ? 'auto' : 'visible') : 'hidden',
           overscrollBehavior: 'contain',
           transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)',
           WebkitOverflowScrolling: 'touch',
