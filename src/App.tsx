@@ -352,6 +352,7 @@ function App() {
             }}
             onExport={() => {}}
             gridCols={3}
+            scrollable={false}
           />
         </section>
 

@@ -51,11 +51,10 @@ interface FilterBarProps {
    * Может ли тело фильтров стать скроллируемым.
    * На мобиле всегда true (нельзя переопределить) — иначе панель
    * не помещается в viewport.
-   * На десктопе по умолчанию true (высота = высота содержимого).
-   * Если false — высота тела не ограничивается, панель занимает
-   * столько места, сколько нужно контенту. Удобно, когда фильтры
-   * на странице всегда помещаются и «прыжков» при разворачивании
-   * быть не должно.
+   * На десктопе:
+   *  - true  — тело скроллится, если контент выше max-height (по умолчанию);
+   *  - false — тело никогда не скроллится; при раскрытии контент
+   *            «проявляется» по мере роста max-height, scrollbar не появляется.
    * @default true
    */
   scrollable?: boolean;
@@ -176,12 +175,10 @@ export function FilterBar({
   // На мобиле — ограничиваем viewport'ом, чтобы панель стала скроллируемой.
   const isScrollable = isMobile ? true : scrollable;
 
-  const maxBodyHeight: string | number | undefined = open
-    ? isScrollable
-      ? isMobile
-        ? `min(${bodyH || 600}px, ${mobileMaxHeight ?? 'calc(100dvh - 140px)'})`
-        : `${bodyH || 600}px`
-      : undefined
+  const maxBodyHeight: string | number = open
+    ? isMobile
+      ? `min(${bodyH || 600}px, ${mobileMaxHeight ?? 'calc(100dvh - 140px)'})`
+      : `${bodyH || 600}px`
     : 0;
 
   return (
@@ -291,7 +288,11 @@ export function FilterBar({
         ref={bodyRef}
         style={{
           maxHeight: maxBodyHeight,
-          overflow: open ? (isScrollable ? 'auto' : 'visible') : 'hidden',
+          overflow: open
+            ? isScrollable
+              ? 'auto'    // как было: скроллим, если не влезает
+              : 'hidden'  // скролл выключен, контент клипается
+            : 'hidden',   // в свёрнутом всегда hidden
           overscrollBehavior: 'contain',
           transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)',
           WebkitOverflowScrolling: 'touch',

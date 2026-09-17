@@ -6,6 +6,6 @@ import { ResponsiveDemo } from './App2';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ResponsiveDemo  />
+    <App  />
   </React.StrictMode>
 )
