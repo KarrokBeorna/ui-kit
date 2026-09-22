@@ -13,6 +13,7 @@ export { default as Table } from './components/desktop/Table';
 export { default as Modal } from './components/Modal';
 export { default as Badge } from './components/inputs/Badge';
 export { default as Button } from './components/inputs/Button';
+export { default as StatCard } from './components/StatCard';
 
 export { AuthPage } from './components/AuthPage';
 export { ThemeSwitcher } from './components/ThemeSwitcher';
