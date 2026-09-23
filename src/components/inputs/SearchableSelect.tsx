@@ -103,6 +103,7 @@ export default function SearchableSelect({
   const dropdownContent = open && !disabled && (
     <div
       ref={dropdownRef}
+      data-dropdown="true"
       style={{
         ...dropdownStyle,
         background: t.dropdownBg,
