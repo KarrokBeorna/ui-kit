@@ -4,7 +4,7 @@ import {Theme} from '../../themes/theme';
 interface ButtonProps {
   icon?: React.ReactNode;
   children?: string;
-  variant: 'primary' | 'danger';
+  variant: 'primary' | 'danger' | 'success';
   outline?: boolean;
   size?: 'sm' | 'md';
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -30,26 +30,60 @@ export default function Button({
 }: ButtonProps) {
   const isPrimary = variant === 'primary';
   const isDanger = variant === 'danger';
+  const isSuccess = variant === 'success';
 
-  // Цвета в зависимости от варианта и заливки
   const getColors = () => {
-    if (outline) {
-      return {
-        background: 'transparent',
-        color: isPrimary ? theme.accent : theme.danger,
-        border: `1px solid ${isPrimary ? theme.accent : theme.danger}`,
-        hoverBackground: isPrimary ? `${theme.accent}15` : `${theme.danger}15`,
-        hoverOpacity: 1,
-      };
-    } else {
-      return {
-        background: isPrimary ? theme.accent : theme.danger,
-        color: isPrimary ? theme.accentText : '#ffffff',
-        border: 'none',
-        hoverBackground: undefined,
-        hoverOpacity: 0.85,
-      };
+    if (isDanger) {
+      return outline
+        ? {
+            background: 'transparent',
+            color: theme.danger,
+            border: `1px solid ${theme.danger}`,
+            hoverBackground: `${theme.danger}15`,
+            hoverOpacity: 1,
+          }
+        : {
+            background: theme.danger,
+            color: '#ffffff',
+            border: 'none',
+            hoverBackground: undefined,
+            hoverOpacity: 0.85,
+          };
     }
+
+    if (isSuccess) {
+      return outline
+        ? {
+            background: 'transparent',
+            color: `${theme.success}`,
+            border: `1px solid ${theme.success}`,
+            hoverBackground: `${theme.success}15`,
+            hoverOpacity: 1,
+          }
+        : {
+            background: `${theme.success}`,
+            color: '#ffffff',
+            border: 'none',
+            hoverBackground: undefined,
+            hoverOpacity: 0.85,
+          };
+    }
+
+    return outline
+      ? {
+          background: 'transparent',
+          color: theme.accent,
+          border: `1px solid ${theme.accent}`,
+          hoverBackground: `${theme.accent}15`,
+          hoverOpacity: 1,
+        }
+      : {
+          background: theme.accent,
+          color: theme.accentText,
+          border: 'none',
+          hoverBackground: undefined,
+          hoverOpacity: 0.85,
+        };
   };
 
   const colors = getColors();

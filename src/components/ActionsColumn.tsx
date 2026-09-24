@@ -9,6 +9,9 @@ export interface ActionsColumnOptions<T> {
   /** Показать «редактировать». Если не передан — кнопки нет. */
   onEdit?: (row: T) => void;
 
+  /** Показать «скачать». Если не передан — кнопки нет. */
+  onDownload?: (row: T) => void;
+
   /** Показать «логи». Если не передан — кнопки нет. */
   onLog?: (row: T) => void;
 
@@ -32,6 +35,7 @@ export interface ActionsColumnOptions<T> {
 
   /** Иконки. */
   editIcon?: React.ReactNode;
+  downloadIcon?: React.ReactNode;
   deleteIcon?: React.ReactNode;
   restoreIcon?: React.ReactNode;
   logIcon?: React.ReactNode;
@@ -42,19 +46,11 @@ export interface ActionsColumnOptions<T> {
   /** Дополнительные кнопки справа от стандартных. */
   extraActions?: (row: T) => React.ReactNode;
 
-  /** Сортировка. По умолчанию false. */
   sortable?: boolean;
 
   /**
    * Мобильный режим. Определяет размер кнопок (sm → md).
-   *
-   * ⚠️ ВАЖНО: если вызываете ActionsColumn внутри useMemo/useCallback,
-   * ОБЯЗАТЕЛЬНО передавайте этот проп явно из useResponsive() в вашем
-   * компоненте. Если не передать — значение будет прочитано через
-   * window.matchMedia синхронно, но без подписки на изменение ширины.
-   *
-   * ActionsColumn — не хук, поэтому НЕ вызывайте её через useResponsive
-   * внутри неё. Это ломает правила хуков.
+   * Передавайте явно из useResponsive() при использовании в useMemo.
    */
   isMobile?: boolean;
 
@@ -70,24 +66,12 @@ export interface ActionsColumnOptions<T> {
  *
  * ⚠️ Это НЕ хук. Хуки внутри неё не вызываются.
  * Если нужен адаптив — передайте `isMobile` явно.
- *
- * Пример:
- *   const { isMobile } = useResponsive();
- *
- *   const columns = useMemo(() => [
- *     ...,
- *     ActionsColumn<ScanRecord>({
- *       theme: t,
- *       onEdit: handleEdit,
- *       onDelete: handleDelete,
- *       isMobile,
- *     }),
- *   ], [t, handleEdit, handleDelete, isMobile]);
  */
 export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
   const {
     theme,
     onEdit,
+    onDownload,
     onLog,
     onDelete,
     onRestore,
@@ -95,6 +79,7 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
     key = 'actions',
     header = 'Действия',
     editIcon = '✎',
+    downloadIcon = '⬇',
     logIcon = '⌸',
     deleteIcon = '✕',
     restoreIcon = '⟳',
@@ -103,8 +88,6 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
     buttonSize,
   } = options;
 
-  // Определяем мобильный режим БЕЗ хуков.
-  // Явный проп в приоритете; иначе синхронное чтение matchMedia (SSR-safe).
   const isMobile =
     options.isMobile ??
     (typeof window !== 'undefined' &&
@@ -139,7 +122,7 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
         );
       }
 
-      const nothingToShow = !onEdit && !onLog && !onDelete && !extraActions;
+      const nothingToShow = !onEdit && !onDownload && !onLog && !onDelete && !extraActions;
       if (nothingToShow) return null;
 
       return (
@@ -151,6 +134,16 @@ export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
               outline
               size={size}
               onClick={() => onEdit(row)}
+              theme={theme}
+            />
+          )}
+          {onDownload && (
+            <Button
+              icon={downloadIcon}
+              variant="primary"
+              outline
+              size={size}
+              onClick={() => onDownload(row)}
               theme={theme}
             />
           )}

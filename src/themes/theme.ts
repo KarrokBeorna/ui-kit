@@ -5,19 +5,19 @@ export interface Theme {
   label: string;
 
   // Основные
-  bg: string; // фон страниц
+  bg: string;
   selectedBg: string;
-  bgSurface: string; // фон блоков 1-го уровня - авторизация, заголовок, фильтры, пагинация, Theme Switcher
-  bgSubmit: string; // фон кнопки авторизации после попытки входа во время загрузки
-  text: string; // цвет текста
-  textMuted: string; // цвет неактивного текста
+  bgSurface: string;
+  bgSubmit: string;
+  text: string;
+  textMuted: string;
   accent: string;
   accentText: string;
   accentGlow: string;
   border: string;
   borderSubtle: string;
 
-  // Для старых компонентов (добавлены)
+  // Для старых компонентов
   borderFocus: string;
   placeholder: string;
   labelFloat: string;
@@ -41,6 +41,7 @@ export interface Theme {
   navHoverBg: string;
 
   danger: string;
+  success: string;
 }
 
 export const themes: Record<ThemeName, Theme> = {
@@ -76,6 +77,7 @@ export const themes: Record<ThemeName, Theme> = {
     toggleActive: '#6c8aff',
     navHoverBg: 'rgba(108,138,255,0.1)',
     danger: '#ff6b6b',
+    success: '#4ade80',
   },
   light: {
     name: 'light',
@@ -109,6 +111,7 @@ export const themes: Record<ThemeName, Theme> = {
     toggleActive: '#4361ee',
     navHoverBg: 'rgba(67,97,238,0.08)',
     danger: '#ef4444',
+    success: '#16a34a',
   },
   vibrant: {
     name: 'vibrant',
@@ -142,6 +145,7 @@ export const themes: Record<ThemeName, Theme> = {
     toggleActive: '#e040fb',
     navHoverBg: 'rgba(200,75,255,0.12)',
     danger: '#ff6b9d',
+    success: '#22d3a0',
   },
   ocean: {
     name: 'ocean',
@@ -175,5 +179,6 @@ export const themes: Record<ThemeName, Theme> = {
     toggleActive: '#00d4aa',
     navHoverBg: 'rgba(0,200,255,0.1)',
     danger: '#ff6b6b',
+    success: '#10b981',
   },
 };
