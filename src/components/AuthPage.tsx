@@ -317,6 +317,37 @@ export function AuthPage({
           </button>
         </form>
       </div>
+
+      {/* ── Подпись автора системы ─────────────────────────────── */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 'max(10px, env(safe-area-inset-bottom, 0px))',
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          fontSize: 11,
+          letterSpacing: '0.02em',
+          color: t.textMuted,
+          opacity: 0.6,
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          userSelect: 'text',
+          pointerEvents: 'none',
+          zIndex: 2,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          padding: '0 8px',
+        }}
+      >
+        <span style={{ fontWeight: 600, color: t.text, opacity: 0.9 }}>KBS</span>
+        <span style={{ margin: '0 6px' }}>·</span>
+        <span>АГР Тех</span>
+        <span style={{ margin: '0 6px' }}>·</span>
+        <span>Савельев Дмитрий</span>
+        <span style={{ margin: '0 6px' }}>·</span>
+        <span>© 2026</span>
+      </div>
     </div>
   );
 }
