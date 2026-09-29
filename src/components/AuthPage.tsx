@@ -1,3 +1,4 @@
+// UI Kit
 import { useState, useEffect } from 'react';
 import { Theme, ThemeName } from '../themes/theme';
 import { ThemeSwitcher } from './ThemeSwitcher';
