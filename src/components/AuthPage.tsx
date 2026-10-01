@@ -7,6 +7,8 @@ import PasswordInput from './inputs/PasswordInput';
 import TextInput, { TextInputType } from './inputs/TextInput';
 import { useResponsive } from '../context/ResponsiveContext';
 
+const CREATOR_EMAIL = 'Dmitriy.Savelyev@agr.auto';
+
 interface AuthPageProps {
   t: Theme;
   theme: ThemeName;
@@ -345,7 +347,28 @@ export function AuthPage({
         <span style={{ margin: '0 6px' }}>·</span>
         <span>АГР Тех</span>
         <span style={{ margin: '0 6px' }}>·</span>
-        <span>Савельев Дмитрий</span>
+        <a
+          href={`mailto:${CREATOR_EMAIL}?subject=${encodeURIComponent(`Баг/Предложение по модификации. ${siteName}`)}`}
+          title={`Написать письмо: ${CREATOR_EMAIL}`}
+          style={{
+            color: 'inherit',
+            textDecoration: 'none',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            transition: 'color 0.15s ease',
+            borderBottom: '1px dotted transparent',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = t.accent;
+            e.currentTarget.style.borderBottomColor = t.accent;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'inherit';
+            e.currentTarget.style.borderBottomColor = 'transparent';
+          }}
+        >
+          Савельев Дмитрий
+        </a>
         <span style={{ margin: '0 6px' }}>·</span>
         <span>© 2026</span>
       </div>
