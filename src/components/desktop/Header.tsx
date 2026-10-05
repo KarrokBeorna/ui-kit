@@ -13,14 +13,15 @@ import PasswordInput from '../inputs/PasswordInput';
 export interface NavTabChild {
   id: string;
   label: string;
-  icon?: string;
+  /** Любой React-элемент: эмодзи-строка, SVG, компонент. */
+  icon?: React.ReactNode;
   visible?: (isLoggedIn: boolean) => boolean;
 }
 
 export interface NavTab {
   id: string;
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   visible?: (isLoggedIn: boolean) => boolean;
   /** Под-опции (детей) — превращают вкладку в меню / аккордеон. */
   children?: NavTabChild[];
@@ -53,9 +54,7 @@ interface HeaderBaseProps {
   showMoscowTime?: boolean;
   onPasswordChange?: (oldPassword: string, newPassword: string) => Promise<void> | void;
   /**
-   * Ключ sessionStorage для сохранения состояния навигации
-   * (последний выбранный ребёнок, раскрытые группы).
-   * Должен быть стабильным между перемонтированиями.
+   * Ключ sessionStorage для сохранения состояния навигации.
    * По умолчанию — `kbs-ui-nav`.
    */
   navStateKey?: string;
@@ -67,12 +66,62 @@ interface HeaderBaseProps {
 
 /**
  * Ширина зоны справа от кнопки таба (в px), клик по которой
- * открывает/закрывает выпадающий список. Включает правый padding
- * кнопки + gap + ширину самого шеврона. Не зависит от длины метки.
+ * открывает/закрывает выпадающий список. Не зависит от длины метки.
  */
 const CHEVRON_CLICK_ZONE = 32;
 
 const DEFAULT_NAV_STATE_KEY = 'kbs-ui-nav';
+
+/**
+ * Правило, которое подгоняет ЛЮБОЙ вложенный SVG под font-size
+ * обёртки. Переопределяет presentation-атрибуты width/height у <svg>.
+ */
+const NAV_ICON_CSS = `
+  .kbs-nav-icon svg {
+    width: 1em;
+    height: 1em;
+    display: block;
+    flex-shrink: 0;
+  }
+`;
+
+/* ──────────────────────────────────────────────────────────── */
+/*  NavIcon                                                    */
+/* ──────────────────────────────────────────────────────────── */
+
+/**
+ * Слот для иконки навигации. Унифицирует рендер эмодзи, текстовых
+ * символов, SVG и React-компонентов:
+ *   - для текста/эмодзи работает fontSize;
+ *   - для SVG — CSS заставляет svg принять размер 1em × 1em,
+ *     независимо от его собственных width/height атрибутов.
+ */
+export function NavIcon({
+  size,
+  children,
+}: {
+  size: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className="kbs-nav-icon"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        fontSize: size,
+        lineHeight: 1,
+        flexShrink: 0,
+        color: 'inherit',
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
 /* ──────────────────────────────────────────────────────────── */
 /*  Хелперы                                                    */
@@ -135,18 +184,6 @@ interface PersistedNavState {
   setExpandedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
 
-/**
- * Хранит состояние навигации в sessionStorage, чтобы оно переживало
- * перемонтирование Header'а при переходах между страницами.
- *
- *  - lastSelectedChild — последний выбранный ребёнок каждой группы
- *    (метка и иконка вкладки в режиме 'replace');
- *  - expandedIds — раскрытые группы в VerticalHeader.
- *
- * Также синхронизирует lastSelectedChild с activeTab: если мы пришли
- * на страницу ребёнка извне (deep link / кнопка «назад»), запоминаем
- * этот выбор как последний для его родителя.
- */
 function usePersistedNavState(
   storageKey: string,
   activeTab: string,
@@ -177,7 +214,6 @@ function usePersistedNavState(
     }
   });
 
-  // Персистенция.
   useEffect(() => {
     try { sessionStorage.setItem(lastKey, JSON.stringify(lastSelectedChild)); } catch { /* ignore */ }
   }, [lastKey, lastSelectedChild]);
@@ -462,6 +498,8 @@ export function HorizontalHeader({
 
   return (
     <>
+      <style>{NAV_ICON_CSS}</style>
+
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 56, background: t.bgSurface, borderBottom: `1px solid ${t.border}`, boxShadow: t.shadow, position: 'sticky', top: 0, zIndex: 100, gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ width: 28, height: 28, background: t.accent, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', boxShadow: `0 0 16px ${t.accentGlow}` }}>
@@ -483,12 +521,6 @@ export function HorizontalHeader({
             const { label: displayLabel, icon: displayIcon, targetChildId } =
               resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
 
-            /**
-             * Одна кнопка — обычные углы 8px, без «шва».
-             * Клик в правой chevron-зоне → тумблер меню.
-             * Клик в остальной части → переход на последнюю выбранную страницу
-             * (или открытие меню, если пользователь ещё ничего не выбирал).
-             */
             const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
               if (!hasChildren) {
                 onTabChange(tab.id);
@@ -526,7 +558,7 @@ export function HorizontalHeader({
                   onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
                   onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
                 >
-                  <span style={{ fontSize: 15, lineHeight: 1 }}>{displayIcon}</span>
+                  <NavIcon size={15}>{displayIcon}</NavIcon>
                   <span>{displayLabel}</span>
                   {hasChildren && (
                     <span
@@ -590,7 +622,7 @@ export function HorizontalHeader({
                           onMouseEnter={(e) => { if (!childActive) e.currentTarget.style.background = t.navHoverBg; }}
                           onMouseLeave={(e) => { if (!childActive) e.currentTarget.style.background = 'transparent'; }}
                         >
-                          {child.icon && <span style={{ fontSize: 15, lineHeight: 1 }}>{child.icon}</span>}
+                          {child.icon && <NavIcon size={15}>{child.icon}</NavIcon>}
                           <span>{child.label}</span>
                         </button>
                       );
@@ -657,7 +689,6 @@ export function HorizontalHeader({
 /*  VerticalHeader                                              */
 /* ──────────────────────────────────────────────────────────── */
 
-/** Минимальная ширина развёрнутого VerticalHeader. */
 const VERTICAL_MIN_WIDTH = 200;
 const VERTICAL_EXPANDED_WIDTH = 220;
 const VERTICAL_COLLAPSED_WIDTH = 64;
@@ -687,20 +718,12 @@ export function VerticalHeader({
   const { lastSelectedChild, setLastSelectedChild, expandedIds, setExpandedIds } =
     usePersistedNavState(navStateKey, activeTab, navTabs);
 
-  /**
-   * Родители, которые пользователь закрыл вручную. Не даём
-   * авто-эффекту тут же их переоткрыть. Сбрасывается при смене activeTab.
-   */
   const userClosedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     userClosedRef.current = new Set();
   }, [activeTab]);
 
-  /**
-   * Автораскрытие родителя активного ребёнка. Только добавление —
-   * перемонтирование Header'а не «сворачивает» уже открытые группы.
-   */
   useEffect(() => {
     setExpandedIds((prev) => {
       let next: Set<string> | null = null;
@@ -737,222 +760,218 @@ export function VerticalHeader({
   );
 
   return (
-    <aside
-      style={{
-        width: w,
-        minWidth: collapsed ? VERTICAL_COLLAPSED_WIDTH : VERTICAL_MIN_WIDTH,
-        height: '100%',
-        background: t.bgSurface,
-        borderRight: `1px solid ${t.border}`,
-        boxShadow: t.shadow,
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'width 0.32s cubic-bezier(0.4,0,0.2,1)',
-        overflow: 'hidden',
-        flexShrink: 0,
-      }}
-    >
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'space-between',
-        padding: collapsed ? '18px 0' : '16px 16px 16px 18px',
-        borderBottom: `1px solid ${t.borderSubtle}`,
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, overflow: 'hidden' }}>
-          <div style={{ width: 30, height: 30, background: t.accent, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: t.accentText, fontWeight: 700, flexShrink: 0, boxShadow: `0 0 16px ${t.accentGlow}` }}>
-            {logoSvg}
-          </div>
-          <span style={{ fontFamily: 'system-ui', fontWeight: 700, fontSize: 15, color: t.text, letterSpacing: '-0.01em', whiteSpace: 'nowrap', opacity: collapsed ? 0 : 1, maxWidth: collapsed ? 0 : 120, transition: 'opacity 0.2s, max-width 0.32s cubic-bezier(0.4,0,0.2,1)', overflow: 'hidden' }}>
-            {siteName}
-          </span>
-        </div>
-        {!collapsed && (
-          <button onClick={() => setCollapsed(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', padding: 4, borderRadius: 6, transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; }}>
-            <IcoChevronLeft s={16} />
-          </button>
-        )}
-      </div>
+    <>
+      <style>{NAV_ICON_CSS}</style>
 
-      <nav
+      <aside
         style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          padding: '10px 8px',
+          width: w,
+          minWidth: collapsed ? VERTICAL_COLLAPSED_WIDTH : VERTICAL_MIN_WIDTH,
+          height: '100%',
+          background: t.bgSurface,
+          borderRight: `1px solid ${t.border}`,
+          boxShadow: t.shadow,
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
+          transition: 'width 0.32s cubic-bezier(0.4,0,0.2,1)',
+          overflow: 'hidden',
+          flexShrink: 0,
         }}
       >
-        {collapsed && (
-          <button onClick={() => setCollapsed(false)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 36, marginBottom: 6, borderRadius: 8, border: 'none', background: 'transparent', color: t.textMuted, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; }}>
-            <IcoChevronRight s={16} />
-          </button>
-        )}
-
-        {visibleTabs.map((tab) => {
-          const children = filterChildren(tab, isLoggedIn);
-          const hasChildren = children.length > 0;
-          const activeChild = hasChildren ? children.find((c) => c.id === activeTab) : undefined;
-          const active = activeTab === tab.id || !!activeChild;
-          const expanded = expandedIds.has(tab.id);
-
-          const { label: displayLabel, icon: displayIcon, targetChildId } =
-            resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
-
-          /**
-           * Логика клика (треб. #4):
-           *   - свёрнутый сайдбар → развернуть + раскрыть группу;
-           *   - клик в chevron-зоне → тумблер группы;
-           *   - группа закрыта + main-click → раскрыть (без навигации);
-           *   - группа раскрыта + main-click → переход на отображаемую страницу.
-           */
-          const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-            if (collapsed) {
-              setCollapsed(false);
-              if (hasChildren) {
-                setExpandedIds((prev) => new Set([...prev, tab.id]));
-              }
-              return;
-            }
-            if (!hasChildren) {
-              onTabChange(tab.id);
-              return;
-            }
-            if (isChevronClick(e)) {
-              toggleExpanded(tab.id);
-              return;
-            }
-            if (!expanded) {
-              setExpandedIds((prev) => new Set([...prev, tab.id]));
-              return;
-            }
-            const target = resolveMainTarget(tab, children, targetChildId);
-            onTabChange(target);
-          };
-
-          return (
-            <div key={tab.id}>
-              <button
-                onClick={handleClick}
-                title={collapsed ? tab.label : undefined}
-                style={{
-                  display: 'flex', alignItems: 'center',
-                  gap: collapsed ? 0 : 10,
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                  padding: collapsed ? '8px' : '9px 12px',
-                  borderRadius: 9, border: 'none', cursor: 'pointer',
-                  fontSize: 13.5, fontFamily: 'system-ui',
-                  fontWeight: active ? 600 : 400,
-                  color: active ? t.accentText : t.textMuted,
-                  background: active ? t.accent : 'transparent',
-                  transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
-                  whiteSpace: 'nowrap', overflow: 'hidden',
-                  boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
-                  width: '100%',
-                }}
-                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
-                onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
-              >
-                <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{displayIcon}</span>
-                <span style={{
-                  opacity: collapsed ? 0 : 1,
-                  width: collapsed ? 0 : 'auto',
-                  overflow: 'hidden',
-                  transition: 'opacity 0.18s',
-                  whiteSpace: 'nowrap',
-                  flex: 1,
-                  textAlign: 'left',
-                }}>{displayLabel}</span>
-                {hasChildren && !collapsed && (
-                  <span
-                    aria-hidden
-                    style={{
-                      display: 'flex', flexShrink: 0, color: 'inherit',
-                      transform: expanded ? 'rotate(90deg)' : 'none',
-                      transition: 'transform 0.2s',
-                      opacity: 0.85,
-                    }}
-                  >
-                    <IcoChevronRight s={12} />
-                  </span>
-                )}
-              </button>
-
-              {hasChildren && expanded && !collapsed && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 22, marginTop: 2, marginBottom: 4 }}>
-                  {children.map((child) => {
-                    const childActive = activeTab === child.id;
-                    return (
-                      <button
-                        key={child.id}
-                        onClick={() => {
-                          setLastSelectedChild((prev) => ({ ...prev, [tab.id]: child.id }));
-                          onTabChange(child.id);
-                          // Намеренно НЕ трогаем expandedIds — треб. #3.
-                        }}
-                        title={child.label}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '7px 10px', borderRadius: 7, border: 'none',
-                          cursor: 'pointer', fontSize: 13, fontFamily: 'system-ui',
-                          fontWeight: childActive ? 600 : 400,
-                          color: childActive ? t.accent : t.textMuted,
-                          background: childActive ? t.selectedBg : 'transparent',
-                          textAlign: 'left', whiteSpace: 'nowrap',
-                          overflow: 'hidden', textOverflow: 'ellipsis',
-                          transition: 'all 0.15s',
-                          width: '100%',
-                        }}
-                        onMouseEnter={(e) => { if (!childActive) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
-                        onMouseLeave={(e) => { if (!childActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
-                      >
-                        {child.icon && <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{child.icon}</span>}
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{child.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'space-between',
+          padding: collapsed ? '18px 0' : '16px 16px 16px 18px',
+          borderBottom: `1px solid ${t.borderSubtle}`,
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, overflow: 'hidden' }}>
+            <div style={{ width: 30, height: 30, background: t.accent, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: t.accentText, fontWeight: 700, flexShrink: 0, boxShadow: `0 0 16px ${t.accentGlow}` }}>
+              {logoSvg}
             </div>
-          );
-        })}
-      </nav>
-
-      {!collapsed && (showLayoutToggle || showThemeSwitcher) && (
-        <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, display: 'flex', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
-          {showLayoutToggle && layoutMode && onLayoutChange && (
-            <LayoutToggle mode={layoutMode} onChange={onLayoutChange} theme={t} />
-          )}
-          {showThemeSwitcher && currentTheme && onThemeChange && (
-            <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact />
+            <span style={{ fontFamily: 'system-ui', fontWeight: 700, fontSize: 15, color: t.text, letterSpacing: '-0.01em', whiteSpace: 'nowrap', opacity: collapsed ? 0 : 1, maxWidth: collapsed ? 0 : 120, transition: 'opacity 0.2s, max-width 0.32s cubic-bezier(0.4,0,0.2,1)', overflow: 'hidden' }}>
+              {siteName}
+            </span>
+          </div>
+          {!collapsed && (
+            <button onClick={() => setCollapsed(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', padding: 4, borderRadius: 6, transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; }}>
+              <IcoChevronLeft s={16} />
+            </button>
           )}
         </div>
-      )}
 
-      <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-        {showMoscowTime && <MoscowTimeWidget t={t} stacked={collapsed} />}
-        {isLoggedIn ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgSurface, overflow: 'hidden', width: '90%' }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', flexShrink: 0 }}>{userName?.[0]?.toUpperCase()}</div>
-            <div style={{ flex: 1, overflow: 'hidden', opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
-            </div>
-            {!collapsed && (
-              <button onClick={onSignOut} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', padding: 4, borderRadius: 6, flexShrink: 0, transition: 'color 0.15s' }} title="Sign out" onMouseEnter={e => e.currentTarget.style.color = t.danger} onMouseLeave={e => e.currentTarget.style.color = t.textMuted}>
-                <IcoLogOut s={15} />
-              </button>
+        <nav
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '10px 8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          {collapsed && (
+            <button onClick={() => setCollapsed(false)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 36, marginBottom: 6, borderRadius: 8, border: 'none', background: 'transparent', color: t.textMuted, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; }}>
+              <IcoChevronRight s={16} />
+            </button>
+          )}
+
+          {visibleTabs.map((tab) => {
+            const children = filterChildren(tab, isLoggedIn);
+            const hasChildren = children.length > 0;
+            const activeChild = hasChildren ? children.find((c) => c.id === activeTab) : undefined;
+            const active = activeTab === tab.id || !!activeChild;
+            const expanded = expandedIds.has(tab.id);
+
+            const { label: displayLabel, icon: displayIcon, targetChildId } =
+              resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
+
+            const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+              if (collapsed) {
+                setCollapsed(false);
+                if (hasChildren) {
+                  setExpandedIds((prev) => new Set([...prev, tab.id]));
+                }
+                return;
+              }
+              if (!hasChildren) {
+                onTabChange(tab.id);
+                return;
+              }
+              if (isChevronClick(e)) {
+                toggleExpanded(tab.id);
+                return;
+              }
+              if (!expanded) {
+                setExpandedIds((prev) => new Set([...prev, tab.id]));
+                return;
+              }
+              const target = resolveMainTarget(tab, children, targetChildId);
+              onTabChange(target);
+            };
+
+            return (
+              <div key={tab.id}>
+                <button
+                  onClick={handleClick}
+                  title={collapsed ? tab.label : undefined}
+                  style={{
+                    display: 'flex', alignItems: 'center',
+                    gap: collapsed ? 0 : 10,
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    padding: collapsed ? '8px' : '9px 12px',
+                    borderRadius: 9, border: 'none', cursor: 'pointer',
+                    fontSize: 13.5, fontFamily: 'system-ui',
+                    fontWeight: active ? 600 : 400,
+                    color: active ? t.accentText : t.textMuted,
+                    background: active ? t.accent : 'transparent',
+                    transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+                    whiteSpace: 'nowrap', overflow: 'hidden',
+                    boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
+                    width: '100%',
+                  }}
+                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
+                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
+                >
+                  <NavIcon size={17}>{displayIcon}</NavIcon>
+                  <span style={{
+                    opacity: collapsed ? 0 : 1,
+                    width: collapsed ? 0 : 'auto',
+                    overflow: 'hidden',
+                    transition: 'opacity 0.18s',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    textAlign: 'left',
+                  }}>{displayLabel}</span>
+                  {hasChildren && !collapsed && (
+                    <span
+                      aria-hidden
+                      style={{
+                        display: 'flex', flexShrink: 0, color: 'inherit',
+                        transform: expanded ? 'rotate(90deg)' : 'none',
+                        transition: 'transform 0.2s',
+                        opacity: 0.85,
+                      }}
+                    >
+                      <IcoChevronRight s={12} />
+                    </span>
+                  )}
+                </button>
+
+                {hasChildren && expanded && !collapsed && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 22, marginTop: 2, marginBottom: 4 }}>
+                    {children.map((child) => {
+                      const childActive = activeTab === child.id;
+                      return (
+                        <button
+                          key={child.id}
+                          onClick={() => {
+                            setLastSelectedChild((prev) => ({ ...prev, [tab.id]: child.id }));
+                            onTabChange(child.id);
+                          }}
+                          title={child.label}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '7px 10px', borderRadius: 7, border: 'none',
+                            cursor: 'pointer', fontSize: 13, fontFamily: 'system-ui',
+                            fontWeight: childActive ? 600 : 400,
+                            color: childActive ? t.accent : t.textMuted,
+                            background: childActive ? t.selectedBg : 'transparent',
+                            textAlign: 'left', whiteSpace: 'nowrap',
+                            overflow: 'hidden', textOverflow: 'ellipsis',
+                            transition: 'all 0.15s',
+                            width: '100%',
+                          }}
+                          onMouseEnter={(e) => { if (!childActive) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
+                          onMouseLeave={(e) => { if (!childActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
+                        >
+                          {child.icon && <NavIcon size={14}>{child.icon}</NavIcon>}
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{child.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        {!collapsed && (showLayoutToggle || showThemeSwitcher) && (
+          <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, display: 'flex', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
+            {showLayoutToggle && layoutMode && onLayoutChange && (
+              <LayoutToggle mode={layoutMode} onChange={onLayoutChange} theme={t} />
+            )}
+            {showThemeSwitcher && currentTheme && onThemeChange && (
+              <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact />
             )}
           </div>
-        ) : (
-          <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 8, justifyContent: 'center', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}`, whiteSpace: 'nowrap', overflow: 'hidden' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-            <IcoLogIn s={15} />
-            <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s', overflow: 'hidden' }}>Войти</span>
-          </button>
         )}
-      </div>
-    </aside>
+
+        <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          {showMoscowTime && <MoscowTimeWidget t={t} stacked={collapsed} />}
+          {isLoggedIn ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgSurface, overflow: 'hidden', width: '90%' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', flexShrink: 0 }}>{userName?.[0]?.toUpperCase()}</div>
+              <div style={{ flex: 1, overflow: 'hidden', opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
+              </div>
+              {!collapsed && (
+                <button onClick={onSignOut} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', padding: 4, borderRadius: 6, flexShrink: 0, transition: 'color 0.15s' }} title="Sign out" onMouseEnter={e => e.currentTarget.style.color = t.danger} onMouseLeave={e => e.currentTarget.style.color = t.textMuted}>
+                  <IcoLogOut s={15} />
+                </button>
+              )}
+            </div>
+          ) : (
+            <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 8, justifyContent: 'center', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}`, whiteSpace: 'nowrap', overflow: 'hidden' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              <IcoLogIn s={15} />
+              <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s', overflow: 'hidden' }}>Войти</span>
+            </button>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
