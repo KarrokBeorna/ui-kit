@@ -6,9 +6,9 @@ import { ThemeSwitcher } from '../ThemeSwitcher';
 import Modal from '../Modal';
 import PasswordInput from '../inputs/PasswordInput';
 
-/* ────────────────────────────────────────────────────────────── */
-/*  Типы                                                          */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────── */
+/*  Типы                                                       */
+/* ──────────────────────────────────────────────────────────── */
 
 export interface NavTabChild {
   id: string;
@@ -25,10 +25,8 @@ export interface NavTab {
   /** Под-опции (детей) — превращают вкладку в меню / аккордеон. */
   children?: NavTabChild[];
   /**
-   * Режим отображения в HorizontalHeader при выборе ребёнка:
-   *   'keep'    — общая метка вкладки, дети видны только в меню (по умолчанию);
-   *   'replace' — метка вкладки заменяется на выбранного ребёнка.
-   * В VerticalHeader игнорируется — там всегда общая метка + аккордеон.
+   * 'keep'    — общая метка вкладки (по умолчанию);
+   * 'replace' — метка и иконка вкладки заменяются на выбранного ребёнка.
    */
   displayMode?: 'keep' | 'replace';
 }
@@ -53,19 +51,53 @@ interface HeaderBaseProps {
   currentTheme?: ThemeName;
   onThemeChange?: (theme: ThemeName) => void;
   showMoscowTime?: boolean;
+  /** Вызывается при подтверждении смены пароля. Если не передан — пункт меню скрыт. */
   onPasswordChange?: (oldPassword: string, newPassword: string) => Promise<void> | void;
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/*  Хелперы                                                       */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────── */
+/*  Хелперы                                                    */
+/* ──────────────────────────────────────────────────────────── */
 
 const filterChildren = (tab: NavTab, isLoggedIn: boolean): NavTabChild[] =>
   (tab.children ?? []).filter((c) => (c.visible ? c.visible(isLoggedIn) : true));
 
-/* ────────────────────────────────────────────────────────────── */
-/*  MoscowTimeWidget — БЕЗ ИЗМЕНЕНИЙ                              */
-/* ────────────────────────────────────────────────────────────── */
+/**
+ * Общая логика для Horizontal/Vertical:
+ *  - определяет, кого показывать в родительской кнопке (label + icon);
+ *  - определяет целевого ребёнка для 80 %-клика.
+ *
+ * Приоритет источника для отображения:
+ *   1) активный child (мы реально на его странице);
+ *   2) ранее выбранный child (lastSelectedChild) — чтобы метка не «прыгала»;
+ *   3) сам родитель.
+ */
+function resolveDisplay(
+  tab: NavTab,
+  children: NavTabChild[],
+  activeTab: string,
+  lastSelectedChildId: string | undefined
+) {
+  const activeChild = children.find((c) => c.id === activeTab);
+  const isOwnPage = activeTab === tab.id;
+  const storedChild = lastSelectedChildId
+    ? children.find((c) => c.id === lastSelectedChildId)
+    : undefined;
+
+  const displayChild = activeChild ?? storedChild;
+  const useReplace = tab.displayMode === 'replace' && !isOwnPage;
+
+  return {
+    label: useReplace && displayChild ? displayChild.label : tab.label,
+    icon: useReplace && displayChild ? displayChild.icon ?? tab.icon : tab.icon,
+    targetChildId: displayChild?.id,
+    isReplaceActive: useReplace && !!displayChild,
+  };
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  MoscowTimeWidget                                           */
+/* ──────────────────────────────────────────────────────────── */
 
 function MoscowTimeWidget({ t, stacked = false }: { t: Theme; stacked?: boolean }) {
   const [time, setTime] = useState({ hours: '00', minutes: '00' });
@@ -135,9 +167,9 @@ function MoscowTimeWidget({ t, stacked = false }: { t: Theme; stacked?: boolean 
   );
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/*  ChangePasswordModal — БЕЗ ИЗМЕНЕНИЙ                           */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────── */
+/*  ChangePasswordModal                                        */
+/* ──────────────────────────────────────────────────────────── */
 
 interface ChangePasswordModalProps {
   t: Theme;
@@ -157,18 +189,26 @@ function ChangePasswordModal({ t, isOpen, onClose, onSubmit }: ChangePasswordMod
 
   useEffect(() => {
     if (isOpen) {
-      setOldPassword(''); setNewPassword(''); setConfirmPassword('');
-      setOldError(''); setNewError(''); setConfirmError('');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setOldError('');
+      setNewError('');
+      setConfirmError('');
       setSubmitting(false);
     }
   }, [isOpen]);
 
   const handleSubmit = async () => {
-    setOldError(''); setNewError(''); setConfirmError('');
+    setOldError('');
+    setNewError('');
+    setConfirmError('');
+
     if (!oldPassword) { setOldError('Введите старый пароль'); return; }
     if (!newPassword) { setNewError('Введите новый пароль'); return; }
     if (newPassword.length < 6) { setNewError('Минимум 6 символов'); return; }
     if (newPassword !== confirmPassword) { setConfirmError('Пароли не совпадают'); return; }
+
     try {
       setSubmitting(true);
       await onSubmit(oldPassword, newPassword);
@@ -181,35 +221,70 @@ function ChangePasswordModal({ t, isOpen, onClose, onSubmit }: ChangePasswordMod
   };
 
   const fields = [
-    { row: 0, col: 0, required: true, content: (
-      <PasswordInput label="Старый пароль" theme={t} value={oldPassword}
-        onChange={setOldPassword} error={oldError || undefined}
-        disabled={submitting} showStrength={false} />
-    )},
-    { row: 1, col: 0, required: true, content: (
-      <PasswordInput label="Новый пароль" theme={t} value={newPassword}
-        onChange={setNewPassword} showStrength error={newError || undefined}
-        disabled={submitting} />
-    )},
-    { row: 2, col: 0, required: true, content: (
-      <PasswordInput label="Новый пароль (подтверждение)" theme={t} value={confirmPassword}
-        onChange={setConfirmPassword} error={confirmError || undefined}
-        disabled={submitting} />
-    )},
+    {
+      row: 0, col: 0, required: true,
+      content: (
+        <PasswordInput
+          label="Старый пароль"
+          theme={t}
+          value={oldPassword}
+          onChange={setOldPassword}
+          error={oldError || undefined}
+          disabled={submitting}
+          showStrength={false}
+        />
+      ),
+    },
+    {
+      row: 1, col: 0, required: true,
+      content: (
+        <PasswordInput
+          label="Новый пароль"
+          theme={t}
+          value={newPassword}
+          onChange={setNewPassword}
+          showStrength
+          error={newError || undefined}
+          disabled={submitting}
+        />
+      ),
+    },
+    {
+      row: 2, col: 0, required: true,
+      content: (
+        <PasswordInput
+          label="Новый пароль (подтверждение)"
+          theme={t}
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          error={confirmError || undefined}
+          disabled={submitting}
+        />
+      ),
+    },
   ];
 
   return (
-    <Modal theme={t} isOpen={isOpen} onClose={onClose} onOk={handleSubmit}
-      title="Смена пароля" columns={1} rows={3} fields={fields}
-      okText={submitting ? 'Смена…' : 'Сменить'} cancelText="Отмена"
+    <Modal
+      theme={t}
+      isOpen={isOpen}
+      onClose={onClose}
+      onOk={handleSubmit}
+      title="Смена пароля"
+      columns={1}
+      rows={3}
+      fields={fields}
+      okText={submitting ? 'Смена…' : 'Сменить'}
+      cancelText="Отмена"
       width={420}
-      canSubmit={!submitting && !!oldPassword && !!newPassword && !!confirmPassword} />
+      canSubmit={!submitting && !!oldPassword && !!newPassword && !!confirmPassword}
+    />
   );
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/*  HorizontalHeader                                              */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────── */
+/*  HorizontalHeader                                            */
+/* ──────────────────────────────────────────────────────────── */
 
 export function HorizontalHeader({
   t,
@@ -237,10 +312,40 @@ export function HorizontalHeader({
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   /** id открытого выпадающего списка таба (null — всё закрыто) */
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  /** id группы под курсором — для совместной подсветки main+chevron */
+  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
+
+  /** Запоминаем последнего выбранного ребёнка для каждой родительской вкладки. */
+  const [lastSelectedChild, setLastSelectedChild] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const tab of navTabs) {
+      if (!tab.children) continue;
+      const child = tab.children.find((c) => c.id === activeTab);
+      if (child) map[tab.id] = child.id;
+    }
+    return map;
+  });
+
+  // Синхронизация при внешней навигации (deep link / programmatic navigate).
+  // Никогда не сбрасывает уже сохранённые значения.
+  useEffect(() => {
+    setLastSelectedChild((prev) => {
+      let next: Record<string, string> | null = null;
+      for (const tab of navTabs) {
+        if (!tab.children) continue;
+        const child = tab.children.find((c) => c.id === activeTab);
+        if (child && prev[tab.id] !== child.id) {
+          if (!next) next = { ...prev };
+          next[tab.id] = child.id;
+        }
+      }
+      return next ?? prev;
+    });
+  }, [activeTab, navTabs]);
+
   const dropRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
 
-  // Закрытие profile-дропдауна и tab-менюшек по клику вне.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) setDropOpen(false);
@@ -288,55 +393,101 @@ export function HorizontalHeader({
             const activeChild = hasChildren ? children.find((c) => c.id === activeTab) : undefined;
             const active = activeTab === tab.id || !!activeChild;
             const isOpen = openMenuId === tab.id;
+            const isGroupHovered = hoveredGroupId === tab.id;
 
-            // 'replace' — метка вкладки = выбранный ребёнок (если он активен)
-            const displayLabel =
-              hasChildren && tab.displayMode === 'replace' && activeChild
-                ? activeChild.label
-                : tab.label;
+            const { label: displayLabel, icon: displayIcon, targetChildId } =
+              resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
 
-            const handleTabClick = () => {
-              if (hasChildren) {
-                setOpenMenuId((prev) => (prev === tab.id ? null : tab.id));
-              } else {
+            // 80 % — переход к последней выбранной странице
+            // (или открыть меню, если ещё ничего не выбиралось).
+            const handleMainClick = () => {
+              if (!hasChildren) {
                 onTabChange(tab.id);
+                return;
+              }
+              if (targetChildId) {
+                onTabChange(targetChildId);
+              } else {
+                setOpenMenuId((prev) => (prev === tab.id ? null : tab.id));
               }
             };
 
+            // 20 % — только тумблер дропдауна.
+            const handleToggleClick = () => {
+              setOpenMenuId((prev) => (prev === tab.id ? null : tab.id));
+            };
+
+            const bgColor = active ? t.accent : isGroupHovered ? t.navHoverBg : 'transparent';
+            const fgColor = active ? t.accentText : isGroupHovered ? t.text : t.textMuted;
+
+            // Общий стиль обеих половинок — визуально одна кнопка.
+            const sharedButton: React.CSSProperties = {
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 13.5,
+              fontFamily: 'system-ui',
+              fontWeight: active ? 600 : 400,
+              color: fgColor,
+              background: bgColor,
+              transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+              whiteSpace: 'nowrap',
+              boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
+            };
+
             return (
-              <div key={tab.id} style={{ position: 'relative' }}>
+              <div
+                key={tab.id}
+                style={{ position: 'relative', display: 'inline-flex' }}
+                onMouseEnter={() => setHoveredGroupId(tab.id)}
+                onMouseLeave={() => setHoveredGroupId(null)}
+              >
                 <button
-                  onClick={handleTabClick}
+                  onClick={handleMainClick}
                   aria-haspopup={hasChildren || undefined}
                   aria-expanded={hasChildren ? isOpen : undefined}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '6px 14px', borderRadius: 8, border: 'none',
-                    cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui',
-                    fontWeight: active ? 600 : 400,
-                    color: active ? t.accentText : t.textMuted,
-                    background: active ? t.accent : 'transparent',
-                    transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
-                    whiteSpace: 'nowrap',
-                    boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
+                    ...sharedButton,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: hasChildren ? '6px 34px 6px 14px' : '6px 14px',
+                    borderRadius: hasChildren ? '8px 0 0 8px' : 8,
                   }}
-                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
-                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
                 >
-                  <span style={{ fontSize: 15, lineHeight: 1 }}>{tab.icon}</span>
+                  <span style={{ fontSize: 15, lineHeight: 1 }}>{displayIcon}</span>
                   <span>{displayLabel}</span>
-                  {hasChildren && (
+                </button>
+
+                {hasChildren && (
+                  <button
+                    onClick={handleToggleClick}
+                    aria-label="Подпункты"
+                    style={{
+                      ...sharedButton,
+                      position: 'absolute',
+                      top: 0, bottom: 0, right: 0,
+                      width: '20%',
+                      minWidth: 22,
+                      maxWidth: 32,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      borderRadius: '0 8px 8px 0',
+                    }}
+                  >
                     <span
                       aria-hidden
                       style={{
-                        fontSize: 9, lineHeight: 1, marginLeft: 2, opacity: 0.75,
+                        fontSize: 9,
+                        lineHeight: 1,
+                        display: 'inline-block',
                         transition: 'transform 0.2s',
                         transform: isOpen ? 'rotate(180deg)' : 'none',
-                        display: 'inline-block',
                       }}
                     >▾</span>
-                  )}
-                </button>
+                  </button>
+                )}
 
                 {hasChildren && (
                   <div
@@ -370,8 +521,9 @@ export function HorizontalHeader({
                           key={child.id}
                           role="menuitem"
                           onClick={() => {
+                            setLastSelectedChild((prev) => ({ ...prev, [tab.id]: child.id }));
                             onTabChange(child.id);
-                            setOpenMenuId(null);   // ← закрываем при выборе
+                            setOpenMenuId(null);
                           }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8,
@@ -449,9 +601,9 @@ export function HorizontalHeader({
   );
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/*  VerticalHeader                                                */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────── */
+/*  VerticalHeader                                              */
+/* ──────────────────────────────────────────────────────────── */
 
 /** Минимальная ширина развёрнутого VerticalHeader. */
 const VERTICAL_MIN_WIDTH = 200;
@@ -480,31 +632,69 @@ export function VerticalHeader({
   const [collapsed, setCollapsed] = useState(false);
 
   /**
-   * Аккордеон управляется двумя сетами:
-   *  - manuallyExpanded: пользователь явно раскрыл (перебивает авто-логику)
-   *  - manuallyCollapsed: пользователь явно закрыл
-   * Если id нет ни в одном — раскрытие определяется наличием активного ребёнка.
-   * Это позволяет вкладке с активным ребёнком быть раскрытой «по умолчанию»,
-   * но при этом пользователь всегда может её закрыть.
+   * Единый источник истины для аккордеона.
+   * Родитель с активным ребёнком автоматически попадает сюда (эффект ниже).
+   * Клик по chevron — тумблер. Клики по другим вкладкам НИКОГДА не удаляют
+   * id из этого сета — требование #3.
    */
-  const [manuallyExpanded, setManuallyExpanded] = useState<Set<string>>(new Set());
-  const [manuallyCollapsed, setManuallyCollapsed] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  /** Запоминаем последнего выбранного ребёнка (для режима 'replace'). */
+  const [lastSelectedChild, setLastSelectedChild] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const tab of navTabs) {
+      if (!tab.children) continue;
+      const child = tab.children.find((c) => c.id === activeTab);
+      if (child) map[tab.id] = child.id;
+    }
+    return map;
+  });
+
+  // Автораскрытие родителя активного ребёнка. Только добавление.
+  useEffect(() => {
+    setExpandedIds((prev) => {
+      let next: Set<string> | null = null;
+      for (const tab of navTabs) {
+        if (!tab.children) continue;
+        if (tab.children.some((c) => c.id === activeTab) && !prev.has(tab.id)) {
+          if (!next) next = new Set(prev);
+          next.add(tab.id);
+        }
+      }
+      return next ?? prev;
+    });
+  }, [activeTab, navTabs]);
+
+  // Синхронизация lastSelectedChild при внешней навигации.
+  useEffect(() => {
+    setLastSelectedChild((prev) => {
+      let next: Record<string, string> | null = null;
+      for (const tab of navTabs) {
+        if (!tab.children) continue;
+        const child = tab.children.find((c) => c.id === activeTab);
+        if (child && prev[tab.id] !== child.id) {
+          if (!next) next = { ...prev };
+          next[tab.id] = child.id;
+        }
+      }
+      return next ?? prev;
+    });
+  }, [activeTab, navTabs]);
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const w = collapsed ? VERTICAL_COLLAPSED_WIDTH : VERTICAL_EXPANDED_WIDTH;
 
   const visibleTabs = navTabs.filter((tab) =>
     tab.visible ? tab.visible(isLoggedIn) : true
   );
-
-  const toggleExpand = (id: string, currentlyExpanded: boolean) => {
-    if (currentlyExpanded) {
-      setManuallyExpanded((prev) => { const n = new Set(prev); n.delete(id); return n; });
-      setManuallyCollapsed((prev) => new Set([...prev, id]));
-    } else {
-      setManuallyCollapsed((prev) => { const n = new Set(prev); n.delete(id); return n; });
-      setManuallyExpanded((prev) => new Set([...prev, id]));
-    }
-  };
 
   return (
     <aside
@@ -565,88 +755,116 @@ export function VerticalHeader({
         {visibleTabs.map((tab) => {
           const children = filterChildren(tab, isLoggedIn);
           const hasChildren = children.length > 0;
-          const hasActiveChild = hasChildren && children.some((c) => c.id === activeTab);
-          const active = activeTab === tab.id || hasActiveChild;
+          const activeChild = hasChildren ? children.find((c) => c.id === activeTab) : undefined;
+          const active = activeTab === tab.id || !!activeChild;
+          const expanded = expandedIds.has(tab.id);
 
-          const expanded = manuallyExpanded.has(tab.id)
-            ? true
-            : manuallyCollapsed.has(tab.id)
-              ? false
-              : hasActiveChild;
+          const { label: displayLabel, icon: displayIcon, targetChildId } =
+            resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
 
-          const handleClick = () => {
+          const handleMainClick = () => {
+            // 1) В свёрнутом сайдбаре — разворачиваем и раскрываем вкладку.
+            if (collapsed) {
+              setCollapsed(false);
+              if (hasChildren) {
+                setExpandedIds((prev) => new Set([...prev, tab.id]));
+              }
+              return;
+            }
+            // 2) Обычный клик: перейти к последней странице, если есть.
             if (hasChildren) {
-              // При клике в свёрнутом виде — раскрываем сайдбар И вкладку.
-              if (collapsed) setCollapsed(false);
-              toggleExpand(tab.id, expanded);
+              if (targetChildId) {
+                onTabChange(targetChildId);
+              } else {
+                setExpandedIds((prev) => new Set([...prev, tab.id]));
+              }
             } else {
               onTabChange(tab.id);
             }
           };
 
+          const handleToggleClick = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (collapsed) setCollapsed(false);
+            toggleExpanded(tab.id);
+          };
+
           return (
             <div key={tab.id}>
-              <button
-                onClick={handleClick}
-                title={collapsed ? tab.label : undefined}
-                style={{
-                  display: 'flex', alignItems: 'center',
-                  gap: collapsed ? 0 : 10,
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                  padding: collapsed ? '8px' : '9px 12px',
-                  borderRadius: 9, border: 'none', cursor: 'pointer',
-                  fontSize: 13.5, fontFamily: 'system-ui',
-                  fontWeight: active ? 600 : 400,
-                  color: active ? t.accentText : t.textMuted,
-                  background: active ? t.accent : 'transparent',
-                  transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
-                  whiteSpace: 'nowrap', overflow: 'hidden',
-                  boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
-                  width: '100%',
-                }}
-                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
-                onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
-              >
-                <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{tab.icon}</span>
-                <span style={{
-                  opacity: collapsed ? 0 : 1,
-                  width: collapsed ? 0 : 'auto',
-                  overflow: 'hidden',
-                  transition: 'opacity 0.18s',
-                  whiteSpace: 'nowrap',
-                  flex: 1,
-                  textAlign: 'left',
-                }}>{tab.label}</span>
+              <div style={{ position: 'relative', display: 'flex' }}>
+                <button
+                  onClick={handleMainClick}
+                  title={collapsed ? tab.label : undefined}
+                  style={{
+                    display: 'flex', alignItems: 'center',
+                    gap: collapsed ? 0 : 10,
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    padding: collapsed ? '8px' : '9px 12px',
+                    paddingRight: collapsed ? 8 : hasChildren ? 40 : 12,
+                    borderRadius: 9, border: 'none', cursor: 'pointer',
+                    fontSize: 13.5, fontFamily: 'system-ui',
+                    fontWeight: active ? 600 : 400,
+                    color: active ? t.accentText : t.textMuted,
+                    background: active ? t.accent : 'transparent',
+                    transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+                    whiteSpace: 'nowrap', overflow: 'hidden',
+                    boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
+                    width: '100%',
+                  }}
+                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
+                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
+                >
+                  <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{displayIcon}</span>
+                  <span style={{
+                    opacity: collapsed ? 0 : 1,
+                    width: collapsed ? 0 : 'auto',
+                    overflow: 'hidden',
+                    transition: 'opacity 0.18s',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    textAlign: 'left',
+                  }}>{displayLabel}</span>
+                </button>
+
                 {hasChildren && !collapsed && (
-                  <span
-                    aria-hidden
+                  <button
+                    onClick={handleToggleClick}
+                    aria-label={expanded ? 'Свернуть' : 'Развернуть'}
                     style={{
-                      display: 'flex', flexShrink: 0, color: 'inherit',
-                      transform: expanded ? 'rotate(90deg)' : 'none',
-                      transition: 'transform 0.2s',
-                      opacity: 0.85,
+                      position: 'absolute',
+                      top: 0, bottom: 0, right: 0,
+                      width: '20%',
+                      minWidth: 24,
+                      maxWidth: 36,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: 'none', cursor: 'pointer', padding: 0,
+                      background: active ? t.accent : 'transparent',
+                      color: active ? t.accentText : t.textMuted,
+                      borderRadius: '0 9px 9px 0',
+                      transition: 'all 0.2s',
                     }}
+                    onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
+                    onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
                   >
-                    <IcoChevronRight s={12} />
-                  </span>
+                    <span style={{ display: 'flex', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
+                      <IcoChevronRight s={12} />
+                    </span>
+                  </button>
                 )}
-              </button>
+              </div>
 
               {hasChildren && expanded && !collapsed && (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                  paddingLeft: 22,
-                  marginTop: 2,
-                  marginBottom: 4,
-                }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 22, marginTop: 2, marginBottom: 4 }}>
                   {children.map((child) => {
                     const childActive = activeTab === child.id;
                     return (
                       <button
                         key={child.id}
-                        onClick={() => onTabChange(child.id)}
+                        onClick={() => {
+                          setLastSelectedChild((prev) => ({ ...prev, [tab.id]: child.id }));
+                          onTabChange(child.id);
+                          // Намеренно НЕ трогаем expandedIds — требование #3.
+                        }}
                         title={child.label}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 8,
