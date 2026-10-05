@@ -63,13 +63,12 @@ const filterChildren = (tab: NavTab, isLoggedIn: boolean): NavTabChild[] =>
   (tab.children ?? []).filter((c) => (c.visible ? c.visible(isLoggedIn) : true));
 
 /**
- * Общая логика для Horizontal/Vertical:
- *  - определяет, кого показывать в родительской кнопке (label + icon);
- *  - определяет целевого ребёнка для 80 %-клика.
+ * Определяет, что показывать в родительской кнопке и куда ведёт 80 %-клик.
  *
- * Приоритет источника для отображения:
+ * Приоритет источника для отображения (в режиме 'replace'):
  *   1) активный child (мы реально на его странице);
- *   2) ранее выбранный child (lastSelectedChild) — чтобы метка не «прыгала»;
+ *   2) ранее выбранный child (lastSelectedChild) — сохраняем метку
+ *      даже когда ушли на другую вкладку, чтобы кнопка не «прыгала»;
  *   3) сам родитель.
  */
 function resolveDisplay(
@@ -79,20 +78,29 @@ function resolveDisplay(
   lastSelectedChildId: string | undefined
 ) {
   const activeChild = children.find((c) => c.id === activeTab);
-  const isOwnPage = activeTab === tab.id;
   const storedChild = lastSelectedChildId
     ? children.find((c) => c.id === lastSelectedChildId)
     : undefined;
 
   const displayChild = activeChild ?? storedChild;
-  const useReplace = tab.displayMode === 'replace' && !isOwnPage;
+  const useReplace = tab.displayMode === 'replace';
 
   return {
     label: useReplace && displayChild ? displayChild.label : tab.label,
     icon: useReplace && displayChild ? displayChild.icon ?? tab.icon : tab.icon,
     targetChildId: displayChild?.id,
-    isReplaceActive: useReplace && !!displayChild,
   };
+}
+
+/** Куда ведёт 80 %-клик: последний выбранный ребёнок → первый ребёнок → родитель. */
+function resolveMainTarget(
+  tab: NavTab,
+  children: NavTabChild[],
+  targetChildId?: string
+): string {
+  if (targetChildId) return targetChildId;
+  if (children.length > 0) return children[0].id;
+  return tab.id;
 }
 
 /* ──────────────────────────────────────────────────────────── */
@@ -312,10 +320,12 @@ export function HorizontalHeader({
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   /** id открытого выпадающего списка таба (null — всё закрыто) */
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  /** id группы под курсором — для совместной подсветки main+chevron */
-  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
 
-  /** Запоминаем последнего выбранного ребёнка для каждой родительской вкладки. */
+  /**
+   * Для каждой родительской вкладки храним последнего выбранного ребёнка.
+   * НИКОГДА не сбрасываем — именно это гарантирует, что при уходе на другую
+   * вкладку родитель сохранит метку и иконку выбранного ребёнка (треб. #2).
+   */
   const [lastSelectedChild, setLastSelectedChild] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const tab of navTabs) {
@@ -326,8 +336,8 @@ export function HorizontalHeader({
     return map;
   });
 
-  // Синхронизация при внешней навигации (deep link / programmatic navigate).
-  // Никогда не сбрасывает уже сохранённые значения.
+  // Синхронизация при внешней навигации (deep link, programmatic navigate).
+  // Только добавляет — никогда не удаляет и не перезаписывает другим ребёнком.
   useEffect(() => {
     setLastSelectedChild((prev) => {
       let next: Record<string, string> | null = null;
@@ -393,101 +403,69 @@ export function HorizontalHeader({
             const activeChild = hasChildren ? children.find((c) => c.id === activeTab) : undefined;
             const active = activeTab === tab.id || !!activeChild;
             const isOpen = openMenuId === tab.id;
-            const isGroupHovered = hoveredGroupId === tab.id;
 
             const { label: displayLabel, icon: displayIcon, targetChildId } =
               resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
 
-            // 80 % — переход к последней выбранной странице
-            // (или открыть меню, если ещё ничего не выбиралось).
-            const handleMainClick = () => {
+            /**
+             * Одна кнопка — визуально как обычная вкладка (треб. #6).
+             * Сплит 4:1 по X-координате клика (треб. #4, #5):
+             *   < 80 %  → навигация (последний выбранный ребёнок / первый / родитель)
+             *   ≥ 80 %  → тумблер выпадающего списка
+             */
+            const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
               if (!hasChildren) {
                 onTabChange(tab.id);
                 return;
               }
-              if (targetChildId) {
-                onTabChange(targetChildId);
+              const rect = e.currentTarget.getBoundingClientRect();
+              const ratio = rect.width > 0
+                ? (e.clientX - rect.left) / rect.width
+                : 0;
+
+              if (ratio < 0.8) {
+                const target = resolveMainTarget(tab, children, targetChildId);
+                setOpenMenuId(null);
+                onTabChange(target);
               } else {
                 setOpenMenuId((prev) => (prev === tab.id ? null : tab.id));
               }
             };
 
-            // 20 % — только тумблер дропдауна.
-            const handleToggleClick = () => {
-              setOpenMenuId((prev) => (prev === tab.id ? null : tab.id));
-            };
-
-            const bgColor = active ? t.accent : isGroupHovered ? t.navHoverBg : 'transparent';
-            const fgColor = active ? t.accentText : isGroupHovered ? t.text : t.textMuted;
-
-            // Общий стиль обеих половинок — визуально одна кнопка.
-            const sharedButton: React.CSSProperties = {
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 13.5,
-              fontFamily: 'system-ui',
-              fontWeight: active ? 600 : 400,
-              color: fgColor,
-              background: bgColor,
-              transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
-              whiteSpace: 'nowrap',
-              boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
-            };
-
             return (
-              <div
-                key={tab.id}
-                style={{ position: 'relative', display: 'inline-flex' }}
-                onMouseEnter={() => setHoveredGroupId(tab.id)}
-                onMouseLeave={() => setHoveredGroupId(null)}
-              >
+              <div key={tab.id} style={{ position: 'relative' }}>
                 <button
-                  onClick={handleMainClick}
+                  onClick={handleClick}
                   aria-haspopup={hasChildren || undefined}
                   aria-expanded={hasChildren ? isOpen : undefined}
                   style={{
-                    ...sharedButton,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: hasChildren ? '6px 34px 6px 14px' : '6px 14px',
-                    borderRadius: hasChildren ? '8px 0 0 8px' : 8,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 14px', borderRadius: 8, border: 'none',
+                    cursor: 'pointer', fontSize: 13.5, fontFamily: 'system-ui',
+                    fontWeight: active ? 600 : 400,
+                    color: active ? t.accentText : t.textMuted,
+                    background: active ? t.accent : 'transparent',
+                    transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+                    whiteSpace: 'nowrap',
+                    boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
                   }}
+                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
+                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
                 >
                   <span style={{ fontSize: 15, lineHeight: 1 }}>{displayIcon}</span>
                   <span>{displayLabel}</span>
-                </button>
-
-                {hasChildren && (
-                  <button
-                    onClick={handleToggleClick}
-                    aria-label="Подпункты"
-                    style={{
-                      ...sharedButton,
-                      position: 'absolute',
-                      top: 0, bottom: 0, right: 0,
-                      width: '20%',
-                      minWidth: 22,
-                      maxWidth: 32,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 0,
-                      borderRadius: '0 8px 8px 0',
-                    }}
-                  >
+                  {hasChildren && (
                     <span
                       aria-hidden
                       style={{
-                        fontSize: 9,
-                        lineHeight: 1,
-                        display: 'inline-block',
+                        fontSize: 9, lineHeight: 1, marginLeft: 2, opacity: 0.75,
                         transition: 'transform 0.2s',
                         transform: isOpen ? 'rotate(180deg)' : 'none',
+                        display: 'inline-block',
                       }}
                     >▾</span>
-                  </button>
-                )}
+                  )}
+                </button>
 
                 {hasChildren && (
                   <div
@@ -632,14 +610,21 @@ export function VerticalHeader({
   const [collapsed, setCollapsed] = useState(false);
 
   /**
-   * Единый источник истины для аккордеона.
-   * Родитель с активным ребёнком автоматически попадает сюда (эффект ниже).
-   * Клик по chevron — тумблер. Клики по другим вкладкам НИКОГДА не удаляют
-   * id из этого сета — требование #3.
+   * Единственный источник истины для аккордеона.
+   * Родитель активного ребёнка автоматически добавляется сюда эффектом
+   * (только `add`, никогда `remove`) — треб. #3.
    */
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  /** Запоминаем последнего выбранного ребёнка (для режима 'replace'). */
+  /**
+   * Родители, которые пользователь закрыл вручную (клик по 20 %-зоне).
+   * Пока активный таб не изменился, авто-эффект не будет их переоткрывать.
+   * Сбрасывается при смене activeTab — при следующей навигации
+   * авто-раскрытие снова работает.
+   */
+  const userClosedRef = useRef<Set<string>>(new Set());
+
+  /** Последний выбранный ребёнок на каждую родительскую вкладку (для 'replace'). */
   const [lastSelectedChild, setLastSelectedChild] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const tab of navTabs) {
@@ -650,12 +635,19 @@ export function VerticalHeader({
     return map;
   });
 
+  // Сброс «пользователь закрыл» при смене вкладки.
+  // Объявлен ДО авто-эффекта, чтобы выполнялся первым.
+  useEffect(() => {
+    userClosedRef.current = new Set();
+  }, [activeTab]);
+
   // Автораскрытие родителя активного ребёнка. Только добавление.
   useEffect(() => {
     setExpandedIds((prev) => {
       let next: Set<string> | null = null;
       for (const tab of navTabs) {
         if (!tab.children) continue;
+        if (userClosedRef.current.has(tab.id)) continue;
         if (tab.children.some((c) => c.id === activeTab) && !prev.has(tab.id)) {
           if (!next) next = new Set(prev);
           next.add(tab.id);
@@ -684,8 +676,13 @@ export function VerticalHeader({
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        userClosedRef.current.add(id);
+      } else {
+        next.add(id);
+        userClosedRef.current.delete(id);
+      }
       return next;
     });
   };
@@ -762,8 +759,11 @@ export function VerticalHeader({
           const { label: displayLabel, icon: displayIcon, targetChildId } =
             resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
 
-          const handleMainClick = () => {
-            // 1) В свёрнутом сайдбаре — разворачиваем и раскрываем вкладку.
+          /**
+           * Сплит 4:1 по X-координате клика (треб. #4, #5).
+           * В свёрнутом сайдбаре клик в любом месте просто разворачивает его.
+           */
+          const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
             if (collapsed) {
               setCollapsed(false);
               if (hasChildren) {
@@ -771,87 +771,70 @@ export function VerticalHeader({
               }
               return;
             }
-            // 2) Обычный клик: перейти к последней странице, если есть.
-            if (hasChildren) {
-              if (targetChildId) {
-                onTabChange(targetChildId);
-              } else {
-                setExpandedIds((prev) => new Set([...prev, tab.id]));
-              }
-            } else {
+            if (!hasChildren) {
               onTabChange(tab.id);
+              return;
             }
-          };
+            const rect = e.currentTarget.getBoundingClientRect();
+            const ratio = rect.width > 0
+              ? (e.clientX - rect.left) / rect.width
+              : 0;
 
-          const handleToggleClick = (e: React.MouseEvent) => {
-            e.stopPropagation();
-            if (collapsed) setCollapsed(false);
-            toggleExpanded(tab.id);
+            if (ratio < 0.8) {
+              const target = resolveMainTarget(tab, children, targetChildId);
+              onTabChange(target);
+            } else {
+              toggleExpanded(tab.id);
+            }
           };
 
           return (
             <div key={tab.id}>
-              <div style={{ position: 'relative', display: 'flex' }}>
-                <button
-                  onClick={handleMainClick}
-                  title={collapsed ? tab.label : undefined}
-                  style={{
-                    display: 'flex', alignItems: 'center',
-                    gap: collapsed ? 0 : 10,
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    padding: collapsed ? '8px' : '9px 12px',
-                    paddingRight: collapsed ? 8 : hasChildren ? 40 : 12,
-                    borderRadius: 9, border: 'none', cursor: 'pointer',
-                    fontSize: 13.5, fontFamily: 'system-ui',
-                    fontWeight: active ? 600 : 400,
-                    color: active ? t.accentText : t.textMuted,
-                    background: active ? t.accent : 'transparent',
-                    transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
-                    whiteSpace: 'nowrap', overflow: 'hidden',
-                    boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
-                    width: '100%',
-                  }}
-                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
-                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
-                >
-                  <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{displayIcon}</span>
-                  <span style={{
-                    opacity: collapsed ? 0 : 1,
-                    width: collapsed ? 0 : 'auto',
-                    overflow: 'hidden',
-                    transition: 'opacity 0.18s',
-                    whiteSpace: 'nowrap',
-                    flex: 1,
-                    textAlign: 'left',
-                  }}>{displayLabel}</span>
-                </button>
-
+              <button
+                onClick={handleClick}
+                title={collapsed ? tab.label : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center',
+                  gap: collapsed ? 0 : 10,
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  padding: collapsed ? '8px' : '9px 12px',
+                  borderRadius: 9, border: 'none', cursor: 'pointer',
+                  fontSize: 13.5, fontFamily: 'system-ui',
+                  fontWeight: active ? 600 : 400,
+                  color: active ? t.accentText : t.textMuted,
+                  background: active ? t.accent : 'transparent',
+                  transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+                  whiteSpace: 'nowrap', overflow: 'hidden',
+                  boxShadow: active ? `0 2px 12px ${t.accentGlow}` : 'none',
+                  width: '100%',
+                }}
+                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
+                onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
+              >
+                <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{displayIcon}</span>
+                <span style={{
+                  opacity: collapsed ? 0 : 1,
+                  width: collapsed ? 0 : 'auto',
+                  overflow: 'hidden',
+                  transition: 'opacity 0.18s',
+                  whiteSpace: 'nowrap',
+                  flex: 1,
+                  textAlign: 'left',
+                }}>{displayLabel}</span>
                 {hasChildren && !collapsed && (
-                  <button
-                    onClick={handleToggleClick}
-                    aria-label={expanded ? 'Свернуть' : 'Развернуть'}
+                  <span
+                    aria-hidden
                     style={{
-                      position: 'absolute',
-                      top: 0, bottom: 0, right: 0,
-                      width: '20%',
-                      minWidth: 24,
-                      maxWidth: 36,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: 'none', cursor: 'pointer', padding: 0,
-                      background: active ? t.accent : 'transparent',
-                      color: active ? t.accentText : t.textMuted,
-                      borderRadius: '0 9px 9px 0',
-                      transition: 'all 0.2s',
+                      display: 'flex', flexShrink: 0, color: 'inherit',
+                      transform: expanded ? 'rotate(90deg)' : 'none',
+                      transition: 'transform 0.2s',
+                      opacity: 0.85,
                     }}
-                    onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; } }}
-                    onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
                   >
-                    <span style={{ display: 'flex', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
-                      <IcoChevronRight s={12} />
-                    </span>
-                  </button>
+                    <IcoChevronRight s={12} />
+                  </span>
                 )}
-              </div>
+              </button>
 
               {hasChildren && expanded && !collapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 22, marginTop: 2, marginBottom: 4 }}>
@@ -863,7 +846,7 @@ export function VerticalHeader({
                         onClick={() => {
                           setLastSelectedChild((prev) => ({ ...prev, [tab.id]: child.id }));
                           onTabChange(child.id);
-                          // Намеренно НЕ трогаем expandedIds — требование #3.
+                          // Намеренно НЕ трогаем expandedIds — треб. #3.
                         }}
                         title={child.label}
                         style={{
