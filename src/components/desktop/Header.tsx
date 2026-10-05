@@ -51,9 +51,28 @@ interface HeaderBaseProps {
   currentTheme?: ThemeName;
   onThemeChange?: (theme: ThemeName) => void;
   showMoscowTime?: boolean;
-  /** Вызывается при подтверждении смены пароля. Если не передан — пункт меню скрыт. */
   onPasswordChange?: (oldPassword: string, newPassword: string) => Promise<void> | void;
+  /**
+   * Ключ sessionStorage для сохранения состояния навигации
+   * (последний выбранный ребёнок, раскрытые группы).
+   * Должен быть стабильным между перемонтированиями.
+   * По умолчанию — `kbs-ui-nav`.
+   */
+  navStateKey?: string;
 }
+
+/* ──────────────────────────────────────────────────────────── */
+/*  Константы                                                  */
+/* ──────────────────────────────────────────────────────────── */
+
+/**
+ * Ширина зоны справа от кнопки таба (в px), клик по которой
+ * открывает/закрывает выпадающий список. Включает правый padding
+ * кнопки + gap + ширину самого шеврона. Не зависит от длины метки.
+ */
+const CHEVRON_CLICK_ZONE = 32;
+
+const DEFAULT_NAV_STATE_KEY = 'kbs-ui-nav';
 
 /* ──────────────────────────────────────────────────────────── */
 /*  Хелперы                                                    */
@@ -63,13 +82,9 @@ const filterChildren = (tab: NavTab, isLoggedIn: boolean): NavTabChild[] =>
   (tab.children ?? []).filter((c) => (c.visible ? c.visible(isLoggedIn) : true));
 
 /**
- * Определяет, что показывать в родительской кнопке и куда ведёт 80 %-клик.
- *
- * Приоритет источника для отображения (в режиме 'replace'):
- *   1) активный child (мы реально на его странице);
- *   2) ранее выбранный child (lastSelectedChild) — сохраняем метку
- *      даже когда ушли на другую вкладку, чтобы кнопка не «прыгала»;
- *   3) сам родитель.
+ * Определяет, что показывать в родительской кнопке и куда ведёт main-клик.
+ * В режиме 'replace' берём активного ребёнка, иначе — ранее выбранного.
+ * Родитель остаётся fallback'ом на случай пустого хранилища.
  */
 function resolveDisplay(
   tab: NavTab,
@@ -92,7 +107,7 @@ function resolveDisplay(
   };
 }
 
-/** Куда ведёт 80 %-клик: последний выбранный ребёнок → первый ребёнок → родитель. */
+/** Куда ведёт main-клик: последний выбранный ребёнок → первый ребёнок → родитель. */
 function resolveMainTarget(
   tab: NavTab,
   children: NavTabChild[],
@@ -101,6 +116,93 @@ function resolveMainTarget(
   if (targetChildId) return targetChildId;
   if (children.length > 0) return children[0].id;
   return tab.id;
+}
+
+/** Определяет, попал ли клик в правую chevron-зону кнопки. */
+function isChevronClick(e: React.MouseEvent<HTMLElement>): boolean {
+  const rect = e.currentTarget.getBoundingClientRect();
+  return e.clientX > rect.right - CHEVRON_CLICK_ZONE;
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  usePersistedNavState                                       */
+/* ──────────────────────────────────────────────────────────── */
+
+interface PersistedNavState {
+  lastSelectedChild: Record<string, string>;
+  setLastSelectedChild: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  expandedIds: Set<string>;
+  setExpandedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+}
+
+/**
+ * Хранит состояние навигации в sessionStorage, чтобы оно переживало
+ * перемонтирование Header'а при переходах между страницами.
+ *
+ *  - lastSelectedChild — последний выбранный ребёнок каждой группы
+ *    (метка и иконка вкладки в режиме 'replace');
+ *  - expandedIds — раскрытые группы в VerticalHeader.
+ *
+ * Также синхронизирует lastSelectedChild с activeTab: если мы пришли
+ * на страницу ребёнка извне (deep link / кнопка «назад»), запоминаем
+ * этот выбор как последний для его родителя.
+ */
+function usePersistedNavState(
+  storageKey: string,
+  activeTab: string,
+  navTabs: NavTab[]
+): PersistedNavState {
+  const lastKey = `${storageKey}:last`;
+  const expandedKey = `${storageKey}:expanded`;
+
+  const [lastSelectedChild, setLastSelectedChild] = useState<Record<string, string>>(() => {
+    try {
+      const raw = sessionStorage.getItem(lastKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem(expandedKey);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Персистенция.
+  useEffect(() => {
+    try { sessionStorage.setItem(lastKey, JSON.stringify(lastSelectedChild)); } catch { /* ignore */ }
+  }, [lastKey, lastSelectedChild]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(expandedKey, JSON.stringify([...expandedIds])); } catch { /* ignore */ }
+  }, [expandedKey, expandedIds]);
+
+  // Синхронизация lastSelectedChild с activeTab. Никогда не удаляет записи.
+  useEffect(() => {
+    setLastSelectedChild((prev) => {
+      let next: Record<string, string> | null = null;
+      for (const tab of navTabs) {
+        if (!tab.children) continue;
+        const child = tab.children.find((c) => c.id === activeTab);
+        if (child && prev[tab.id] !== child.id) {
+          if (!next) next = { ...prev };
+          next[tab.id] = child.id;
+        }
+      }
+      return next ?? prev;
+    });
+  }, [activeTab, navTabs]);
+
+  return { lastSelectedChild, setLastSelectedChild, expandedIds, setExpandedIds };
 }
 
 /* ──────────────────────────────────────────────────────────── */
@@ -315,43 +417,17 @@ export function HorizontalHeader({
   onThemeChange,
   showMoscowTime = false,
   onPasswordChange,
+  navStateKey = DEFAULT_NAV_STATE_KEY,
 }: HeaderBaseProps) {
   const [dropOpen, setDropOpen] = useState(false);
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
-  /** id открытого выпадающего списка таба (null — всё закрыто) */
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  /**
-   * Для каждой родительской вкладки храним последнего выбранного ребёнка.
-   * НИКОГДА не сбрасываем — именно это гарантирует, что при уходе на другую
-   * вкладку родитель сохранит метку и иконку выбранного ребёнка (треб. #2).
-   */
-  const [lastSelectedChild, setLastSelectedChild] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const tab of navTabs) {
-      if (!tab.children) continue;
-      const child = tab.children.find((c) => c.id === activeTab);
-      if (child) map[tab.id] = child.id;
-    }
-    return map;
-  });
-
-  // Синхронизация при внешней навигации (deep link, programmatic navigate).
-  // Только добавляет — никогда не удаляет и не перезаписывает другим ребёнком.
-  useEffect(() => {
-    setLastSelectedChild((prev) => {
-      let next: Record<string, string> | null = null;
-      for (const tab of navTabs) {
-        if (!tab.children) continue;
-        const child = tab.children.find((c) => c.id === activeTab);
-        if (child && prev[tab.id] !== child.id) {
-          if (!next) next = { ...prev };
-          next[tab.id] = child.id;
-        }
-      }
-      return next ?? prev;
-    });
-  }, [activeTab, navTabs]);
+  const { lastSelectedChild, setLastSelectedChild } = usePersistedNavState(
+    navStateKey,
+    activeTab,
+    navTabs
+  );
 
   const dropRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -408,27 +484,25 @@ export function HorizontalHeader({
               resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
 
             /**
-             * Одна кнопка — визуально как обычная вкладка (треб. #6).
-             * Сплит 4:1 по X-координате клика (треб. #4, #5):
-             *   < 80 %  → навигация (последний выбранный ребёнок / первый / родитель)
-             *   ≥ 80 %  → тумблер выпадающего списка
+             * Одна кнопка — обычные углы 8px, без «шва».
+             * Клик в правой chevron-зоне → тумблер меню.
+             * Клик в остальной части → переход на последнюю выбранную страницу
+             * (или открытие меню, если пользователь ещё ничего не выбирал).
              */
             const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
               if (!hasChildren) {
                 onTabChange(tab.id);
                 return;
               }
-              const rect = e.currentTarget.getBoundingClientRect();
-              const ratio = rect.width > 0
-                ? (e.clientX - rect.left) / rect.width
-                : 0;
-
-              if (ratio < 0.8) {
-                const target = resolveMainTarget(tab, children, targetChildId);
-                setOpenMenuId(null);
-                onTabChange(target);
-              } else {
+              if (isChevronClick(e)) {
                 setOpenMenuId((prev) => (prev === tab.id ? null : tab.id));
+                return;
+              }
+              if (targetChildId) {
+                setOpenMenuId(null);
+                onTabChange(targetChildId);
+              } else {
+                setOpenMenuId(tab.id);
               }
             };
 
@@ -606,42 +680,27 @@ export function VerticalHeader({
   currentTheme,
   onThemeChange,
   showMoscowTime = false,
+  navStateKey = DEFAULT_NAV_STATE_KEY,
 }: HeaderBaseProps) {
   const [collapsed, setCollapsed] = useState(false);
 
-  /**
-   * Единственный источник истины для аккордеона.
-   * Родитель активного ребёнка автоматически добавляется сюда эффектом
-   * (только `add`, никогда `remove`) — треб. #3.
-   */
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const { lastSelectedChild, setLastSelectedChild, expandedIds, setExpandedIds } =
+    usePersistedNavState(navStateKey, activeTab, navTabs);
 
   /**
-   * Родители, которые пользователь закрыл вручную (клик по 20 %-зоне).
-   * Пока активный таб не изменился, авто-эффект не будет их переоткрывать.
-   * Сбрасывается при смене activeTab — при следующей навигации
-   * авто-раскрытие снова работает.
+   * Родители, которые пользователь закрыл вручную. Не даём
+   * авто-эффекту тут же их переоткрыть. Сбрасывается при смене activeTab.
    */
   const userClosedRef = useRef<Set<string>>(new Set());
 
-  /** Последний выбранный ребёнок на каждую родительскую вкладку (для 'replace'). */
-  const [lastSelectedChild, setLastSelectedChild] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const tab of navTabs) {
-      if (!tab.children) continue;
-      const child = tab.children.find((c) => c.id === activeTab);
-      if (child) map[tab.id] = child.id;
-    }
-    return map;
-  });
-
-  // Сброс «пользователь закрыл» при смене вкладки.
-  // Объявлен ДО авто-эффекта, чтобы выполнялся первым.
   useEffect(() => {
     userClosedRef.current = new Set();
   }, [activeTab]);
 
-  // Автораскрытие родителя активного ребёнка. Только добавление.
+  /**
+   * Автораскрытие родителя активного ребёнка. Только добавление —
+   * перемонтирование Header'а не «сворачивает» уже открытые группы.
+   */
   useEffect(() => {
     setExpandedIds((prev) => {
       let next: Set<string> | null = null;
@@ -655,23 +714,7 @@ export function VerticalHeader({
       }
       return next ?? prev;
     });
-  }, [activeTab, navTabs]);
-
-  // Синхронизация lastSelectedChild при внешней навигации.
-  useEffect(() => {
-    setLastSelectedChild((prev) => {
-      let next: Record<string, string> | null = null;
-      for (const tab of navTabs) {
-        if (!tab.children) continue;
-        const child = tab.children.find((c) => c.id === activeTab);
-        if (child && prev[tab.id] !== child.id) {
-          if (!next) next = { ...prev };
-          next[tab.id] = child.id;
-        }
-      }
-      return next ?? prev;
-    });
-  }, [activeTab, navTabs]);
+  }, [activeTab, navTabs, setExpandedIds]);
 
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
@@ -760,8 +803,11 @@ export function VerticalHeader({
             resolveDisplay(tab, children, activeTab, lastSelectedChild[tab.id]);
 
           /**
-           * Сплит 4:1 по X-координате клика (треб. #4, #5).
-           * В свёрнутом сайдбаре клик в любом месте просто разворачивает его.
+           * Логика клика (треб. #4):
+           *   - свёрнутый сайдбар → развернуть + раскрыть группу;
+           *   - клик в chevron-зоне → тумблер группы;
+           *   - группа закрыта + main-click → раскрыть (без навигации);
+           *   - группа раскрыта + main-click → переход на отображаемую страницу.
            */
           const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
             if (collapsed) {
@@ -775,17 +821,16 @@ export function VerticalHeader({
               onTabChange(tab.id);
               return;
             }
-            const rect = e.currentTarget.getBoundingClientRect();
-            const ratio = rect.width > 0
-              ? (e.clientX - rect.left) / rect.width
-              : 0;
-
-            if (ratio < 0.8) {
-              const target = resolveMainTarget(tab, children, targetChildId);
-              onTabChange(target);
-            } else {
+            if (isChevronClick(e)) {
               toggleExpanded(tab.id);
+              return;
             }
+            if (!expanded) {
+              setExpandedIds((prev) => new Set([...prev, tab.id]));
+              return;
+            }
+            const target = resolveMainTarget(tab, children, targetChildId);
+            onTabChange(target);
           };
 
           return (
