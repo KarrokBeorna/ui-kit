@@ -33,7 +33,6 @@ export function LayoutToggle({ mode, onChange, theme: t }: LayoutToggleProps) {
           <button
             key={m}
             onClick={() => onChange(m)}
-            title={`${m} navigation`}
             style={{
               padding: "5px 10px",
               borderRadius: 6,

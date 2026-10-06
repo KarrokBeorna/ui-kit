@@ -482,15 +482,15 @@ export function HorizontalHeader({
   );
 
   const menuItems: [string, boolean][] = [];
-  if (showProfile) menuItems.push(['◈ Profile', false]);
-  if (showSettings) menuItems.push(['⚙ Settings', false]);
-  if (onPasswordChange) menuItems.push(['🕵︎ Change password', false]);
-  menuItems.push(['— Sign out', true]);
+  if (showProfile) menuItems.push(['◈ Профиль', false]);
+  if (showSettings) menuItems.push(['⚙ Настройки', false]);
+  if (onPasswordChange) menuItems.push(['🕵︎ Сменить пароль', false]);
+  menuItems.push(['— Выйти', true]);
 
   const handleMenuClick = (label: string) => {
-    if (label.includes('Sign out')) {
+    if (label.includes('Выйти')) {
       onSignOut();
-    } else if (label.includes('Change password')) {
+    } else if (label.includes('Сменить пароль')) {
       setDropOpen(false);
       setPwdModalOpen(true);
     }
@@ -644,14 +644,67 @@ export function HorizontalHeader({
           {showMoscowTime && <MoscowTimeWidget t={t} stacked={false} />}
           {isLoggedIn ? (
             <div style={{ position: 'relative' }} ref={dropRef}>
-              <button onClick={() => setDropOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 24, border: `1px solid ${t.border}`, background: t.bgSurface, cursor: 'pointer', transition: 'all 0.2s', boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui' }}>{userName?.[0]?.toUpperCase()}</div>
+              <button
+                onClick={() => setDropOpen(p => !p)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 12px 5px 6px',
+                  borderRadius: 24,
+                  border: `1px solid ${t.border}`,
+                  background: t.bgSurface,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: dropOpen ? `0 0 0 2px ${t.accentGlow}` : 'none'
+                }}>
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: t.accent,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  color: t.accentText,
+                  fontWeight: 700,
+                  fontFamily: 'system-ui'
+                }}>{userName?.[0]?.toUpperCase()}</div>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.2 }}>{userName}</div>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: t.text,
+                    fontFamily: 'system-ui',
+                    lineHeight: 1.2
+                  }}>{userName}</div>
                 </div>
-                <span style={{ color: t.textMuted, fontSize: 10, transition: 'transform 0.2s', transform: dropOpen ? 'rotate(180deg)' : 'none', display: 'flex' }}>▾</span>
+                <span style={{
+                  color: t.textMuted,
+                  fontSize: 10,
+                  transition: 'transform 0.2s',
+                  transform: dropOpen ? 'rotate(180deg)' : 'none',
+                  display: 'flex'
+                }}>▾</span>
               </button>
-              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: t.bgSurface, border: `1px solid ${t.border}`, borderRadius: 12, padding: '6px', minWidth: 180, boxShadow: t.shadowLg, opacity: dropOpen ? 1 : 0, transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)', pointerEvents: dropOpen ? 'all' : 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', zIndex: 200 }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 'calc(100% + 8px)',
+                  background: t.bgSurface,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  padding: '6px',
+                  minWidth: 180,
+                  boxShadow: t.shadowLg,
+                  opacity: dropOpen ? 1 : 0,
+                  transform: dropOpen ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)',
+                  pointerEvents: dropOpen ? 'all' : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+                  zIndex: 200
+                }}>
                 {menuItems.map(([label, danger]) => (
                   <button
                     key={String(label)}
@@ -666,8 +719,27 @@ export function HorizontalHeader({
               </div>
             </div>
           ) : (
-            <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 8, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}` }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-              <IcoLogIn s={15} /> Войти
+            <button
+              onClick={onSignIn}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '7px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: t.accent,
+                color: t.accentText,
+                fontSize: 13.5,
+                fontWeight: 600,
+                fontFamily: 'system-ui',
+                cursor: 'pointer',
+                transition: 'opacity 0.2s',
+                boxShadow: `0 2px 16px ${t.accentGlow}`
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              <IcoLogIn s={15}/> Войти
             </button>
           )}
         </div>
@@ -713,7 +785,23 @@ export function VerticalHeader({
   showMoscowTime = false,
   navStateKey = DEFAULT_NAV_STATE_KEY,
 }: HeaderBaseProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsedKey = `${navStateKey}:collapsed`;
+
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(collapsedKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(collapsedKey, collapsed ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [collapsedKey, collapsed]);
 
   const { lastSelectedChild, setLastSelectedChild, expandedIds, setExpandedIds } =
     usePersistedNavState(navStateKey, activeTab, navTabs);
@@ -786,16 +874,62 @@ export function VerticalHeader({
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, overflow: 'hidden' }}>
-            <div style={{ width: 30, height: 30, background: t.accent, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: t.accentText, fontWeight: 700, flexShrink: 0, boxShadow: `0 0 16px ${t.accentGlow}` }}>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                background: t.accent,
+                borderRadius: 9,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 16,
+                color: t.accentText,
+                fontWeight: 700,
+                flexShrink: 0,
+                boxShadow: `0 0 16px ${t.accentGlow}`
+              }}>
               {logoSvg}
             </div>
-            <span style={{ fontFamily: 'system-ui', fontWeight: 700, fontSize: 15, color: t.text, letterSpacing: '-0.01em', whiteSpace: 'nowrap', opacity: collapsed ? 0 : 1, maxWidth: collapsed ? 0 : 120, transition: 'opacity 0.2s, max-width 0.32s cubic-bezier(0.4,0,0.2,1)', overflow: 'hidden' }}>
+            <span
+              style={{
+                fontFamily: 'system-ui',
+                fontWeight: 700,
+                fontSize: 15,
+                color: t.text,
+                letterSpacing: '-0.01em',
+                whiteSpace: 'nowrap',
+                opacity: collapsed ? 0 : 1,
+                maxWidth: collapsed ? 0 : 120,
+                transition: 'opacity 0.2s, max-width 0.32s cubic-bezier(0.4,0,0.2,1)',
+                overflow: 'hidden'
+              }}>
               {siteName}
             </span>
           </div>
           {!collapsed && (
-            <button onClick={() => setCollapsed(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', padding: 4, borderRadius: 6, transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = t.navHoverBg; e.currentTarget.style.color = t.text; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; }}>
-              <IcoChevronLeft s={16} />
+            <button
+              onClick={() => setCollapsed(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: t.textMuted,
+                display: 'flex',
+                padding: 4,
+                borderRadius: 6,
+                transition: 'all 0.15s',
+                flexShrink: 0
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = t.navHoverBg;
+                e.currentTarget.style.color = t.text;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = t.textMuted;
+              }}>
+              <IcoChevronLeft s={16}/>
             </button>
           )}
         </div>
@@ -859,7 +993,6 @@ export function VerticalHeader({
               <div key={tab.id}>
                 <button
                   onClick={handleClick}
-                  title={collapsed ? tab.label : undefined}
                   style={{
                     display: 'flex', alignItems: 'center',
                     gap: collapsed ? 0 : 10,
@@ -913,7 +1046,6 @@ export function VerticalHeader({
                             setLastSelectedChild((prev) => ({ ...prev, [tab.id]: child.id }));
                             onTabChange(child.id);
                           }}
-                          title={child.label}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '7px 10px', borderRadius: 7, border: 'none',
@@ -955,21 +1087,107 @@ export function VerticalHeader({
         <div style={{ padding: '8px', borderTop: `1px solid ${t.borderSubtle}`, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           {showMoscowTime && <MoscowTimeWidget t={t} stacked={collapsed} />}
           {isLoggedIn ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10, justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '8px 10px', borderRadius: 9, border: `1px solid ${t.border}`, background: t.bgSurface, overflow: 'hidden', width: '90%' }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: t.accentText, fontWeight: 700, fontFamily: 'system-ui', flexShrink: 0 }}>{userName?.[0]?.toUpperCase()}</div>
-              <div style={{ flex: 1, overflow: 'hidden', opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, fontFamily: 'system-ui', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: collapsed ? 0 : 10,
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                padding: collapsed ? '8px' : '8px 10px',
+                borderRadius: 9,
+                border: `1px solid ${t.border}`,
+                background: t.bgSurface,
+                overflow: 'hidden',
+                width: '90%'
+              }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: t.accent,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  color: t.accentText,
+                  fontWeight: 700,
+                  fontFamily: 'system-ui',
+                  flexShrink: 0
+                }}>{userName?.[0]?.toUpperCase()}</div>
+              <div
+                style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  opacity: collapsed ? 0 : 1,
+                  width: collapsed ? 0 : 'auto',
+                  transition: 'opacity 0.18s'
+                }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: t.text,
+                    fontFamily: 'system-ui',
+                    lineHeight: 1.3,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>{userName}</div>
               </div>
               {!collapsed && (
-                <button onClick={onSignOut} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', padding: 4, borderRadius: 6, flexShrink: 0, transition: 'color 0.15s' }} title="Sign out" onMouseEnter={e => e.currentTarget.style.color = t.danger} onMouseLeave={e => e.currentTarget.style.color = t.textMuted}>
-                  <IcoLogOut s={15} />
+                <button
+                  onClick={onSignOut}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: t.textMuted,
+                    display: 'flex',
+                    padding: 4,
+                    borderRadius: 6,
+                    flexShrink: 0,
+                    transition: 'color 0.15s'
+                  }}
+                  title="Выйти"
+                  onMouseEnter={e => e.currentTarget.style.color = t.danger}
+                  onMouseLeave={e => e.currentTarget.style.color = t.textMuted}>
+                  <IcoLogOut s={15}/>
                 </button>
               )}
             </div>
           ) : (
-            <button onClick={onSignIn} style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 8, justifyContent: 'center', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', background: t.accent, color: t.accentText, fontSize: 13.5, fontWeight: 600, fontFamily: 'system-ui', cursor: 'pointer', transition: 'opacity 0.2s', boxShadow: `0 2px 16px ${t.accentGlow}`, whiteSpace: 'nowrap', overflow: 'hidden' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.88'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-              <IcoLogIn s={15} />
-              <span style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', transition: 'opacity 0.18s', overflow: 'hidden' }}>Войти</span>
+            <button
+              onClick={onSignIn}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: collapsed ? 0 : 8,
+                justifyContent: 'center',
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 9,
+                border: 'none',
+                background: t.accent,
+                color: t.accentText,
+                fontSize: 13.5,
+                fontWeight: 600,
+                fontFamily: 'system-ui',
+                cursor: 'pointer',
+                transition: 'opacity 0.2s',
+                boxShadow: `0 2px 16px ${t.accentGlow}`,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden'
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              <IcoLogIn s={15}/>
+              <span style={{
+                opacity: collapsed ? 0 : 1,
+                width: collapsed ? 0 : 'auto',
+                transition: 'opacity 0.18s',
+                overflow: 'hidden'
+              }}>Войти</span>
             </button>
           )}
         </div>
