@@ -830,9 +830,12 @@ export function VerticalHeader({
 
             const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
               if (collapsed) {
-                setCollapsed(false);
                 if (hasChildren) {
-                  setExpandedIds((prev) => new Set([...prev, tab.id]));
+                  const target = resolveMainTarget(tab, children, targetChildId);
+                  setLastSelectedChild((prev) => ({ ...prev, [tab.id]: target }));
+                  onTabChange(target);
+                } else {
+                  onTabChange(tab.id);
                 }
                 return;
               }
@@ -876,15 +879,14 @@ export function VerticalHeader({
                   onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = t.textMuted; } }}
                 >
                   <NavIcon size={17}>{displayIcon}</NavIcon>
-                  <span style={{
-                    opacity: collapsed ? 0 : 1,
-                    width: collapsed ? 0 : 'auto',
-                    overflow: 'hidden',
-                    transition: 'opacity 0.18s',
-                    whiteSpace: 'nowrap',
-                    flex: 1,
-                    textAlign: 'left',
-                  }}>{displayLabel}</span>
+                  {!collapsed && (
+                    <span style={{
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      flex: 1,
+                      textAlign: 'left',
+                    }}>{displayLabel}</span>
+                  )}
                   {hasChildren && !collapsed && (
                     <span
                       aria-hidden
