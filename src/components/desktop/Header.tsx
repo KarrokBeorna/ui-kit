@@ -68,7 +68,7 @@ interface HeaderBaseProps {
  * Ширина зоны справа от кнопки таба (в px), клик по которой
  * открывает/закрывает выпадающий список. Не зависит от длины метки.
  */
-const CHEVRON_CLICK_ZONE = 32;
+const CHEVRON_CLICK_ZONE = 28;
 
 const DEFAULT_NAV_STATE_KEY = 'kbs-ui-nav';
 
@@ -530,12 +530,10 @@ export function HorizontalHeader({
                 setOpenMenuId((prev) => (prev === tab.id ? null : tab.id));
                 return;
               }
-              if (targetChildId) {
-                setOpenMenuId(null);
-                onTabChange(targetChildId);
-              } else {
-                setOpenMenuId(tab.id);
-              }
+              const target = resolveMainTarget(tab, children, targetChildId);
+              setLastSelectedChild((prev) => ({ ...prev, [tab.id]: target }));
+              setOpenMenuId(null);
+              onTabChange(target);
             };
 
             return (
