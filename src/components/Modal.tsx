@@ -29,6 +29,18 @@ interface ModalProps {
   rowAlign?: React.CSSProperties['alignItems'][];
   /** Принудительно полноэкранный режим независимо от размера экрана */
   fullscreen?: boolean;
+  /**
+   * Показывать ли кнопку «Отмена» в футере.
+   * Полезно для read-only модалок (например, просмотр сканирований),
+   * где единственное действие — «Закрыть».
+   * @default true
+   */
+  showCancel?: boolean;
+  /**
+   * Показывать ли кнопку подтверждения.
+   * @default true
+   */
+  showOk?: boolean;
 }
 
 export default function Modal({
@@ -46,6 +58,8 @@ export default function Modal({
   canSubmit = true,
   rowAlign,
   fullscreen: fullscreenProp,
+  showCancel = true,
+  showOk = true,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const { isMobile } = useResponsive();
@@ -59,7 +73,7 @@ export default function Modal({
       const target = e.target as HTMLElement;
       if (!modalRef.current || !modalRef.current.contains(target)) return;
       if (e.key === 'Escape') onClose();
-      if (e.key === 'Enter' && canSubmit) {
+      if (e.key === 'Enter' && canSubmit && showOk) {
         e.preventDefault();
         onOk();
       }
@@ -70,7 +84,7 @@ export default function Modal({
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [isOpen, onClose, onOk, canSubmit]);
+  }, [isOpen, onClose, onOk, canSubmit, showOk]);
 
   if (!isOpen) return null;
 
@@ -98,14 +112,15 @@ export default function Modal({
     }
   });
 
-  // На мобиле — 1 колонка в любом случае, на десктопе — как просили
   const effectiveColumns = fullscreen ? 1 : columns;
   const effectiveRows = fullscreen ? fields.length : rows;
 
-  // Пере-собираем grid для мобильного режима, если разошлось
   const gridToRender = fullscreen
     ? fields.map((f) => [f.content])
     : grid;
+
+  // Скрываем футер целиком, если обе кнопки отключены.
+  const showFooter = showOk || showCancel;
 
   return (
     <div
@@ -241,74 +256,80 @@ export default function Modal({
         </div>
 
         {/* Кнопки */}
-        <div
-          style={{
-            padding: '12px 20px',
-            borderTop: `1px solid ${t.border}`,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 10,
-            flexShrink: 0,
-            flexWrap: fullscreen ? 'wrap' : 'nowrap',
-          }}
-        >
-          <button
-            type="button"
-            onClick={onClose}
+        {showFooter && (
+          <div
             style={{
-              padding: '8px 20px',
-              minHeight: fullscreen ? 48 : undefined,
-              flex: fullscreen ? '1 1 auto' : undefined,
-              borderRadius: 8,
-              border: `1px solid ${t.border}`,
-              background: 'transparent',
-              color: t.textMuted,
-              fontSize: 14,
-              fontFamily: 'inherit',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = t.navHoverBg;
-              e.currentTarget.style.color = t.text;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = t.textMuted;
+              padding: '12px 20px',
+              borderTop: `1px solid ${t.border}`,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 10,
+              flexShrink: 0,
+              flexWrap: fullscreen ? 'wrap' : 'nowrap',
             }}
           >
-            {cancelText}
-          </button>
-          <button
-            type="button"
-            onClick={onOk}
-            disabled={!canSubmit}
-            style={{
-              padding: '8px 24px',
-              minHeight: fullscreen ? 48 : undefined,
-              flex: fullscreen ? '1 1 auto' : undefined,
-              borderRadius: 8,
-              border: 'none',
-              background: canSubmit ? t.accent : t.bgSubmit,
-              color: canSubmit ? t.accentText : t.textMuted,
-              fontSize: 14,
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              cursor: canSubmit ? 'pointer' : 'not-allowed',
-              transition: 'all 0.15s',
-              boxShadow: canSubmit ? `0 0 0 2px ${t.accentGlow}` : 'none',
-              opacity: canSubmit ? 1 : 0.6,
-            }}
-            onMouseEnter={(e) => {
-              if (canSubmit) e.currentTarget.style.opacity = '0.85';
-            }}
-            onMouseLeave={(e) => {
-              if (canSubmit) e.currentTarget.style.opacity = '1';
-            }}
-          >
-            {okText}
-          </button>
-        </div>
+            {showCancel && (
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '8px 20px',
+                  minHeight: fullscreen ? 48 : undefined,
+                  flex: fullscreen ? '1 1 auto' : undefined,
+                  borderRadius: 8,
+                  border: `1px solid ${t.border}`,
+                  background: 'transparent',
+                  color: t.textMuted,
+                  fontSize: 14,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = t.navHoverBg;
+                  e.currentTarget.style.color = t.text;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = t.textMuted;
+                }}
+              >
+                {cancelText}
+              </button>
+            )}
+            {showOk && (
+              <button
+                type="button"
+                onClick={onOk}
+                disabled={!canSubmit}
+                style={{
+                  padding: '8px 24px',
+                  minHeight: fullscreen ? 48 : undefined,
+                  flex: fullscreen ? '1 1 auto' : undefined,
+                  borderRadius: 8,
+                  border: 'none',
+                  background: canSubmit ? t.accent : t.bgSubmit,
+                  color: canSubmit ? t.accentText : t.textMuted,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  cursor: canSubmit ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.15s',
+                  boxShadow: canSubmit ? `0 0 0 2px ${t.accentGlow}` : 'none',
+                  opacity: canSubmit ? 1 : 0.6,
+                }}
+                onMouseEnter={(e) => {
+                  if (canSubmit) e.currentTarget.style.opacity = '0.85';
+                }}
+                onMouseLeave={(e) => {
+                  if (canSubmit) e.currentTarget.style.opacity = '1';
+                }}
+              >
+                {okText}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <style>{`
