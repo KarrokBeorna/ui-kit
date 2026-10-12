@@ -37,6 +37,24 @@ interface TableProps<T extends Record<string, any>> {
   onApplySettings?: (visible: string[], order: string[]) => void;
 }
 
+/**
+ * Возвращает ближайший скроллируемый предок (overflow-y: auto|scroll),
+ * либо null, если такого нет и «сценой» является viewport.
+ *
+ * Нужен для корректного позиционирования floating-элементов таблицы
+ * (шестерёнка настроек), чтобы они не «заплывали» поверх FilterBar и
+ * прочих fixed-элементов при скролле вложенного контейнера.
+ */
+function findScrollParent(el: HTMLElement | null): HTMLElement | null {
+  let node = el?.parentElement ?? null;
+  while (node && node !== document.body && node !== document.documentElement) {
+    const oy = getComputedStyle(node).overflowY;
+    if (oy === 'auto' || oy === 'scroll') return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
 export default function Table<T extends Record<string, any>>({
   theme: t,
   columns,
@@ -261,22 +279,51 @@ export default function Table<T extends Record<string, any>>({
   // ---------- Позиционирование шестерёнки ----------
   const containerRef = useRef<HTMLDivElement>(null);
   const [buttonPosition, setButtonPosition] = useState({ top: 0, left: 0 });
+  /**
+   * Видимость шестерёнки. Скрываем, когда она «уезжает» выше верхней
+   * границы своего скролл-контейнера — иначе она плавает поверх
+   * FilterBar / шапки / других fixed-элементов, т.к. отрендерена в body.
+   */
+  const [buttonVisible, setButtonVisible] = useState(true);
 
   const updateButtonPosition = useCallback(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setButtonPosition({ top: rect.top - 12, left: rect.left - 12 });
-    }
+    const el = containerRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const gearTop = rect.top - 12;
+    const gearLeft = rect.left - 12;
+
+    // Верхняя граница видимой области: верх скролл-родителя,
+    // либо 0, если скроллится сам viewport.
+    const scrollParent = findScrollParent(el);
+    const boundsTop = scrollParent
+      ? scrollParent.getBoundingClientRect().top
+      : 0;
+
+    // Скрываем, если шестерёнка вылезла за верх видимой области
+    // или уже за пределами окна.
+    const nextVisible = gearTop >= boundsTop && gearTop < window.innerHeight;
+
+    setButtonVisible((v) => (v === nextVisible ? v : nextVisible));
+    setButtonPosition((p) =>
+      p.top === gearTop && p.left === gearLeft ? p : { top: gearTop, left: gearLeft }
+    );
   }, []);
 
   useEffect(() => {
     updateButtonPosition();
     const handleScroll = () => updateButtonPosition();
     const handleResize = () => updateButtonPosition();
+
+    // capture: true — ловим скролл и вложенных контейнеров (в них scroll
+    // не всплывает до window в bubble-фазе).
     window.addEventListener('scroll', handleScroll, true);
     window.addEventListener('resize', handleResize);
+
     const ro = new ResizeObserver(() => updateButtonPosition());
     if (containerRef.current) ro.observe(containerRef.current);
+
     return () => {
       window.removeEventListener('scroll', handleScroll, true);
       window.removeEventListener('resize', handleResize);
@@ -298,7 +345,8 @@ export default function Table<T extends Record<string, any>>({
 
   // ---------- Стили кнопки-шестерёнки ----------
   const settingsButton = useMemo(() => {
-    if (settingsOpen) return null;
+    if (settingsOpen || !buttonVisible) return null;
+
     const style: React.CSSProperties = {
       position: 'fixed',
       top: buttonPosition.top,
@@ -315,12 +363,13 @@ export default function Table<T extends Record<string, any>>({
       color: t.iconColor,
       cursor: 'pointer',
       boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      transition: 'background 0.2s',
+      transition: 'background 0.2s, opacity 0.15s ease',
       padding: 0,
       opacity: 1,
       pointerEvents: 'auto',
       fontSize: 18,
     };
+
     return createPortal(
       <button
         className="settings-button"
@@ -334,7 +383,7 @@ export default function Table<T extends Record<string, any>>({
       </button>,
       document.body,
     );
-  }, [settingsOpen, buttonPosition, t, openSettings]);
+  }, [settingsOpen, buttonVisible, buttonPosition, t, openSettings]);
 
   // ---------- Стиль кнопок перемещения ----------
   const getMoveButtonStyle = useCallback(
