@@ -1,640 +1,712 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import type { Theme } from '../../themes/theme';
-import Modal from '../Modal';
-import { IcoChevronUp, IcoChevronDown } from '../icons';
-import Checkbox from '../inputs/Checkbox';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Theme } from '../../themes/theme';
+import { useResponsive } from '../../context/ResponsiveContext';
+import { useResizeObserver } from '../../hooks/useResizeObserver';
 
-export interface Column<T extends Record<string, any> = any> {
-  key: string;
-  header: React.ReactNode;
-  style?: React.CSSProperties;
-  headerStyle?: React.CSSProperties;
-  sortable?: boolean;
-  render?: (value: any, row: T) => React.ReactNode;
-}
+// ─── Типы данных ──────────────────────────────────────────────
 
-interface TableProps<T extends Record<string, any>> {
-  theme: Theme;
-  columns: Column<T>[];
-  data: T[];
-  rowKey?: string;
-  sortState?: { key: string; direction: 'asc' | 'desc' }[];
-  onSortChange?: (newSortState: { key: string; direction: 'asc' | 'desc' }[]) => void;
-  initialSort?: { key: string; direction: 'asc' | 'desc' }[];
-  fixedHeader?: boolean;
-  height?: string | number;
-  columnMaxWidth?: number;
-  stickyRight?: string[];
-  onRowClick?: (row: T) => void;
-  selectedRowKey?: string | number;
-  rowClassName?: (row: T) => string;
-  rowStyle?: (row: T) => React.CSSProperties;
-  columnOrder?: string[];
-  visibleColumns?: string[];
-  onColumnOrderChange?: (order: string[]) => void;
-  onVisibleColumnsChange?: (visible: string[]) => void;
-  onApplySettings?: (visible: string[], order: string[]) => void;
+/**
+ * Один сегмент диаграммы. Диаграмма поддерживает многоуровневую (иерархическую)
+ * структуру: элементы с `parent = null` — корневые кольца, дети рисуются
+ * вложенными кольцами внутри родительского сектора.
+ */
+export interface PieDataItem {
+  /** Уникальный идентификатор. */
+  id: string | number;
+
+  /** Текстовая подпись сегмента (для легенды и центра). */
+  label: string;
+
+  /** Числовое значение. Пропорционально углу сектора. */
+  value: number;
+
+  /**
+   * ID родительского элемента или null для корня.
+   * Уровни (level) строятся автоматически по связям parent → child.
+   */
+  parent?: string | number | null;
+
+  /**
+   * Уровень вложенности. 0 — корень, 1 — первое кольцо детей, и т.д.
+   * Используется для расчёта радиуса сегмента.
+   */
+  level: number;
+
+  /**
+   * Явный цвет сегмента. Если не указан — генерируется автоматически
+   * по id (HSL с золотым сечением).
+   */
+  color?: string;
 }
 
 /**
- * Возвращает ближайший скроллируемый предок (overflow-y: auto|scroll),
- * либо null, если такого нет и «сценой» является viewport.
- *
- * Нужен для корректного позиционирования floating-элементов таблицы
- * (шестерёнка настроек), чтобы они не «заплывали» поверх FilterBar и
- * прочих fixed-элементов при скролле вложенного контейнера.
+ * Отступы вокруг диаграммы.
+ * Можно передать одно число (применяется ко всем сторонам)
+ * или объект с отдельными сторонами.
  */
-function findScrollParent(el: HTMLElement | null): HTMLElement | null {
-  let node = el?.parentElement ?? null;
-  while (node && node !== document.body && node !== document.documentElement) {
-    const oy = getComputedStyle(node).overflowY;
-    if (oy === 'auto' || oy === 'scroll') return node;
-    node = node.parentElement;
-  }
-  return null;
+export type PieChartMargin =
+  | number
+  | { top?: number; right?: number; bottom?: number; left?: number };
+
+export interface PieChartProps {
+  /**
+   * Плоский массив сегментов. Иерархия задаётся через parent/level,
+   * а не вложенными структурами.
+   */
+  data: PieDataItem[];
+
+  /**
+   * Ширина диаграммы (включая легенду), px.
+   * На мобиле игнорируется — используется ширина контейнера.
+   * @default 600
+   */
+  width?: number;
+
+  /**
+   * Высота диаграммы, px.
+   * На мобиле вычисляется от ширины (примерно w * 0.95, не более 400).
+   * @default 400
+   */
+  height?: number;
+
+  /** Тема. Обязательна. */
+  theme: Theme;
+
+  /**
+   * Показывать ли легенду.
+   * @default true
+   */
+  showLegend?: boolean;
+
+  /**
+   * Положение легенды на десктопе.
+   * На мобиле всегда принудительно 'bottom'.
+   * @default 'right'
+   */
+  legendPosition?: 'left' | 'right';
+
+  /**
+   * Показывать ли текстовые подписи сегментов внутри колец.
+   * На мобиле всегда false (нечитаемо).
+   * @default false
+   */
+  showLabels?: boolean;
+
+  /**
+   * Размер шрифта подписей сегментов, px.
+   * На мобиле автоматически уменьшается на 1.
+   * @default 10
+   */
+  labelFontSize?: number;
+
+  /**
+   * Ориентация подписей на сегментах:
+   *  - 'radial' — вдоль радиуса, читается от центра;
+   *  - 'radial90' — поворот 90°, читается «горизонтально»;
+   *  - 'horizontal' — без поворота.
+   * @default 'radial'
+   */
+  labelOrientation?: 'radial' | 'radial90' | 'horizontal';
+
+  /**
+   * Внутренний радиус центрального «бублика», px.
+   * Задаёт «пустоту» в центре, где рисуется центр-лейбл.
+   * @default 30
+   */
+  innerRadius?: number;
+
+  /**
+   * Толщина одного кольца (одного уровня), px.
+   * @default 28
+   */
+  ringThickness?: number;
+
+  /**
+   * Непрозрачность неактивных сегментов при выделении одного
+   * (0..1). Меньше — сильнее затемнение остальных.
+   * @default 0.3
+   */
+  dimOpacity?: number;
+
+  /**
+   * Колбэк при наведении (мышь) или тапе (палец) на сегмент
+   * или на элемент легенды.
+   * Получает сам элемент или null, когда выделение сброшено.
+   */
+  onSegmentHover?: (item: PieDataItem | null) => void;
+
+  /**
+   * Снимать ли выделение при тапе в любом месте вне диаграммы.
+   * Работает только для тач-устройств (pointerType !== 'mouse').
+   * На десктопе выделение снимается само на mouseleave.
+   * @default true
+   */
+  dismissOnOutsideTap?: boolean;
+
+  /**
+   * Отступы вокруг диаграммы, px.
+   * Можно передать одно число (все стороны) или объект с полями
+   * top/right/bottom/left. Не указанные стороны берут значение 20.
+   * @default 20
+   */
+  margin?: PieChartMargin;
+
+  /**
+   * Расстояние между диаграммой и легендой (по горизонтали для
+   * 'left'/'right' или по вертикали для 'bottom'), px.
+   * @default 12
+   */
+  legendGap?: number;
+
+  /**
+   * Показывать ли числовые значения в легенде рядом с процентами.
+   * При включении формат: `value - percent%`.
+   * @default false
+   */
+  showLegendValues?: boolean;
+
+  /**
+   * Разделитель между значением и процентом в легенде
+   * (используется только при showLegendValues = true).
+   * @default ' - '
+   */
+  legendValueSeparator?: string;
 }
 
-export default function Table<T extends Record<string, any>>({
-  theme: t,
-  columns,
+// ─── Вспомогательные функции ──────────────────────────────────
+
+function getColorById(id: string | number): string {
+  if (typeof id === 'string' && id.startsWith('#')) return id;
+  const num = typeof id === 'number' ? id : parseInt(id, 36);
+  const phi = 0.618033988749895;
+  const hue = (num * phi) % 1.0;
+  return `hsl(${hue * 360}, 70%, 55%)`;
+}
+
+interface TreeNode extends PieDataItem {
+  children: TreeNode[];
+  startAngle: number;
+  endAngle: number;
+}
+
+function buildTree(data: PieDataItem[]): TreeNode[] {
+  const map = new Map<string | number, TreeNode>();
+  const roots: TreeNode[] = [];
+
+  data.forEach((item) => {
+    const node: TreeNode = {
+      ...item,
+      children: [],
+      startAngle: 0,
+      endAngle: 0,
+    };
+    map.set(item.id, node);
+  });
+
+  data.forEach((item) => {
+    const node = map.get(item.id)!;
+    if (item.parent == null) {
+      roots.push(node);
+    } else {
+      const parent = map.get(item.parent);
+      if (parent) {
+        parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+  });
+
+  return roots;
+}
+
+function computeAngles(nodes: TreeNode[], startAngle: number, endAngle: number): void {
+  if (nodes.length === 0) return;
+  const total = nodes.reduce((sum, n) => sum + n.value, 0);
+  if (total === 0) return;
+
+  let currentStart = startAngle;
+  nodes.forEach((node) => {
+    const fraction = node.value / total;
+    const angleSpan = (endAngle - startAngle) * fraction;
+    node.startAngle = currentStart;
+    node.endAngle = currentStart + angleSpan;
+    currentStart += angleSpan;
+    if (node.children.length > 0) {
+      computeAngles(node.children, node.startAngle, node.endAngle);
+    }
+  });
+}
+
+function flattenTree(nodes: TreeNode[]): TreeNode[] {
+  let result: TreeNode[] = [];
+  nodes.forEach((node) => {
+    result.push(node);
+    result = result.concat(flattenTree(node.children));
+  });
+  return result;
+}
+
+function polarToCartesian(cx: number, cy: number, radius: number, angle: number) {
+  return {
+    x: cx + radius * Math.cos(angle),
+    y: cy + radius * Math.sin(angle),
+  };
+}
+
+function describeArc(
+  cx: number,
+  cy: number,
+  innerRadius: number,
+  outerRadius: number,
+  startAngle: number,
+  endAngle: number
+) {
+  const startOuter = polarToCartesian(cx, cy, outerRadius, startAngle);
+  const endOuter = polarToCartesian(cx, cy, outerRadius, endAngle);
+  const startInner = polarToCartesian(cx, cy, innerRadius, startAngle);
+  const endInner = polarToCartesian(cx, cy, innerRadius, endAngle);
+
+  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+
+  return [
+    'M', startOuter.x, startOuter.y,
+    'A', outerRadius, outerRadius, 0, largeArc, 1, endOuter.x, endOuter.y,
+    'L', endInner.x, endInner.y,
+    'A', innerRadius, innerRadius, 0, largeArc, 0, startInner.x, startInner.y,
+    'Z',
+  ].join(' ');
+}
+
+// ─── Основной компонент ──────────────────────────────────────
+
+export function PieChart({
   data,
-  rowKey = 'id',
-  sortState: externalSortState,
-  onSortChange,
-  initialSort = [],
-  fixedHeader = false,
-  height = '400px',
-  columnMaxWidth = 300,
-  stickyRight = [],
-  onRowClick,
-  selectedRowKey,
-  rowClassName,
-  rowStyle,
-  columnOrder: externalColumnOrder,
-  visibleColumns: externalVisibleColumns,
-  onColumnOrderChange,
-  onVisibleColumnsChange,
-  onApplySettings,
-}: TableProps<T>) {
-  // ---------- Сортировка ----------
-  const [internalSortState, setInternalSortState] = useState<{ key: string; direction: 'asc' | 'desc' }[]>(initialSort);
+  width = 600,
+  height = 400,
+  theme,
+  showLegend = true,
+  legendPosition = 'right',
+  showLabels = false,
+  labelFontSize = 10,
+  labelOrientation = 'radial',
+  innerRadius = 30,
+  ringThickness = 28,
+  dimOpacity = 0.3,
+  onSegmentHover,
+  dismissOnOutsideTap = true,
+  margin: marginProp = 20,
+  legendGap = 12,
+  showLegendValues = false,
+  legendValueSeparator = ' - ',
+}: PieChartProps) {
+  // «Активный» — то, что подсвечено. Может быть установлен hover'ом мыши
+  // или tap'ом пальца. Работает одинаково для обоих сценариев.
+  const [activeId, setActiveId] = useState<string | number | null>(null);
 
-  const sortState = externalSortState !== undefined ? externalSortState : internalSortState;
-
-  const updateSortState = (newState: { key: string; direction: 'asc' | 'desc' }[]) => {
-    if (onSortChange) onSortChange(newState);
-    else setInternalSortState(newState);
-  };
-
-  // ---------- Видимость и порядок ----------
-  const [internalOrder, setInternalOrder] = useState<string[]>(() => columns.map(c => c.key),);
-  const [internalVisible, setInternalVisible] = useState<Set<string>>(() => new Set(columns.map(c => c.key)),);
-
-  const order = externalColumnOrder !== undefined ? externalColumnOrder : internalOrder;
-
-  const visibleKeys = useMemo(
-    () =>
-      externalVisibleColumns !== undefined
-        ? new Set(externalVisibleColumns)
-        : internalVisible,
-    [externalVisibleColumns, internalVisible],
-  );
-
-  // ---------- Быстрые индексы (O(1) вместо O(n) в рендере) ----------
-  const columnByKey = useMemo(() => {
-    const map = new Map<string, Column<T>>();
-    for (const col of columns) map.set(col.key, col);
-    return map;
-  }, [columns]);
-
-  const columnIndexByKey = useMemo(() => {
-    const map = new Map<string, number>();
-    columns.forEach((col, idx) => map.set(col.key, idx));
-    return map;
-  }, [columns]);
-
-  const stickyRightSet = useMemo(() => new Set(stickyRight), [stickyRight]);
-
-  const updateOrder = useCallback(
-    (newOrder: string[]) => {
-      if (onColumnOrderChange) onColumnOrderChange(newOrder);
-      else setInternalOrder(newOrder);
-    },
-    [onColumnOrderChange],
-  );
-
-  const updateVisible = useCallback(
-    (newVisible: Set<string>) => {
-      if (onVisibleColumnsChange) onVisibleColumnsChange(Array.from(newVisible));
-      else setInternalVisible(newVisible);
-    },
-    [onVisibleColumnsChange],
-  );
-
-  // ---------- Модалка настроек ----------
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsOrder, setSettingsOrder] = useState<string[]>([]);
-  const [settingsVisible, setSettingsVisible] = useState<Set<string>>(new Set());
-
-  const openSettings = useCallback(() => {
-    setSettingsOrder([...order]);
-    setSettingsVisible(new Set(visibleKeys));
-    setSettingsOpen(true);
-  }, [order, visibleKeys]);
-
-  const applySettings = useCallback(() => {
-    if (onApplySettings) {
-      onApplySettings(Array.from(settingsVisible), settingsOrder);
-    } else {
-      updateOrder(settingsOrder);
-      updateVisible(settingsVisible);
-    }
-    setSettingsOpen(false);
-  }, [onApplySettings, settingsVisible, settingsOrder, updateOrder, updateVisible]);
-
-  const toggleVisible = useCallback((key: string) => {
-    setSettingsVisible(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
-  // ---------- Перемещение с защитой от закреплённых колонок ----------
-  const moveUp = useCallback(
-    (key: string) => {
-      setSettingsOrder(prev => {
-        const idx = prev.indexOf(key);
-        if (idx <= 0) return prev;
-        if (stickyRightSet.has(key)) return prev;
-        if (stickyRightSet.has(prev[idx - 1])) return prev;
-        const next = [...prev];
-        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-        return next;
-      });
-    },
-    [stickyRightSet],
-  );
-
-  const moveDown = useCallback(
-    (key: string) => {
-      setSettingsOrder(prev => {
-        const idx = prev.indexOf(key);
-        if (idx === -1 || idx === prev.length - 1) return prev;
-        if (stickyRightSet.has(key)) return prev;
-        if (stickyRightSet.has(prev[idx + 1])) return prev;
-        const next = [...prev];
-        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-        return next;
-      });
-    },
-    [stickyRightSet],
-  );
-
-  // ---------- Клик по заголовку ----------
-  const handleHeaderClick = (key: string, e: React.MouseEvent) => {
-    const ctrl = e.ctrlKey || e.metaKey;
-    let newState: { key: string; direction: 'asc' | 'desc' }[] = [];
-
-    if (ctrl) {
-      newState = [...sortState];
-      const existing = newState.findIndex(s => s.key === key);
-      if (existing !== -1) {
-        const current = newState[existing];
-        if (current.direction === 'asc') newState[existing] = { key, direction: 'desc' };
-        else newState.splice(existing, 1);
-      } else {
-        newState.push({ key, direction: 'asc' });
-      }
-    } else {
-      const existing = sortState.findIndex(s => s.key === key);
-      if (existing !== -1) {
-        if (sortState[existing].direction === 'asc') newState = [{ key, direction: 'desc' }];
-        else newState = [];
-      } else {
-        newState = [{ key, direction: 'asc' }];
-      }
-    }
-    updateSortState(newState);
-  };
-
-  // ---------- Sticky ----------
-  const firstStickyIndex = useMemo(() => {
-    for (let i = 0; i < columns.length; i++) {
-      if (stickyRightSet.has(columns[i].key)) return i;
-    }
-    return -1;
-  }, [columns, stickyRightSet]);
-
-  const getStickyStyle = useCallback(
-    (colIndex: number, isHeader: boolean = false): React.CSSProperties => {
-      const key = columns[colIndex]?.key;
-      if (!key || !stickyRightSet.has(key)) return {};
-      return {
-        position: 'sticky',
-        right: 0,
-        zIndex: isHeader ? 5 : 3,
-        background: t.bgSurface,
-        boxShadow: colIndex === firstStickyIndex ? `inset 2px 0 ${t.border}` : 'none',
-      };
-    },
-    [columns, stickyRightSet, firstStickyIndex, t.bgSurface, t.border],
-  );
-
-  // ---------- Базовые стили ----------
-  const cellBaseStyle: React.CSSProperties = {
-    padding: '10px 14px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    maxWidth: columnMaxWidth,
-    borderRight: `1px solid ${t.borderSubtle}`,
-    color: t.text,
-    textAlign: 'left',
-    background: t.bgSurface,
-  };
-
-  const headerCellStyle: React.CSSProperties = {
-    ...cellBaseStyle,
-    fontWeight: 600,
-    cursor: 'default',
-    transition: 'background 0.15s',
-    position: 'sticky',
-    top: 0,
-    zIndex: 3,
-    background: t.bgSurface,
-  };
-
-  const tableContainerStyle: React.CSSProperties = {
-    width: '100%',
-    overflow: fixedHeader ? 'auto' : 'visible',
-    height: fixedHeader ? height : 'auto',
-    border: `1px solid ${t.border}`,
-    borderRadius: 10,
-    background: t.bgSurface,
-  };
-
-  // ---------- Позиционирование шестерёнки ----------
+  const { isMobile } = useResponsive();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [buttonPosition, setButtonPosition] = useState({ top: 0, left: 0 });
-  /**
-   * Видимость шестерёнки. Скрываем, когда она «уезжает» выше верхней
-   * границы своего скролл-контейнера — иначе она плавает поверх
-   * FilterBar / шапки / других fixed-элементов, т.к. отрендерена в body.
-   */
-  const [buttonVisible, setButtonVisible] = useState(true);
+  const { width: measuredWidth } = useResizeObserver(containerRef);
 
-  const updateButtonPosition = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const useMeasured = isMobile && measuredWidth > 0;
+  const effectiveWidth = useMeasured ? Math.max(320, measuredWidth - 16) : width;
+  const effectiveHeight = useMeasured
+    ? Math.max(280, Math.min(effectiveWidth * 0.95, 400))
+    : height;
 
-    const rect = el.getBoundingClientRect();
-    const gearTop = rect.top - 12;
-    const gearLeft = rect.left - 12;
+  const effectiveLegendPosition: 'left' | 'right' | 'bottom' = isMobile
+    ? 'bottom'
+    : legendPosition;
 
-    // Верхняя граница видимой области: верх скролл-родителя,
-    // либо 0, если скроллится сам viewport.
-    const scrollParent = findScrollParent(el);
-    const boundsTop = scrollParent
-      ? scrollParent.getBoundingClientRect().top
-      : 0;
+  const effectiveLabelFontSize = isMobile ? Math.max(8, labelFontSize - 1) : labelFontSize;
+  const effectiveShowLabels = isMobile ? false : showLabels;
 
-    // Скрываем, если шестерёнка вылезла за верх видимой области
-    // или уже за пределами окна.
-    const nextVisible = gearTop >= boundsTop && gearTop < window.innerHeight;
-
-    setButtonVisible((v) => (v === nextVisible ? v : nextVisible));
-    setButtonPosition((p) =>
-      p.top === gearTop && p.left === gearLeft ? p : { top: gearTop, left: gearLeft }
-    );
-  }, []);
-
-  useEffect(() => {
-    updateButtonPosition();
-    const handleScroll = () => updateButtonPosition();
-    const handleResize = () => updateButtonPosition();
-
-    // capture: true — ловим скролл и вложенных контейнеров (в них scroll
-    // не всплывает до window в bubble-фазе).
-    window.addEventListener('scroll', handleScroll, true);
-    window.addEventListener('resize', handleResize);
-
-    const ro = new ResizeObserver(() => updateButtonPosition());
-    if (containerRef.current) ro.observe(containerRef.current);
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true);
-      window.removeEventListener('resize', handleResize);
-      ro.disconnect();
+  // ─── Отступы ─────────────────────────────────────────────
+  // Поддерживаем margin как число (все стороны) или как объект.
+  const margin = useMemo(() => {
+    if (typeof marginProp === 'number') {
+      return { top: marginProp, right: marginProp, bottom: marginProp, left: marginProp };
+    }
+    return {
+      top: marginProp.top ?? 20,
+      right: marginProp.right ?? 20,
+      bottom: marginProp.bottom ?? 20,
+      left: marginProp.left ?? 20,
     };
-  }, [updateButtonPosition]);
+  }, [marginProp]);
 
-  useEffect(() => {
-    updateButtonPosition();
-  }, [data, columns, visibleKeys, order, updateButtonPosition]);
-
-  // ---------- Отображаемые колонки ----------
-  const displayColumns = useMemo(() => {
-    const uniqueKeys = Array.from(new Set(order.filter(key => visibleKeys.has(key))));
-    return uniqueKeys
-      .map(key => columnByKey.get(key))
-      .filter((col): col is Column<T> => col !== undefined);
-  }, [order, visibleKeys, columnByKey]);
-
-  // ---------- Стили кнопки-шестерёнки ----------
-  const settingsButton = useMemo(() => {
-    if (settingsOpen || !buttonVisible) return null;
-
-    const style: React.CSSProperties = {
-      position: 'fixed',
-      top: buttonPosition.top,
-      left: buttonPosition.left,
-      zIndex: 5,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: 24,
-      height: 24,
-      borderRadius: '50%',
-      background: t.bgSurface,
-      border: `1px solid ${t.border}`,
-      color: t.iconColor,
-      cursor: 'pointer',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      transition: 'background 0.2s, opacity 0.15s ease',
-      padding: 0,
-      opacity: 1,
-      pointerEvents: 'auto',
-      fontSize: 18,
-    };
-
-    return createPortal(
-      <button
-        className="settings-button"
-        style={style}
-        onClick={openSettings}
-        onMouseEnter={e => (e.currentTarget.style.background = t.navHoverBg)}
-        onMouseLeave={e => (e.currentTarget.style.background = t.bgSurface)}
-        aria-label="Настройка таблицы"
-      >
-        ⚙
-      </button>,
-      document.body,
-    );
-  }, [settingsOpen, buttonVisible, buttonPosition, t, openSettings]);
-
-  // ---------- Стиль кнопок перемещения ----------
-  const getMoveButtonStyle = useCallback(
-    (canMove: boolean): React.CSSProperties => ({
-      background: t.bgSurface,
-      border: `1px solid ${t.border}`,
-      borderRadius: 4,
-      cursor: canMove ? 'pointer' : 'default',
-      color: canMove ? t.iconColor : t.placeholder,
-      padding: '4px 6px',
-      display: 'flex',
-      alignItems: 'center',
-      lineHeight: 1,
-      transition: 'background 0.15s, opacity 0.15s',
-      opacity: canMove ? 1 : 0.3,
-      pointerEvents: canMove ? 'auto' : 'none',
-    }),
-    [t.bgSurface, t.border, t.iconColor, t.placeholder],
+  const roots = useMemo(() => buildTree(data), [data]);
+  const totalRootValue = useMemo(
+    () => roots.reduce((sum, r) => sum + r.value, 0),
+    [roots]
   );
 
-  // ---------- Поля модалки настроек ----------
-  const modalFields = useMemo(() => {
-    return settingsOrder.map((key, index) => {
-      const col = columnByKey.get(key);
-      if (!col) return { row: index, col: 0, content: null };
-
-      const isSticky = stickyRightSet.has(key);
-      const canMoveUp =
-        !isSticky && index > 0 && !stickyRightSet.has(settingsOrder[index - 1]);
-      const canMoveDown =
-        !isSticky &&
-        index < settingsOrder.length - 1 &&
-        !stickyRightSet.has(settingsOrder[index + 1]);
-
-      const moveButtons = [
-        { key: 'up', Icon: IcoChevronUp, canMove: canMoveUp, handler: moveUp },
-        { key: 'down', Icon: IcoChevronDown, canMove: canMoveDown, handler: moveDown },
-      ];
-
-      return {
-        row: index,
-        col: 0,
-        content: (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-            }}
-          >
-            <Checkbox
-              theme={t}
-              checked={settingsVisible.has(key)}
-              onChange={() => toggleVisible(key)}
-              label={String(col.header)}
-            />
-            <div style={{ display: 'flex', gap: 4 }}>
-              {moveButtons.map(btn => (
-                <button
-                  key={btn.key}
-                  onClick={() => btn.canMove && btn.handler(key)}
-                  style={getMoveButtonStyle(btn.canMove)}
-                  onMouseEnter={e => {
-                    if (btn.canMove) e.currentTarget.style.background = t.navHoverBg;
-                  }}
-                  onMouseLeave={e => {
-                    if (btn.canMove) e.currentTarget.style.background = t.bgSurface;
-                  }}
-                >
-                  <btn.Icon s={16} />
-                </button>
-              ))}
-            </div>
-          </div>
-        ),
-      };
+  // NOTE: сохраняем оригинальное поведение (side-effect в useMemo)
+  useMemo(() => {
+    let start = 0;
+    roots.forEach((root) => {
+      const fraction = root.value / totalRootValue;
+      root.startAngle = start;
+      root.endAngle = start + fraction * 2 * Math.PI;
+      start += fraction * 2 * Math.PI;
+      if (root.children.length > 0) {
+        computeAngles(root.children, root.startAngle, root.endAngle);
+      }
     });
-  }, [
-    settingsOrder,
-    settingsVisible,
-    columnByKey,
-    stickyRightSet,
-    t,
-    moveUp,
-    moveDown,
-    toggleVisible,
-    getMoveButtonStyle,
-  ]);
+  }, [roots, totalRootValue]);
 
-  // ---------- Рендер ----------
-  return (
-    <>
-      <div ref={containerRef} style={tableContainerStyle}>
-        <table
+  const allNodes = useMemo(() => flattenTree(roots), [roots]);
+
+  const nodeColorMap = useMemo(() => {
+    const map = new Map<string | number, string>();
+    allNodes.forEach((node) => {
+      map.set(node.id, node.color || getColorById(node.id));
+    });
+    return map;
+  }, [allNodes]);
+
+  // ─── Общий обработчик установки активного элемента ───────
+  const setActive = (node: TreeNode | null) => {
+    setActiveId(node ? node.id : null);
+    if (onSegmentHover) onSegmentHover(node);
+  };
+
+  // ─── Тап вне интерактивных элементов снимает выделение ───
+  useEffect(() => {
+    if (!dismissOnOutsideTap) return;
+    const handler = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (target.closest('[data-pie-interactive]')) return;
+      setActiveId(null);
+      if (onSegmentHover) onSegmentHover(null);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [dismissOnOutsideTap, onSegmentHover]);
+
+  // ─── Сегмент ─────────────────────────────────────────────
+  const segmentHandlers = (node: TreeNode) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      // Для мыши pointerdown не нужен — уже работает hover.
+      // Для тача — tap фиксирует выделение.
+      if (e.pointerType === 'mouse') return;
+      e.stopPropagation();
+      setActive(node);
+    },
+    onPointerEnter: (e: React.PointerEvent) => {
+      // Hover только для мыши/пера: на таче pointerenter срабатывает
+      // на каждый новый элемент при движении пальца — не нужно.
+      if (e.pointerType === 'touch') return;
+      setActive(node);
+    },
+    onPointerLeave: (e: React.PointerEvent) => {
+      if (e.pointerType === 'touch') return;
+      // Уходим с сегмента, но активный остаётся, если пользователь кликнул,
+      // а не навёл. Определяем по типу pointer.
+      setActive(null);
+    },
+    onPointerCancel: () => {
+      // На таче, если жест превратился в скролл, браузер шлёт pointercancel.
+      // Не снимаем выделение — пользователь может продолжать смотреть.
+    },
+  });
+
+  // ─── Легенда ─────────────────────────────────────────────
+  const legendHandlers = (node: TreeNode) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      e.stopPropagation();
+      setActive(node);
+    },
+    onPointerEnter: (e: React.PointerEvent) => {
+      if (e.pointerType === 'touch') return;
+      setActive(node);
+    },
+    onPointerLeave: (e: React.PointerEvent) => {
+      if (e.pointerType === 'touch') return;
+      setActive(null);
+    },
+  });
+
+  const hoveredNode = allNodes.find((n) => n.id === activeId);
+  const centerLabel = hoveredNode ? hoveredNode.label : 'Всего';
+  const centerValue = hoveredNode ? hoveredNode.value : totalRootValue;
+
+  // Размеры и масштаб
+  const legendWidth = showLegend && effectiveLegendPosition !== 'bottom' ? 200 : 0;
+  const chartWidth =
+    effectiveWidth - margin.left - margin.right - legendWidth - (legendWidth ? legendGap : 0);
+  const chartHeight = effectiveHeight - margin.top - margin.bottom;
+  const cx = margin.left + chartWidth / 2;
+  const cy = margin.top + chartHeight / 2;
+  const maxRadius = Math.min(chartWidth, chartHeight) / 2;
+  const maxLevel = Math.max(...allNodes.map((n) => n.level), 0);
+  const totalThickness = (maxLevel + 1) * ringThickness;
+  const scale = Math.min(1, maxRadius / (innerRadius + totalThickness + 10));
+  const scaledInner = innerRadius * scale;
+  const scaledThickness = ringThickness * scale;
+
+  const renderArcs = () => {
+    return allNodes.map((node) => {
+      const color = nodeColorMap.get(node.id)!;
+      const isActive = activeId === node.id;
+
+      let opacity = 0.85;
+      if (activeId !== null) {
+        opacity = isActive ? 1 : dimOpacity;
+      }
+
+      const outerR = scaledInner + (node.level + 1) * scaledThickness;
+      const innerR = scaledInner + node.level * scaledThickness;
+      const offset = isActive ? 4 : 0;
+      const outerOffset = outerR + offset;
+      const innerOffset = innerR + offset;
+
+      const d = describeArc(cx, cy, innerOffset, outerOffset, node.startAngle, node.endAngle);
+
+      const midAngle = (node.startAngle + node.endAngle) / 2;
+      const labelRadius = (innerR + outerR) / 2;
+      const labelX = cx + labelRadius * Math.cos(midAngle);
+      const labelY = cy + labelRadius * Math.sin(midAngle);
+
+      let labelTransform = '';
+
+      if (effectiveShowLabels && node.endAngle - node.startAngle > 0.15) {
+        const angleDeg = (midAngle * 180) / Math.PI;
+        const isLeftHalf = midAngle > Math.PI / 2 && midAngle < (3 * Math.PI) / 2;
+        const isDownHalf = midAngle > Math.PI && midAngle < 2 * Math.PI;
+
+        if (labelOrientation === 'horizontal') {
+          labelTransform = '';
+        } else if (labelOrientation === 'radial90') {
+          let rot = angleDeg + 270;
+          if (isDownHalf) rot += 180;
+          labelTransform = `rotate(${rot}, ${labelX}, ${labelY})`;
+        } else {
+          let rot = angleDeg;
+          if (isLeftHalf) rot += 180;
+          labelTransform = `rotate(${rot}, ${labelX}, ${labelY})`;
+        }
+      }
+
+      return (
+        <g key={node.id}>
+          <path
+            d={d}
+            fill={color}
+            stroke={theme.bgSurface}
+            strokeWidth={1.5}
+            opacity={opacity}
+            data-pie-interactive="true"
+            {...segmentHandlers(node)}
+            style={{
+              transition: 'opacity 0.25s ease, filter 0.25s ease, transform 0.25s ease',
+              cursor: 'pointer',
+              // Разрешаем тач-жесты: вертикальный скролл страницы,
+              // если пользователь начал жест на диаграмме.
+              touchAction: 'manipulation',
+              filter: isActive
+                ? 'brightness(1.1) drop-shadow(0 0 8px rgba(255,255,255,0.15))'
+                : 'none',
+            }}
+          />
+          {effectiveShowLabels && node.endAngle - node.startAngle > 0.15 && (
+            <text
+              x={labelX}
+              y={labelY}
+              fill={theme.text}
+              fontSize={effectiveLabelFontSize}
+              textAnchor="middle"
+              dominantBaseline="central"
+              pointerEvents="none"
+              transform={labelTransform}
+              style={{ userSelect: 'none', opacity, transition: 'opacity 0.25s ease' }}
+            >
+              {node.label}
+            </text>
+          )}
+        </g>
+      );
+    });
+  };
+
+  const renderLegend = () => {
+    if (!showLegend) return null;
+
+    const isBottom = effectiveLegendPosition === 'bottom';
+    const rootNodes = roots;
+
+    const legendItems = rootNodes.map((node) => {
+      const isActive = activeId === node.id;
+      const color = nodeColorMap.get(node.id)!;
+      const percent = ((node.value / totalRootValue) * 100).toFixed(1);
+
+      let legendOpacity = 1;
+      if (activeId !== null) {
+        legendOpacity = isActive ? 1 : 0.5;
+      }
+
+      return (
+        <div
+          key={node.id}
+          data-pie-interactive="true"
+          {...legendHandlers(node)}
           style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 14,
-            tableLayout: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '4px 8px',
+            borderRadius: 4,
+            cursor: 'pointer',
+            backgroundColor: isActive ? theme.navHoverBg : 'transparent',
+            transition: 'background 0.2s, opacity 0.25s ease',
+            fontSize: isBottom ? 12 : 13,
+            color: theme.text,
+            gap: 6,
+            opacity: legendOpacity,
+            flex: isBottom ? '0 0 calc(50% - 4px)' : undefined,
+            minWidth: 0,
+            touchAction: 'manipulation',
           }}
         >
-          <thead
+          <span
             style={{
-              position: fixedHeader ? 'sticky' : 'static',
-              top: 0,
-              zIndex: 5,
-              background: t.bgSurface,
-              boxShadow: `0 2px 0 ${t.border}`,
+              display: 'inline-block',
+              width: 12,
+              height: 12,
+              borderRadius: 3,
+              backgroundColor: color,
+              flexShrink: 0,
+            }}
+          />
+          <span
+            style={{
+              flex: 1,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minWidth: 0,
             }}
           >
-            <tr>
-              {displayColumns.map(col => {
-                const sortKey = col.key;
-                const sortIndex = sortState.findIndex(s => s.key === sortKey);
-                const isSorted = sortIndex !== -1;
-                const direction = isSorted ? sortState[sortIndex].direction : undefined;
-                const originalIndex = columnIndexByKey.get(col.key);
-                const stickyStyle =
-                  originalIndex !== undefined ? getStickyStyle(originalIndex, true) : {};
-                const isSortable = col.sortable !== undefined ? col.sortable : true;
+            {node.label}
+          </span>
+          <span
+            style={{
+              color: theme.textMuted,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {showLegendValues
+              ? `${node.value}${legendValueSeparator}${percent}%`
+              : `${percent}%`}
+          </span>
+        </div>
+      );
+    });
 
-                return (
-                  <th
-                    key={col.key}
-                    style={{
-                      ...headerCellStyle,
-                      ...stickyStyle,
-                      ...col.headerStyle,
-                      cursor: isSortable ? 'pointer' : 'default',
-                    }}
-                    onClick={e => isSortable && handleHeaderClick(sortKey, e)}
-                    onMouseEnter={e => {
-                      if (isSortable) e.currentTarget.style.background = t.navHoverBg;
-                    }}
-                    onMouseLeave={e => {
-                      if (isSortable) e.currentTarget.style.background = t.bgSurface;
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>{col.header}</span>
-                      {isSortable && isSorted && (
-                        <span style={{ fontSize: 12, color: t.accent }}>
-                          {direction === 'asc' ? ' ↑' : ' ↓'}
-                        </span>
-                      )}
-                      {isSortable && !isSorted && (
-                        <span style={{ fontSize: 10, color: t.placeholder }}>⇅</span>
-                      )}
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {data.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={displayColumns.length}
-                  style={{
-                    padding: 30,
-                    textAlign: 'center',
-                    color: t.placeholder,
-                    background: t.bgSurface,
-                  }}
-                >
-                  Нет данных
-                </td>
-              </tr>
-            ) : (
-              data.map((row, rowIndex) => {
-                const isSelected =
-                  selectedRowKey !== undefined && row[rowKey] === selectedRowKey;
-                const className = rowClassName ? rowClassName(row) : '';
-                const customRowStyle = rowStyle ? rowStyle(row) : {};
+    const style: React.CSSProperties = {
+      width: isBottom ? '100%' : legendWidth,
+      height: isBottom ? 'auto' : effectiveHeight - margin.top - margin.bottom,
+      maxHeight: isBottom ? 180 : undefined,
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      paddingRight: isBottom ? 0 : 4,
+      display: 'flex',
+      flexDirection: isBottom ? 'row' : 'column',
+      flexWrap: isBottom ? 'wrap' : 'nowrap',
+      gap: 4,
+      marginLeft: effectiveLegendPosition === 'right' ? legendGap : 0,
+      marginRight: effectiveLegendPosition === 'left' ? legendGap : 0,
+      // Для 'bottom' — вертикальный отступ между диаграммой и легендой
+      marginTop: isBottom ? legendGap : 0,
+    };
 
-                return (
-                  <tr
-                    key={row[rowKey]}
-                    className={className}
-                    onClick={() => onRowClick && onRowClick(row)}
-                    style={{
-                      cursor: onRowClick ? 'pointer' : 'default',
-                      background: isSelected ? `${t.accent}22` : t.bgSurface,
-                      borderLeft: isSelected ? `3px solid ${t.accent}` : 'none',
-                      transition: 'background 0.15s',
-                      animation: 'fadeInRow 0.25s ease forwards',
-                      animationDelay: `${rowIndex * 30}ms`,
-                      ...customRowStyle,
-                    }}
-                    onMouseEnter={e => {
-                      if (onRowClick && !isSelected)
-                        e.currentTarget.style.background = t.navHoverBg;
-                    }}
-                    onMouseLeave={e => {
-                      if (onRowClick && !isSelected)
-                        e.currentTarget.style.background = t.bgSurface;
-                    }}
-                  >
-                    {displayColumns.map(col => {
-                      const originalIndex = columnIndexByKey.get(col.key);
-                      const stickyStyle =
-                        originalIndex !== undefined
-                          ? getStickyStyle(originalIndex, false)
-                          : {};
-                      const cellContent = col.render
-                        ? col.render((row as any)[col.key], row)
-                        : (row as any)[col.key];
-                      return (
-                        <td
-                          key={col.key}
-                          style={{
-                            ...cellBaseStyle,
-                            ...stickyStyle,
-                            ...col.style,
-                          }}
-                        >
-                          {cellContent}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-        <style>{`
-          @keyframes fadeInRow {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-        `}</style>
+    return <div style={style}>{legendItems}</div>;
+  };
+
+  const renderCenter = () => (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={Math.max(scaledInner - 2, 0)}
+      fill={theme.bgSurface}
+      stroke={theme.border}
+      strokeWidth={2}
+      style={{ transition: 'opacity 0.25s' }}
+    />
+  );
+
+  const renderCenterText = () => (
+    <text
+      x={cx}
+      y={cy - 12}
+      textAnchor="middle"
+      dominantBaseline="central"
+      fill={theme.text}
+      fontSize={effectiveLabelFontSize + 10}
+      fontWeight="bold"
+      style={{ pointerEvents: 'none', transition: 'opacity 0.25s' }}
+    >
+      {centerValue}
+    </text>
+  );
+
+  const renderCenterLabel = () => (
+    <text
+      x={cx}
+      y={cy + 20}
+      textAnchor="middle"
+      dominantBaseline="central"
+      fill={theme.textMuted}
+      fontSize={effectiveLabelFontSize + 6}
+      style={{ pointerEvents: 'none', transition: 'opacity 0.25s' }}
+    >
+      {centerLabel}
+    </text>
+  );
+
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ padding: 20, textAlign: 'center', color: theme.textMuted }}>
+        Нет данных
       </div>
+    );
+  }
 
-      {settingsButton}
-
-      <Modal
-        theme={t}
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onOk={applySettings}
-        title="Настройка таблицы"
-        columns={1}
-        rows={settingsOrder.length || 1}
-        okText="Применить"
-        cancelText="Отмена"
-        canSubmit={true}
-        fields={modalFields}
-      />
-    </>
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        display: 'flex',
+        flexDirection: effectiveLegendPosition === 'bottom' ? 'column' : 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        // gap управляется через marginTop для 'bottom' и marginLeft/right в легенде,
+        // чтобы работал кастомный legendGap = 0.
+        gap: 0,
+        width: '100%',
+        // На тач-устройствах не выделяем текст и не даём случайных зумов
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      {effectiveLegendPosition === 'left' && renderLegend()}
+      <svg
+        width={chartWidth + margin.left + margin.right}
+        height={effectiveHeight}
+        style={{ flexShrink: 0, maxWidth: '100%', touchAction: 'manipulation' }}
+        viewBox={`0 0 ${chartWidth + margin.left + margin.right} ${effectiveHeight}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <g>
+          {renderArcs()}
+          {renderCenter()}
+          {renderCenterText()}
+          {renderCenterLabel()}
+        </g>
+      </svg>
+      {effectiveLegendPosition === 'right' && renderLegend()}
+      {effectiveLegendPosition === 'bottom' && renderLegend()}
+    </div>
   );
 }
