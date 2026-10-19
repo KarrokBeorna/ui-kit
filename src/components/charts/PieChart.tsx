@@ -39,6 +39,15 @@ export interface PieDataItem {
   color?: string;
 }
 
+/**
+ * Отступы вокруг диаграммы.
+ * Можно передать одно число (применяется ко всем сторонам)
+ * или объект с отдельными сторонами.
+ */
+export type PieChartMargin =
+  | number
+  | { top?: number; right?: number; bottom?: number; left?: number };
+
 export interface PieChartProps {
   /**
    * Плоский массив сегментов. Иерархия задаётся через parent/level,
@@ -133,6 +142,35 @@ export interface PieChartProps {
    * @default true
    */
   dismissOnOutsideTap?: boolean;
+
+  /**
+   * Отступы вокруг диаграммы, px.
+   * Можно передать одно число (все стороны) или объект с полями
+   * top/right/bottom/left. Не указанные стороны берут значение 20.
+   * @default 20
+   */
+  margin?: PieChartMargin;
+
+  /**
+   * Расстояние между диаграммой и легендой (по горизонтали для
+   * 'left'/'right' или по вертикали для 'bottom'), px.
+   * @default 12
+   */
+  legendGap?: number;
+
+  /**
+   * Показывать ли числовые значения в легенде рядом с процентами.
+   * При включении формат: `value - percent%`.
+   * @default false
+   */
+  showLegendValues?: boolean;
+
+  /**
+   * Разделитель между значением и процентом в легенде
+   * (используется только при showLegendValues = true).
+   * @default ' - '
+   */
+  legendValueSeparator?: string;
 }
 
 // ─── Вспомогательные функции ──────────────────────────────────
@@ -257,6 +295,10 @@ export function PieChart({
   dimOpacity = 0.3,
   onSegmentHover,
   dismissOnOutsideTap = true,
+  margin: marginProp = 20,
+  legendGap = 12,
+  showLegendValues = false,
+  legendValueSeparator = ' - ',
 }: PieChartProps) {
   // «Активный» — то, что подсвечено. Может быть установлен hover'ом мыши
   // или tap'ом пальца. Работает одинаково для обоих сценариев.
@@ -278,6 +320,20 @@ export function PieChart({
 
   const effectiveLabelFontSize = isMobile ? Math.max(8, labelFontSize - 1) : labelFontSize;
   const effectiveShowLabels = isMobile ? false : showLabels;
+
+  // ─── Отступы ─────────────────────────────────────────────
+  // Поддерживаем margin как число (все стороны) или как объект.
+  const margin = useMemo(() => {
+    if (typeof marginProp === 'number') {
+      return { top: marginProp, right: marginProp, bottom: marginProp, left: marginProp };
+    }
+    return {
+      top: marginProp.top ?? 20,
+      right: marginProp.right ?? 20,
+      bottom: marginProp.bottom ?? 20,
+      left: marginProp.left ?? 20,
+    };
+  }, [marginProp]);
 
   const roots = useMemo(() => buildTree(data), [data]);
   const totalRootValue = useMemo(
@@ -378,9 +434,7 @@ export function PieChart({
   const centerValue = hoveredNode ? hoveredNode.value : totalRootValue;
 
   // Размеры и масштаб
-  const margin = { top: 20, right: 20, bottom: 20, left: 20 };
   const legendWidth = showLegend && effectiveLegendPosition !== 'bottom' ? 200 : 0;
-  const legendGap = 12;
   const chartWidth =
     effectiveWidth - margin.left - margin.right - legendWidth - (legendWidth ? legendGap : 0);
   const chartHeight = effectiveHeight - margin.top - margin.bottom;
@@ -536,7 +590,17 @@ export function PieChart({
           >
             {node.label}
           </span>
-          <span style={{ color: theme.textMuted, fontSize: 11 }}>{percent}%</span>
+          <span
+            style={{
+              color: theme.textMuted,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {showLegendValues
+              ? `${node.value}${legendValueSeparator}${percent}%`
+              : `${percent}%`}
+          </span>
         </div>
       );
     });
@@ -554,6 +618,8 @@ export function PieChart({
       gap: 4,
       marginLeft: effectiveLegendPosition === 'right' ? legendGap : 0,
       marginRight: effectiveLegendPosition === 'left' ? legendGap : 0,
+      // Для 'bottom' — вертикальный отступ между диаграммой и легендой
+      marginTop: isBottom ? legendGap : 0,
     };
 
     return <div style={style}>{legendItems}</div>;
@@ -616,7 +682,9 @@ export function PieChart({
         flexDirection: effectiveLegendPosition === 'bottom' ? 'column' : 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: effectiveLegendPosition === 'bottom' ? 8 : 0,
+        // gap управляется через marginTop для 'bottom' и marginLeft/right в легенде,
+        // чтобы работал кастомный legendGap = 0.
+        gap: 0,
         width: '100%',
         // На тач-устройствах не выделяем текст и не даём случайных зумов
         WebkitTapHighlightColor: 'transparent',
