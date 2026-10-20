@@ -377,7 +377,6 @@ function App() {
                   <path d="M2 12L12 17L22 12" stroke="white" strokeWidth="2" />
                 </svg>
               }
-              showProfile={false}
               showSettings={true}
               showLayoutToggle
               showThemeSwitcher
@@ -603,7 +602,6 @@ function App() {
                       <path d="M2 12L12 17L22 12" stroke="white" strokeWidth="2" />
                     </svg>
                   }
-                  showProfile={false}
                   showSettings={false}
                   showLayoutToggle={false}
                   showThemeSwitcher={false}

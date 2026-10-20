@@ -43,7 +43,7 @@ interface HeaderBaseProps {
   navTabs: NavTab[];
   siteName?: string;
   logoSvg?: React.ReactNode;
-  showProfile?: boolean;
+  onProfileClick?: () => void;
   showSettings?: boolean;
   showLayoutToggle?: boolean;
   showThemeSwitcher?: boolean;
@@ -443,8 +443,8 @@ export function HorizontalHeader({
   navTabs,
   siteName = 'Nexus',
   logoSvg = '◈',
-  showProfile = true,
-  showSettings = true,
+  onProfileClick,
+  showSettings = false,
   showLayoutToggle = false,
   showThemeSwitcher = false,
   layoutMode,
@@ -482,7 +482,7 @@ export function HorizontalHeader({
   );
 
   const menuItems: [string, boolean][] = [];
-  if (showProfile) menuItems.push(['◈ Профиль', false]);
+  if (onProfileClick) menuItems.push(['◈ Профиль', false]);
   if (showSettings) menuItems.push(['⚙ Настройки', false]);
   if (onPasswordChange) menuItems.push(['🕵︎ Сменить пароль', false]);
   menuItems.push(['— Выйти', true]);
@@ -490,6 +490,9 @@ export function HorizontalHeader({
   const handleMenuClick = (label: string) => {
     if (label.includes('Выйти')) {
       onSignOut();
+    } else if (label.includes('Профиль')) {
+      setDropOpen(false);
+      onProfileClick?.();
     } else if (label.includes('Сменить пароль')) {
       setDropOpen(false);
       setPwdModalOpen(true);
