@@ -12,18 +12,49 @@ export interface TemplateOption {
   backgroundColor?: string;
 }
 
+/** Опция смены (A/B/C/…), принимается календарём через пропс. */
+export interface ShiftOption {
+  value: string;
+  label: string;
+  color?: string;
+  backgroundColor?: string;
+}
+
+/** Назначение на один день: шаблон + три смены. */
+export interface CalendarAssignment {
+  shift_template_id: string | null;
+  day_shift: string | null;
+  evening_shift: string | null;
+  night_shift: string | null;
+}
+
+export const DEFAULT_SHIFT_OPTIONS: ShiftOption[] = [
+  { value: 'A', label: 'Смена A', color: '#3498db', backgroundColor: 'rgba(52,152,219,0.25)' },
+  { value: 'B', label: 'Смена B', color: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.25)' },
+  { value: 'C', label: 'Смена C', color: '#2ecc71', backgroundColor: 'rgba(46,204,113,0.25)' },
+];
+
+const EMPTY_ASSIGNMENT: CalendarAssignment = {
+  shift_template_id: null,
+  day_shift: null,
+  evening_shift: null,
+  night_shift: null,
+};
+
 interface DayInfo {
   day: number;
   dateStr: string;
   isCurrentMonth: boolean;
-  assignment?: string;
+  assignment?: CalendarAssignment;
 }
 
 interface CalendarProps {
   theme: Theme;
   templateOptions: TemplateOption[];
-  assignments: Record<string, string>;
-  onAssignmentsChange?: (assignments: Record<string, string>) => void;
+  /** Массив смен, принимаемый через пропс. По умолчанию A/B/C. */
+  shiftOptions?: ShiftOption[];
+  assignments: Record<string, CalendarAssignment>;
+  onAssignmentsChange?: (assignments: Record<string, CalendarAssignment>) => void;
 }
 
 function formatLocalDate(year: number, month: number, day: number): string {
@@ -54,9 +85,32 @@ function getMondayBasedDay(day: number): number {
   return day === 0 ? 6 : day - 1;
 }
 
+/** Итерирует по диапазону дат включительно, вызывая cb для каждой даты. */
+function forEachDateInRange(
+  start: string,
+  end: string,
+  cb: (dateStr: string) => void,
+): void {
+  const s = parseLocalDate(start);
+  const e = parseLocalDate(end);
+  if (!s || !e) return;
+
+  const cur = { ...s };
+  // защита от бесконечного цикла
+  for (let guard = 0; guard < 20_000; guard++) {
+    cb(formatLocalDate(cur.year, cur.month, cur.day));
+    if (cur.year === e.year && cur.month === e.month && cur.day === e.day) return;
+    const n = new Date(cur.year, cur.month, cur.day + 1);
+    cur.year = n.getFullYear();
+    cur.month = n.getMonth();
+    cur.day = n.getDate();
+  }
+}
+
 export default function Calendar({
   theme: t,
   templateOptions,
+  shiftOptions = DEFAULT_SHIFT_OPTIONS,
   assignments,
   onAssignmentsChange,
 }: CalendarProps) {
@@ -66,10 +120,18 @@ export default function Calendar({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(
-    templateOptions.length > 0 ? templateOptions[0].value : ''
+    templateOptions.length > 0 ? templateOptions[0].value : '',
   );
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+
+  // ─── Состояние блока «Назначение смен» ───
+  const [selectedShift, setSelectedShift] = useState(
+    shiftOptions.length > 0 ? shiftOptions[0].value : '',
+  );
+  const [applyDay, setApplyDay] = useState(true);
+  const [applyEvening, setApplyEvening] = useState(true);
+  const [applyNight, setApplyNight] = useState(true);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -99,32 +161,46 @@ export default function Calendar({
     setEndDate('');
   };
 
+  // ─── Назначение шаблона (сохраняет уже назначенные смены) ───
   const applyOrRemoveAssignments = (start: string, end: string, template: string) => {
-    const startParsed = parseLocalDate(start);
-    const endParsed = parseLocalDate(end);
-    if (!startParsed || !endParsed) return;
+    const next = { ...assignments };
 
-    const newAssignments = { ...assignments };
-    const current = { year: startParsed.year, month: startParsed.month, day: startParsed.day };
-    while (
-      current.year < endParsed.year ||
-      (current.year === endParsed.year && current.month < endParsed.month) ||
-      (current.year === endParsed.year && current.month === endParsed.month && current.day <= endParsed.day)
-    ) {
-      const dateStr = formatLocalDate(current.year, current.month, current.day);
+    forEachDateInRange(start, end, (dateStr) => {
       if (template) {
-        newAssignments[dateStr] = template;
+        const prev = next[dateStr];
+        next[dateStr] = {
+          shift_template_id: template,
+          day_shift:     prev?.day_shift     ?? null,
+          evening_shift: prev?.evening_shift ?? null,
+          night_shift:   prev?.night_shift   ?? null,
+        };
       } else {
-        delete newAssignments[dateStr];
+        delete next[dateStr];
       }
-      const next = new Date(current.year, current.month, current.day + 1);
-      current.year = next.getFullYear();
-      current.month = next.getMonth();
-      current.day = next.getDate();
-    }
-    if (onAssignmentsChange) {
-      onAssignmentsChange(newAssignments);
-    }
+    });
+
+    onAssignmentsChange?.(next);
+  };
+
+  // ─── Множественное назначение смен A/B/C на диапазон ───
+  const applyShiftAssignment = () => {
+    if (!startDate || !endDate || !selectedShift) return;
+    if (!applyDay && !applyEvening && !applyNight) return;
+
+    const next = { ...assignments };
+
+    forEachDateInRange(startDate, endDate, (dateStr) => {
+      const prev = next[dateStr] ?? { ...EMPTY_ASSIGNMENT };
+      next[dateStr] = {
+        ...prev,
+        day_shift:     applyDay     ? selectedShift : prev.day_shift,
+        evening_shift: applyEvening ? selectedShift : prev.evening_shift,
+        night_shift:   applyNight   ? selectedShift : prev.night_shift,
+      };
+    });
+
+    onAssignmentsChange?.(next);
+    resetRange();
   };
 
   const handleDateClick = (dateStr: string, isCurrentMonth: boolean) => {
@@ -150,7 +226,9 @@ export default function Calendar({
 
       const startTime = new Date(startParsed.year, startParsed.month, startParsed.day).getTime();
       const endTime = new Date(endParsed.year, endParsed.month, endParsed.day).getTime();
+
       if (endTime < startTime) {
+        // клик в прошлое — разворачиваем диапазон
         setRangeStart(dateStr);
         setRangeEnd(rangeStart);
         setStartDate(dateStr);
@@ -169,7 +247,7 @@ export default function Calendar({
     }
   };
 
-  const handleApply = () => {
+  const handleApplyTemplate = () => {
     if (!startDate || !endDate) return;
     applyOrRemoveAssignments(startDate, endDate, selectedTemplate);
     resetRange();
@@ -209,9 +287,8 @@ export default function Calendar({
     return found ? found.label : value;
   };
 
-  const getTemplate = (value: string) => {
-    return templateOptions.find((o) => o.value === value);
-  };
+  const getTemplate = (value: string | null) =>
+    value ? templateOptions.find((o) => o.value === value) : undefined;
 
   const isDateInRange = (dateStr: string) => {
     if (!rangeStart || !rangeEnd) return false;
@@ -239,6 +316,32 @@ export default function Calendar({
     fontSize: 14,
   };
 
+  /** Маленький бейдж «ДA», «ВB», «НC» с цветом соответствующей смены. */
+  const ShiftBadge: React.FC<{ kind: 'Д' | 'В' | 'Н'; value: string }> = ({ kind, value }) => {
+    const opt = shiftOptions.find((o) => o.value === value);
+    return (
+      <span
+        title={`${kind === 'Д' ? 'Дневная' : kind === 'В' ? 'Вечерняя' : 'Ночная'} смена: ${opt?.label ?? value}`}
+        style={{
+          display: 'inline-block',
+          background: opt?.backgroundColor ?? 'rgba(0,0,0,0.15)',
+          color: opt?.color ?? 'inherit',
+          padding: '0 3px',
+          borderRadius: 3,
+          fontWeight: 700,
+          fontSize: 9,
+          lineHeight: '14px',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {kind}{value}
+      </span>
+    );
+  };
+
+  const hasAnyShift = (a?: CalendarAssignment) =>
+    !!a && (!!a.day_shift || !!a.evening_shift || !!a.night_shift);
+
   return (
     <div
       style={{
@@ -249,7 +352,7 @@ export default function Calendar({
         color: t.text,
       }}
     >
-      {/* Заголовок */}
+      {/* ───── Заголовок ───── */}
       <div
         style={{
           display: 'flex',
@@ -269,7 +372,7 @@ export default function Calendar({
         </div>
       </div>
 
-      {/* Сетка дней */}
+      {/* ───── Сетка дней ───── */}
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <thead>
           <tr>
@@ -299,15 +402,16 @@ export default function Calendar({
                 {rowDays.map((dayInfo, colIndex) => {
                   const { day, dateStr, isCurrentMonth, assignment } = dayInfo;
                   const isWeekend = colIndex === 5 || colIndex === 6;
-                  const template = assignment ? getTemplate(assignment) : undefined;
+                  const template = getTemplate(assignment?.shift_template_id ?? null);
                   const bgColor = template?.backgroundColor
                     ? template.backgroundColor
                     : template?.color
                     ? `${template.color}40`
                     : 'rgba(46, 204, 113, 0.25)';
                   const textColor = template?.color || '#27ae60';
-
                   const inRange = isDateInRange(dateStr);
+                  const hasTemplate = !!assignment?.shift_template_id;
+                  const hasShifts = hasAnyShift(assignment);
 
                   return (
                     <td
@@ -316,9 +420,10 @@ export default function Calendar({
                       style={{
                         padding: isMobile ? '8px 2px' : '6px 4px',
                         textAlign: 'center',
+                        verticalAlign: 'top',
                         fontSize: isMobile ? 13 : 14,
                         color: isCurrentMonth ? t.text : t.placeholder,
-                        background: assignment
+                        background: hasTemplate
                           ? bgColor
                           : isCurrentMonth && inRange
                           ? t.accentGlow
@@ -331,16 +436,14 @@ export default function Calendar({
                         border: `1px solid ${isCurrentMonth && inRange ? t.accent : 'transparent'}`,
                         transition: 'background 0.15s, border 0.15s',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
                       }}
                       onMouseEnter={(e) => {
-                        if (isCurrentMonth && !assignment) {
+                        if (isCurrentMonth && !hasTemplate) {
                           e.currentTarget.style.background = t.navHoverBg;
                         }
                       }}
                       onMouseLeave={(e) => {
-                        if (isCurrentMonth && !assignment) {
+                        if (isCurrentMonth && !hasTemplate) {
                           e.currentTarget.style.background = inRange
                             ? t.accentGlow
                             : isWeekend
@@ -350,7 +453,8 @@ export default function Calendar({
                       }}
                     >
                       <div style={{ fontWeight: isCurrentMonth ? 500 : 300 }}>{day}</div>
-                      {assignment && (
+
+                      {hasTemplate && (
                         <div
                           style={{
                             fontSize: isMobile ? 9 : 10,
@@ -365,7 +469,23 @@ export default function Calendar({
                             textOverflow: 'ellipsis',
                           }}
                         >
-                          {getTemplateLabel(assignment)}
+                          {getTemplateLabel(assignment!.shift_template_id!)}
+                        </div>
+                      )}
+
+                      {hasShifts && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 2,
+                            justifyContent: 'center',
+                            marginTop: 2,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {assignment!.day_shift     && <ShiftBadge kind="Д" value={assignment!.day_shift} />}
+                          {assignment!.evening_shift && <ShiftBadge kind="В" value={assignment!.evening_shift} />}
+                          {assignment!.night_shift   && <ShiftBadge kind="Н" value={assignment!.night_shift} />}
                         </div>
                       )}
                     </td>
@@ -377,7 +497,7 @@ export default function Calendar({
         </tbody>
       </table>
 
-      {/* Нижние контролы */}
+      {/* ───── Блок 1: назначение шаблона ───── */}
       <div
         style={{
           marginTop: 20,
@@ -385,6 +505,7 @@ export default function Calendar({
           paddingTop: 16,
         }}
       >
+        <div style={{ fontWeight: 600, marginBottom: 8, color: t.text }}>Назначение шаблона</div>
         <div
           style={{
             display: 'flex',
@@ -451,10 +572,96 @@ export default function Calendar({
             <Button
               theme={t}
               variant={selectedTemplate ? 'primary' : 'danger'}
-              onClick={handleApply}
+              onClick={handleApplyTemplate}
               size="md"
             >
-              {selectedTemplate ? 'Применить' : 'Удалить'}
+              {selectedTemplate ? 'Применить шаблон' : 'Удалить'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ───── Блок 2: назначение смен A/B/C ───── */}
+      <div
+        style={{
+          marginTop: 16,
+          borderTop: `1px solid ${t.border}`,
+          paddingTop: 16,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 8, color: t.text }}>
+          Назначение смен{' '}
+          <span style={{ fontWeight: 400, color: t.placeholder, fontSize: 13 }}>
+            (на выбранный выше диапазон)
+          </span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            flexWrap: 'wrap',
+            gap: 12,
+            alignItems: isMobile ? 'stretch' : 'center',
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              minWidth: isMobile ? 0 : 170,
+              maxWidth: isMobile ? 'none' : 220,
+            }}
+          >
+            <SearchableSelect
+              label="Смена"
+              theme={t}
+              options={shiftOptions.map(({ value, label }) => ({ value, label }))}
+              value={selectedShift}
+              onChange={setSelectedShift}
+            />
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            {([
+              { label: 'Дневная',  checked: applyDay,     set: setApplyDay },
+              { label: 'Вечерняя', checked: applyEvening, set: setApplyEvening },
+              { label: 'Ночная',   checked: applyNight,   set: setApplyNight },
+            ] as const).map(({ label, checked, set }) => (
+              <label
+                key={label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  color: t.text,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => set(e.target.checked)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          <div style={{ width: isMobile ? '100%' : 'auto' }}>
+            <Button
+              theme={t}
+              variant="primary"
+              onClick={applyShiftAssignment}
+              size="md"
+            >
+              Применить смену
             </Button>
           </div>
         </div>

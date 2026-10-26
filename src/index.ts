@@ -31,7 +31,7 @@ export type { LayoutMode } from './components/desktop/LayoutToggle';
 export { Menu } from './components/Menu';
 export type { MenuTab } from './components/Menu';
 export { default as Calendar } from './components/Calendar';
-export type { TemplateOption } from './components/Calendar';
+export type { TemplateOption, ShiftOption, CalendarAssignment } from './components/Calendar';
 export { default as DirectoryTree } from './components/desktop/DirectoryTree';
 export type { DirectoryApi, DirectoryItem } from './components/desktop/DirectoryTree';
 
