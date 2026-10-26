@@ -118,6 +118,16 @@ export interface HistogramProps {
   barMode?: 'stacked' | 'grouped';
 
   /**
+   * Сортировка сегментов внутри стека (только при barMode='stacked').
+   *  - 'none' — порядок как в seriesSet (по умолчанию);
+   *  - 'desc' — по убыванию значения (крупные сегменты — у основания столбца);
+   *  - 'asc'  — по возрастанию значения.
+   * Сортировка выполняется отдельно для каждой колонки (per-label).
+   * @default 'none'
+   */
+  sortStackedSegments?: 'none' | 'desc' | 'asc';
+
+  /**
    * Фиксированный шаг шкалы Y. Если не указан — подбирается
    * автоматически «красивым» числом (1, 2, 5, 10, 20, 50...).
    * На мобиле авто-подбор использует 4 деления, на десктопе — 6.
@@ -181,10 +191,10 @@ const CSS_FN_COLOR = /^(rgb|rgba|hsl|hsla)\(/i;
 
 /**
  * Возвращает CSS-цвет по id/имени серии.
- * - '#...'       — hex как есть
+ * - '#...'                  — hex как есть
  * - 'rgb(...)', 'hsl(...)' — как есть
- * - число         — детерминированный HSL по золотому сечению
- * - строка        — хеш строки → HSL (работает для кириллицы, эмодзи и т.п.)
+ * - число                  — детерминированный HSL по золотому сечению
+ * - строка                 — хеш строки → HSL (работает для кириллицы, эмодзи и т.п.)
  */
 function getColorById(id: string | number): string {
   // 1. Явный CSS-цвет — возвращаем без изменений
@@ -275,6 +285,7 @@ export function Histogram({
   axisLabelFontSize = 12,
   valuesFontSize = 12,
   barMode = 'grouped',
+  sortStackedSegments = 'none',
   stepSize,
   groupGap = 0.2,
   dimOpacity = 0.25,
@@ -421,8 +432,18 @@ export function Histogram({
       const map = grouped.get(label)!;
 
       if (barMode === 'stacked') {
+        // Определяем порядок серий для этой колонки.
+        const seriesForLabel =
+          sortStackedSegments === 'none'
+            ? seriesSet
+            : [...seriesSet].sort((a, b) => {
+                const va = map.get(a) || 0;
+                const vb = map.get(b) || 0;
+                return sortStackedSegments === 'desc' ? vb - va : va - vb;
+              });
+
         let yOffset = 0;
-        seriesSet.forEach((series) => {
+        seriesForLabel.forEach((series) => {
           const value = map.get(series) || 0;
           if (value === 0) return;
           const barHeight = (value / yMax) * chartHeight;
