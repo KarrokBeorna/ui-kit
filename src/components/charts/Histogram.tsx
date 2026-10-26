@@ -167,12 +167,48 @@ export interface HistogramProps {
 
 // ─── Вспомогательные функции ──────────────────────────────────
 
+/** Быстрый строковый хеш (FNV-1a). Работает для любых Unicode-строк. */
+function stringHash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+const CSS_FN_COLOR = /^(rgb|rgba|hsl|hsla)\(/i;
+
+/**
+ * Возвращает CSS-цвет по id/имени серии.
+ * - '#...'       — hex как есть
+ * - 'rgb(...)', 'hsl(...)' — как есть
+ * - число         — детерминированный HSL по золотому сечению
+ * - строка        — хеш строки → HSL (работает для кириллицы, эмодзи и т.п.)
+ */
 function getColorById(id: string | number): string {
-  if (typeof id === 'string' && id.startsWith('#')) return id;
-  const num = typeof id === 'number' ? id : parseInt(id, 36);
+  // 1. Явный CSS-цвет — возвращаем без изменений
+  if (typeof id === 'string') {
+    const t = id.trim();
+    if (t.startsWith('#')) return t;
+    if (CSS_FN_COLOR.test(t)) return t;
+  }
+
+  // 2. Определяем seed
+  let seed: number;
+  if (typeof id === 'number') {
+    seed = id;
+  } else {
+    const asNum = Number(id);
+    // "42", "3.14" → число; иначе — хеш от строки
+    seed = id.trim() !== '' && !isNaN(asNum) ? asNum : stringHash(id);
+  }
+
+  // 3. HSL по золотому сечению, стабильный и равномерный
   const phi = 0.618033988749895;
-  const hue = (num * phi) % 1.0;
-  return `hsl(${hue * 360}, 70%, 55%)`;
+  const frac = (((seed * phi) % 1) + 1) % 1;   // на случай отрицательных seed
+  const hue = Math.round(frac * 360);
+  return `hsl(${hue}, 65%, 55%)`;
 }
 
 function groupData(data: HistogramDataItem[]): {
@@ -211,8 +247,7 @@ function groupData(data: HistogramDataItem[]): {
 
   seriesSet.forEach((series) => {
     if (!colorMap.has(series)) {
-      const seed = typeof series === 'string' ? parseInt(series, 36) : Number(series);
-      colorMap.set(series, getColorById(isNaN(seed) ? series : seed));
+      colorMap.set(series, getColorById(series));
     }
   });
 
