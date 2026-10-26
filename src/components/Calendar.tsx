@@ -41,6 +41,9 @@ const EMPTY_ASSIGNMENT: CalendarAssignment = {
   night_shift: null,
 };
 
+/** Сентинел «сбросить смену в null» в выпадающем списке. */
+const CLEAR_SENTINEL = '__clear__';
+
 interface DayInfo {
   day: number;
   dateStr: string;
@@ -96,7 +99,6 @@ function forEachDateInRange(
   if (!s || !e) return;
 
   const cur = { ...s };
-  // защита от бесконечного цикла
   for (let guard = 0; guard < 20_000; guard++) {
     cb(formatLocalDate(cur.year, cur.month, cur.day));
     if (cur.year === e.year && cur.month === e.month && cur.day === e.day) return;
@@ -105,6 +107,18 @@ function forEachDateInRange(
     cur.month = n.getMonth();
     cur.day = n.getDate();
   }
+}
+
+/**
+ * Разрешает выбранное значение из выпадающего списка в новое значение слота.
+ *  - ''             → не менять (возвращаем текущее)
+ *  - CLEAR_SENTINEL → null (сбросить)
+ *  - прочее          → выбранная смена
+ */
+function resolveShift(selected: string, current: string | null): string | null {
+  if (selected === '') return current;
+  if (selected === CLEAR_SENTINEL) return null;
+  return selected;
 }
 
 export default function Calendar({
@@ -125,13 +139,10 @@ export default function Calendar({
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
-  // ─── Состояние блока «Назначение смен» ───
-  const [selectedShift, setSelectedShift] = useState(
-    shiftOptions.length > 0 ? shiftOptions[0].value : '',
-  );
-  const [applyDay, setApplyDay] = useState(true);
-  const [applyEvening, setApplyEvening] = useState(true);
-  const [applyNight, setApplyNight] = useState(true);
+  // ─── Три независимых выпадающих списка для смен ───
+  const [dayShift, setDayShift] = useState('');
+  const [eveningShift, setEveningShift] = useState('');
+  const [nightShift, setNightShift] = useState('');
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -182,10 +193,10 @@ export default function Calendar({
     onAssignmentsChange?.(next);
   };
 
-  // ─── Множественное назначение смен A/B/C на диапазон ───
+  // ─── Множественное назначение смен на диапазон ───
   const applyShiftAssignment = () => {
-    if (!startDate || !endDate || !selectedShift) return;
-    if (!applyDay && !applyEvening && !applyNight) return;
+    if (!startDate || !endDate) return;
+    if (!dayShift && !eveningShift && !nightShift) return;
 
     const next = { ...assignments };
 
@@ -193,9 +204,9 @@ export default function Calendar({
       const prev = next[dateStr] ?? { ...EMPTY_ASSIGNMENT };
       next[dateStr] = {
         ...prev,
-        day_shift:     applyDay     ? selectedShift : prev.day_shift,
-        evening_shift: applyEvening ? selectedShift : prev.evening_shift,
-        night_shift:   applyNight   ? selectedShift : prev.night_shift,
+        day_shift:     resolveShift(dayShift,     prev.day_shift),
+        evening_shift: resolveShift(eveningShift, prev.evening_shift),
+        night_shift:   resolveShift(nightShift,   prev.night_shift),
       };
     });
 
@@ -228,7 +239,6 @@ export default function Calendar({
       const endTime = new Date(endParsed.year, endParsed.month, endParsed.day).getTime();
 
       if (endTime < startTime) {
-        // клик в прошлое — разворачиваем диапазон
         setRangeStart(dateStr);
         setRangeEnd(rangeStart);
         setStartDate(dateStr);
@@ -316,12 +326,15 @@ export default function Calendar({
     fontSize: 14,
   };
 
-  /** Маленький бейдж «ДA», «ВB», «НC» с цветом соответствующей смены. */
+  /** Бейдж «ДA», «ВB», «НC» с цветом соответствующей смены. */
   const ShiftBadge: React.FC<{ kind: 'Д' | 'В' | 'Н'; value: string }> = ({ kind, value }) => {
     const opt = shiftOptions.find((o) => o.value === value);
     return (
       <span
-        title={`${kind === 'Д' ? 'Дневная' : kind === 'В' ? 'Вечерняя' : 'Ночная'} смена: ${opt?.label ?? value}`}
+        title={
+          `${kind === 'Д' ? 'Дневная' : kind === 'В' ? 'Вечерняя' : 'Ночная'} смена: `
+          + (opt?.label ?? value)
+        }
         style={{
           display: 'inline-block',
           background: opt?.backgroundColor ?? 'rgba(0,0,0,0.15)',
@@ -341,6 +354,16 @@ export default function Calendar({
 
   const hasAnyShift = (a?: CalendarAssignment) =>
     !!a && (!!a.day_shift || !!a.evening_shift || !!a.night_shift);
+
+  // Опции для трёх выпадающих списков смен:
+  // «не менять» + сами смены + «сбросить».
+  const shiftSelectOptions = [
+    { value: '', label: '— не менять —' },
+    ...shiftOptions.map(({ value, label }) => ({ value, label })),
+    { value: CLEAR_SENTINEL, label: '✕ Сбросить' },
+  ];
+
+  const nothingToApplyShift = !dayShift && !eveningShift && !nightShift;
 
   return (
     <div
@@ -604,56 +627,33 @@ export default function Calendar({
             alignItems: isMobile ? 'stretch' : 'center',
           }}
         >
-          <div
-            style={{
-              flex: 1,
-              minWidth: isMobile ? 0 : 170,
-              maxWidth: isMobile ? 'none' : 220,
-            }}
-          >
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170 }}>
             <SearchableSelect
-              label="Смена"
+              label="Дневная смена"
               theme={t}
-              options={shiftOptions.map(({ value, label }) => ({ value, label }))}
-              value={selectedShift}
-              onChange={setSelectedShift}
+              options={shiftSelectOptions}
+              value={dayShift}
+              onChange={setDayShift}
             />
           </div>
-
-          <div
-            style={{
-              display: 'flex',
-              gap: 12,
-              alignItems: 'center',
-              flexWrap: 'wrap',
-            }}
-          >
-            {([
-              { label: 'Дневная',  checked: applyDay,     set: setApplyDay },
-              { label: 'Вечерняя', checked: applyEvening, set: setApplyEvening },
-              { label: 'Ночная',   checked: applyNight,   set: setApplyNight },
-            ] as const).map(({ label, checked, set }) => (
-              <label
-                key={label}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  color: t.text,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(e) => set(e.target.checked)}
-                />
-                {label}
-              </label>
-            ))}
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170 }}>
+            <SearchableSelect
+              label="Вечерняя смена"
+              theme={t}
+              options={shiftSelectOptions}
+              value={eveningShift}
+              onChange={setEveningShift}
+            />
           </div>
-
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170 }}>
+            <SearchableSelect
+              label="Ночная смена"
+              theme={t}
+              options={shiftSelectOptions}
+              value={nightShift}
+              onChange={setNightShift}
+            />
+          </div>
           <div style={{ width: isMobile ? '100%' : 'auto' }}>
             <Button
               theme={t}
@@ -661,9 +661,20 @@ export default function Calendar({
               onClick={applyShiftAssignment}
               size="md"
             >
-              Применить смену
+              Применить смены
             </Button>
           </div>
+        </div>
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 12,
+            color: t.placeholder,
+          }}
+        >
+          {nothingToApplyShift
+            ? 'Выберите хотя бы одну смену, чтобы применить.'
+            : 'Смены с пустым значением «— не менять —» останутся как были; «✕ Сбросить» очищает слот.'}
         </div>
       </div>
     </div>
