@@ -77,8 +77,8 @@ export interface HistogramProps {
 
   /**
    * Показывать ли числовые значения внутри столбиков.
-   * Скрывается автоматически, если столбик слишком узкий (< 20px)
-   * или слишком низкий (< 16px).
+   * Если столбик слишком узкий — текст автоматически поворачивается
+   * под 45° или 90°, а если и это не спасает — не рисуется.
    * @default false
    */
   showValues?: boolean;
@@ -122,7 +122,8 @@ export interface HistogramProps {
    *  - 'none' — порядок как в seriesSet (по умолчанию);
    *  - 'desc' — по убыванию значения (крупные сегменты — у основания столбца);
    *  - 'asc'  — по возрастанию значения.
-   * Сортировка выполняется отдельно для каждой колонки (per-label).
+   * Сортировка выполняется отдельно для каждой колонки (per-label),
+   * чтобы внутри каждого столбца крупные сегменты были снизу.
    * @default 'none'
    */
   sortStackedSegments?: 'none' | 'desc' | 'asc';
@@ -177,7 +178,12 @@ export interface HistogramProps {
 
 // ─── Вспомогательные функции ──────────────────────────────────
 
-/** Быстрый строковый хеш (FNV-1a). Работает для любых Unicode-строк. */
+/**
+ * Быстрый строковый хеш (FNV-1a). Работает для любых Unicode-строк:
+ * кириллицы, эмодзи, иероглифов. Используется для генерации
+ * стабильного цвета серии по её имени, когда parseInt(..., 36)
+ * не может этого сделать.
+ */
 function stringHash(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -191,10 +197,15 @@ const CSS_FN_COLOR = /^(rgb|rgba|hsl|hsla)\(/i;
 
 /**
  * Возвращает CSS-цвет по id/имени серии.
- * - '#...'                  — hex как есть
- * - 'rgb(...)', 'hsl(...)' — как есть
- * - число                  — детерминированный HSL по золотому сечению
- * - строка                 — хеш строки → HSL (работает для кириллицы, эмодзи и т.п.)
+ * - '#...'                 — hex как есть;
+ * - 'rgb(...)', 'hsl(...)' — функциональные цвета как есть;
+ * - число                  — детерминированный HSL по золотому сечению;
+ * - строка                 — хеш строки → HSL (работает для кириллицы,
+ *                             эмодзи и любых Unicode-строк).
+ *
+ * Замечание: раньше здесь использовался parseInt(id, 36), который для
+ * строк вроде 'Производство' возвращает NaN — браузер молча игнорировал
+ * невалидный hsl(NaN, ...), и столбик рисовался чёрным/прозрачным.
  */
 function getColorById(id: string | number): string {
   // 1. Явный CSS-цвет — возвращаем без изменений
@@ -204,17 +215,17 @@ function getColorById(id: string | number): string {
     if (CSS_FN_COLOR.test(t)) return t;
   }
 
-  // 2. Определяем seed
+  // 2. Определяем seed: число — как есть, «числовая» строка — в число,
+  //    иначе — стабильный хеш от строки
   let seed: number;
   if (typeof id === 'number') {
     seed = id;
   } else {
     const asNum = Number(id);
-    // "42", "3.14" → число; иначе — хеш от строки
     seed = id.trim() !== '' && !isNaN(asNum) ? asNum : stringHash(id);
   }
 
-  // 3. HSL по золотому сечению, стабильный и равномерный
+  // 3. HSL по золотому сечению — равномерное распределение оттенков
   const phi = 0.618033988749895;
   const frac = (((seed * phi) % 1) + 1) % 1;   // на случай отрицательных seed
   const hue = Math.round(frac * 360);
@@ -255,6 +266,9 @@ function groupData(data: HistogramDataItem[]): {
     }
   });
 
+  // Для серий без явного color — генерируем цвет по имени.
+  // getColorById сам решает: hex/rgb/hsl как есть, число → HSL,
+  // строка → хеш → HSL (работает для кириллицы).
   seriesSet.forEach((series) => {
     if (!colorMap.has(series)) {
       colorMap.set(series, getColorById(series));
@@ -424,6 +438,109 @@ export function Histogram({
     if (onBarClick) onBarClick(item);
   };
 
+  // ─── Значение внутри бара с автоповоротом ────────────────
+  /**
+   * Рисует подпись значения с автоматическим выбором угла наклона:
+   *   1) 0°  — если текст влезает по ширине и высоте бара;
+   *   2) 45° — если бар узкий, но не крошечный (частый случай: 14 баров,
+   *            значения вида «102.43»);
+   *   3) 90° — если бар совсем узкий, но достаточно высокий;
+   *   4) иначе — подпись не рисуется, чтобы не было визуального шума.
+   *
+   * Для наклонённых подписей добавляем обводку цветом фона:
+   * часть текста выходит за пределы цветного бара и иначе
+   * сливается с фоном карточки.
+   */
+  const renderValueLabel = (
+    value: number,
+    barX: number,
+    barY: number,
+    barW: number,
+    barH: number,
+    key: string,
+  ): React.ReactNode => {
+    if (!showValues) return null;
+    if (barH <= 0 || barW <= 0) return null;
+
+    const text = String(value);
+    const fs = effectiveValuesFontSize;
+    // Грубая оценка ширины текста для текущего шрифта
+    const approxTextWidth = text.length * fs * 0.6;
+
+    const cx = barX + barW / 2;
+    const cy = barY + barH / 2;
+
+    // 1) Горизонтально — текст влезает целиком
+    if (barW >= approxTextWidth + 6 && barH >= fs + 4) {
+      return (
+        <text
+          key={key}
+          x={cx}
+          y={cy + 1}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={theme.bgSurface}
+          fontSize={Math.min(fs, barH * 0.8)}
+          fontWeight="bold"
+          pointerEvents="none"
+          style={{ userSelect: 'none' }}
+        >
+          {text}
+        </text>
+      );
+    }
+
+    // 2) 45° — узкий, но не крошечный
+    if (barW >= 12 && barH >= 20) {
+      return (
+        <text
+          key={key}
+          x={cx}
+          y={cy + 1}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={theme.text}
+          stroke={theme.bgSurface}
+          strokeWidth={2}
+          paintOrder="stroke"
+          fontSize={Math.min(fs, 11)}
+          fontWeight="bold"
+          pointerEvents="none"
+          style={{ userSelect: 'none' }}
+          transform={`rotate(-45 ${cx} ${cy})`}
+        >
+          {text}
+        </text>
+      );
+    }
+
+    // 3) 90° — вертикально
+    if (barW >= fs * 0.9 && barH >= approxTextWidth + 6) {
+      return (
+        <text
+          key={key}
+          x={cx}
+          y={cy + 1}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={theme.text}
+          stroke={theme.bgSurface}
+          strokeWidth={2}
+          paintOrder="stroke"
+          fontSize={Math.min(fs, 11)}
+          fontWeight="bold"
+          pointerEvents="none"
+          style={{ userSelect: 'none' }}
+          transform={`rotate(-90 ${cx} ${cy})`}
+        >
+          {text}
+        </text>
+      );
+    }
+
+    return null;
+  };
+
   const renderBars = () => {
     const bars: JSX.Element[] = [];
 
@@ -433,6 +550,9 @@ export function Histogram({
 
       if (barMode === 'stacked') {
         // Определяем порядок серий для этой колонки.
+        // 'desc' — крупные сегменты у основания столбца (сортировка per-label),
+        // 'asc'  — мелкие у основания,
+        // 'none' — порядок как в seriesSet.
         const seriesForLabel =
           sortStackedSegments === 'none'
             ? seriesSet
@@ -488,25 +608,11 @@ export function Histogram({
             />
           );
 
-          if (showValues && barHeight > 16 && w > 20) {
-            const textY = y + barHeight / 2 + 4;
-            bars.push(
-              <text
-                key={`${label}-${series}-val`}
-                x={x + w / 2}
-                y={textY}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill={theme.bgSurface}
-                fontSize={Math.min(effectiveValuesFontSize, barHeight * 0.8)}
-                fontWeight="bold"
-                pointerEvents="none"
-                style={{ userSelect: 'none' }}
-              >
-                {value}
-              </text>
-            );
-          }
+          const labelEl = renderValueLabel(
+            value, x, y, w, barHeight,
+            `${label}-${series}-val`,
+          );
+          if (labelEl) bars.push(labelEl as JSX.Element);
 
           yOffset += value;
         });
@@ -558,26 +664,11 @@ export function Histogram({
             />
           );
 
-          if (showValues && barHeight > 16 && innerBarWidth > 20) {
-            const textX = x + innerBarWidth / 2;
-            const textY = y + barHeight / 2 + 4;
-            bars.push(
-              <text
-                key={`${label}-${series}-val`}
-                x={textX}
-                y={textY}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill={theme.bgSurface}
-                fontSize={Math.min(effectiveValuesFontSize, barHeight * 0.8)}
-                fontWeight="bold"
-                pointerEvents="none"
-                style={{ userSelect: 'none' }}
-              >
-                {value}
-              </text>
-            );
-          }
+          const labelEl = renderValueLabel(
+            value, x, y, innerBarWidth, barHeight,
+            `${label}-${series}-val`,
+          );
+          if (labelEl) bars.push(labelEl as JSX.Element);
         });
       }
     });
