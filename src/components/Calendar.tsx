@@ -580,7 +580,7 @@ export default function Calendar({
             style={{
               flex: 1,
               minWidth: isMobile ? 0 : 170,
-              maxWidth: isMobile ? 'none' : 300,
+              maxWidth: isMobile ? 'none' : 400,
             }}
           >
             <SearchableSelect
@@ -613,10 +613,7 @@ export default function Calendar({
         }}
       >
         <div style={{ fontWeight: 600, marginBottom: 8, color: t.text }}>
-          Назначение смен{' '}
-          <span style={{ fontWeight: 400, color: t.placeholder, fontSize: 13 }}>
-            (на выбранный выше диапазон)
-          </span>
+          Назначение смен
         </div>
         <div
           style={{
@@ -627,7 +624,7 @@ export default function Calendar({
             alignItems: isMobile ? 'stretch' : 'center',
           }}
         >
-          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170 }}>
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
             <SearchableSelect
               label="Дневная смена"
               theme={t}
@@ -636,7 +633,7 @@ export default function Calendar({
               onChange={setDayShift}
             />
           </div>
-          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170 }}>
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
             <SearchableSelect
               label="Вечерняя смена"
               theme={t}
@@ -645,7 +642,7 @@ export default function Calendar({
               onChange={setEveningShift}
             />
           </div>
-          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170 }}>
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
             <SearchableSelect
               label="Ночная смена"
               theme={t}
