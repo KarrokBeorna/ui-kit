@@ -42,6 +42,7 @@ export interface Theme {
 
   danger: string;
   success: string;
+  pending: string;
 }
 
 export const themes: Record<ThemeName, Theme> = {
@@ -78,6 +79,7 @@ export const themes: Record<ThemeName, Theme> = {
     navHoverBg: 'rgba(108,138,255,0.1)',
     danger: '#ff6b6b',
     success: '#4ade80',
+    pending: '#f59e0b',
   },
   light: {
     name: 'light',
@@ -112,6 +114,7 @@ export const themes: Record<ThemeName, Theme> = {
     navHoverBg: 'rgba(67,97,238,0.08)',
     danger: '#ef4444',
     success: '#16a34a',
+    pending: '#f59e0b',
   },
   vibrant: {
     name: 'vibrant',
@@ -146,6 +149,7 @@ export const themes: Record<ThemeName, Theme> = {
     navHoverBg: 'rgba(200,75,255,0.12)',
     danger: '#ff6b9d',
     success: '#22d3a0',
+    pending: '#f59e0b',
   },
   ocean: {
     name: 'ocean',
@@ -180,5 +184,6 @@ export const themes: Record<ThemeName, Theme> = {
     navHoverBg: 'rgba(0,200,255,0.1)',
     danger: '#ff6b6b',
     success: '#10b981',
+    pending: '#f59e0b',
   },
 };
