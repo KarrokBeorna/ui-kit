@@ -56,6 +56,12 @@ interface CalendarProps {
   templateOptions: TemplateOption[];
   /** Массив смен, принимаемый через пропс. По умолчанию A/B/C. */
   shiftOptions?: ShiftOption[];
+  /**
+   * Включает функционал смен: форму назначения смен и бейджи на ячейках.
+   * По умолчанию `false` (обратная совместимость). Передайте `true` в проектах,
+   * где смены используются — блок и бейджи будут отрендерены.
+   */
+  enableShifts?: boolean;
   assignments: Record<string, CalendarAssignment>;
   onAssignmentsChange?: (assignments: Record<string, CalendarAssignment>) => void;
 }
@@ -125,6 +131,7 @@ export default function Calendar({
   theme: t,
   templateOptions,
   shiftOptions = DEFAULT_SHIFT_OPTIONS,
+  enableShifts = false,
   assignments,
   onAssignmentsChange,
 }: CalendarProps) {
@@ -195,6 +202,7 @@ export default function Calendar({
 
   // ─── Множественное назначение смен на диапазон ───
   const applyShiftAssignment = () => {
+    if (!enableShifts) return;
     if (!startDate || !endDate) return;
     if (!dayShift && !eveningShift && !nightShift) return;
 
@@ -434,7 +442,8 @@ export default function Calendar({
                   const textColor = template?.color || '#27ae60';
                   const inRange = isDateInRange(dateStr);
                   const hasTemplate = !!assignment?.shift_template_id;
-                  const hasShifts = hasAnyShift(assignment);
+                  // Бейджи смен показываем только если фича включена.
+                  const hasShifts = enableShifts && hasAnyShift(assignment);
 
                   return (
                     <td
@@ -604,76 +613,78 @@ export default function Calendar({
         </div>
       </div>
 
-      {/* ───── Блок 2: назначение смен A/B/C ───── */}
-      <div
-        style={{
-          marginTop: 16,
-          borderTop: `1px solid ${t.border}`,
-          paddingTop: 16,
-        }}
-      >
-        <div style={{ fontWeight: 600, marginBottom: 8, color: t.text }}>
-          Назначение смен
-        </div>
+      {/* ───── Блок 2: назначение смен A/B/C (опционально) ───── */}
+      {enableShifts && (
         <div
           style={{
-            display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            flexWrap: 'wrap',
-            gap: 12,
-            alignItems: isMobile ? 'stretch' : 'center',
+            marginTop: 16,
+            borderTop: `1px solid ${t.border}`,
+            paddingTop: 16,
           }}
         >
-          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
-            <SearchableSelect
-              label="Дневная смена"
-              theme={t}
-              options={shiftSelectOptions}
-              value={dayShift}
-              onChange={setDayShift}
-            />
+          <div style={{ fontWeight: 600, marginBottom: 8, color: t.text }}>
+            Назначение смен
           </div>
-          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
-            <SearchableSelect
-              label="Вечерняя смена"
-              theme={t}
-              options={shiftSelectOptions}
-              value={eveningShift}
-              onChange={setEveningShift}
-            />
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              flexWrap: 'wrap',
+              gap: 12,
+              alignItems: isMobile ? 'stretch' : 'center',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
+              <SearchableSelect
+                label="Дневная смена"
+                theme={t}
+                options={shiftSelectOptions}
+                value={dayShift}
+                onChange={setDayShift}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
+              <SearchableSelect
+                label="Вечерняя смена"
+                theme={t}
+                options={shiftSelectOptions}
+                value={eveningShift}
+                onChange={setEveningShift}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
+              <SearchableSelect
+                label="Ночная смена"
+                theme={t}
+                options={shiftSelectOptions}
+                value={nightShift}
+                onChange={setNightShift}
+              />
+            </div>
+            <div style={{ width: isMobile ? '100%' : 'auto' }}>
+              <Button
+                theme={t}
+                variant="primary"
+                onClick={applyShiftAssignment}
+                size="md"
+              >
+                Применить смены
+              </Button>
+            </div>
           </div>
-          <div style={{ flex: 1, minWidth: isMobile ? 0 : 170, maxWidth: 250 }}>
-            <SearchableSelect
-              label="Ночная смена"
-              theme={t}
-              options={shiftSelectOptions}
-              value={nightShift}
-              onChange={setNightShift}
-            />
-          </div>
-          <div style={{ width: isMobile ? '100%' : 'auto' }}>
-            <Button
-              theme={t}
-              variant="primary"
-              onClick={applyShiftAssignment}
-              size="md"
-            >
-              Применить смены
-            </Button>
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              color: t.placeholder,
+            }}
+          >
+            {nothingToApplyShift
+              ? 'Выберите хотя бы одну смену, чтобы применить.'
+              : 'Смены с пустым значением «— не менять —» останутся как были; «✕ Сбросить» очищает слот.'}
           </div>
         </div>
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: 12,
-            color: t.placeholder,
-          }}
-        >
-          {nothingToApplyShift
-            ? 'Выберите хотя бы одну смену, чтобы применить.'
-            : 'Смены с пустым значением «— не менять —» останутся как были; «✕ Сбросить» очищает слот.'}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
