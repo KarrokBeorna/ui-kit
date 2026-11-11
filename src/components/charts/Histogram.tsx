@@ -232,6 +232,35 @@ function getColorById(id: string | number): string {
   return `hsl(${hue}, 65%, 55%)`;
 }
 
+/**
+ * Сколько знаков после запятой нужно, чтобы точно записать число.
+ * Учитывает экспоненциальную запись ("5e-7" → 7 знаков).
+ * Используется, чтобы избежать «мусорных» тиков вида 0.6000000000000001.
+ */
+function getDecimalPlaces(num: number): number {
+  if (!isFinite(num)) return 0;
+  const s = num.toString();
+  const eIdx = s.indexOf('e');
+  if (eIdx >= 0) {
+    const exp = parseInt(s.substring(eIdx + 1), 10);
+    const mantissa = s.substring(0, eIdx);
+    const dotIdx = mantissa.indexOf('.');
+    const mantDecimals = dotIdx >= 0 ? mantissa.length - dotIdx - 1 : 0;
+    return Math.max(0, mantDecimals - exp);
+  }
+  const dotIdx = s.indexOf('.');
+  return dotIdx >= 0 ? s.length - dotIdx - 1 : 0;
+}
+
+/**
+ * Округляет до N знаков после запятой и возвращает `number`
+ * (без хвостовых нулей вроде "0.60").
+ */
+function roundToDecimals(value: number, decimals: number): number {
+  if (!isFinite(value)) return value;
+  return Number(value.toFixed(decimals));
+}
+
 function groupData(data: HistogramDataItem[]): {
   labels: string[];
   seriesSet: string[];
@@ -361,10 +390,22 @@ export function Histogram({
     return niceStep || 1;
   }, [maxValue, stepSize, isMobile]);
 
+  // Сколько знаков после запятой нужно для шага шкалы.
+  // Например, для шага 0.2 — 1 знак; для 5e-6 — 6 знаков.
+  // Используется при округлении подписей тиков, чтобы не появлялись
+  // значения вида 0.6000000000000001 или 1.3999999999999999.
+  const tickDecimals = useMemo(
+    () => getDecimalPlaces(computedStepSize),
+    [computedStepSize],
+  );
+
   const leftMargin = useMemo(() => {
     const base = isMobile ? 40 : 60;
     if (!showYAxis) return base;
-    const maxTick = Math.ceil(maxValue / computedStepSize) * computedStepSize;
+    const maxTick = roundToDecimals(
+      Math.ceil(maxValue / computedStepSize) * computedStepSize,
+      tickDecimals,
+    );
     const maxStr = String(maxTick);
     const charWidth = effectiveAxisFontSize * 0.6;
     const textWidth = maxStr.length * charWidth;
@@ -374,6 +415,7 @@ export function Histogram({
     showYAxis,
     maxValue,
     computedStepSize,
+    tickDecimals,
     effectiveAxisFontSize,
     yAxisLabel,
     isMobile,
@@ -743,12 +785,19 @@ export function Histogram({
   const renderYAxis = () => {
     if (!showYAxis) return null;
     const elements: JSX.Element[] = [];
-    const maxTick = Math.ceil(yMax / computedStepSize) * computedStepSize;
-    for (let val = 0; val <= maxTick; val += computedStepSize) {
+
+    const rawMaxTick = Math.ceil(yMax / computedStepSize) * computedStepSize;
+    const tickCount = Math.max(0, Math.round(rawMaxTick / computedStepSize));
+
+    for (let i = 0; i <= tickCount; i++) {
+      // Единственное умножение — никакого накопления ошибки.
+      // Округление убирает «мусорные» значения вида 0.6000000000000001.
+      const val = roundToDecimals(i * computedStepSize, tickDecimals);
       const y = margin.top + chartHeight - (val / yMax) * chartHeight;
+
       elements.push(
         <text
-          key={`y-${val}`}
+          key={`y-${i}`}
           x={margin.left - 10}
           y={y + 4}
           textAnchor="end"
@@ -761,7 +810,7 @@ export function Histogram({
       );
       elements.push(
         <line
-          key={`yline-${val}`}
+          key={`yline-${i}`}
           x1={margin.left}
           y1={y}
           x2={effectiveWidth - margin.right}
@@ -772,6 +821,7 @@ export function Histogram({
         />
       );
     }
+
     elements.push(
       <line
         key="y-axis"
@@ -783,6 +833,7 @@ export function Histogram({
         strokeWidth={1.5}
       />
     );
+
     if (yAxisLabel && !isMobile) {
       elements.push(
         <text
