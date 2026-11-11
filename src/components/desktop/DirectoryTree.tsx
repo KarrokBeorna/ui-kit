@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {Theme} from "../../themes/theme";
-import {Button, Modal, SearchableSelect, TextInput} from "../../index";
+import { Theme } from "../../themes/theme";
+import { Button, Modal, SearchableSelect, TextInput } from "../../index";
 
 // ===== Типы данных =====
 export interface DirectoryItem {
@@ -11,7 +11,6 @@ export interface DirectoryItem {
   sort_order?: number;
 }
 
-// ===== API-интерфейс (самодостаточность) =====
 export interface DirectoryApi {
   getRoots(): Promise<DirectoryItem[]>;
   getChildren(parentId: number): Promise<DirectoryItem[]>;
@@ -21,17 +20,20 @@ export interface DirectoryApi {
   moveItem(id: number, direction: 'up' | 'down'): Promise<void>;
 }
 
-// ===== Пропсы компонента =====
 export interface DirectoryTreeProps {
   theme: Theme;
   isAuthenticated: boolean;
   api: DirectoryApi;
-  directoryTypes: { value: string; label: string }[];  // варианты типов (кроме root)
-  typeLabels: Record<string, string>;                   // отображение типа (например, { group: 'Группа', item: 'Элемент' })
-  storageKey?: string;                                  // ключ для localStorage (по умолчанию 'last_directory_type')
+  directoryTypes: { value: string; label: string }[];
+  typeLabels: Record<string, string>;
+  storageKey?: string;
+  /** true → может управлять корневыми элементами (создавать/редактировать/удалять/перемещать). */
+  isWebAdmin?: boolean;
+  /** null / [] → все корни разрешены; иначе — только перечисленные id. */
+  allowedDirectoryRoots?: number[] | null;
 }
 
-// ===== Внутренняя модалка (встроена) =====
+// ===== Внутренняя модалка =====
 interface DirectoryAddProps {
   isOpen: boolean;
   onClose: () => void;
@@ -46,12 +48,8 @@ interface DirectoryAddProps {
 }
 
 function DirectoryAdd({
-  isOpen,
-  onClose,
-  onSave,
-  theme,
-  initialName = '',
-  initialType = '',
+  isOpen, onClose, onSave, theme,
+  initialName = '', initialType = '',
   showTypeSelector,
   title = 'Добавить элемент',
   confirmText = 'Добавить',
@@ -90,35 +88,20 @@ function DirectoryAdd({
       rows={2}
       fields={[
         {
-          row: 0,
-          col: 0,
+          row: 0, col: 0,
           content: (
-            <TextInput
-              label="Название"
-              theme={theme}
-              value={name}
-              onChange={setName}
-              inputType="text"
-              autoFocus
-            />
+            <TextInput label="Название" theme={theme} value={name}
+              onChange={setName} inputType="text" autoFocus />
           ),
         },
         ...(showTypeSelector
-          ? [
-              {
-                row: 1,
-                col: 0,
-                content: (
-                  <SearchableSelect
-                    label="Тип"
-                    theme={theme}
-                    options={typeOptions}
-                    value={type}
-                    onChange={setType}
-                  />
-                ),
-              },
-            ]
+          ? [{
+              row: 1, col: 0,
+              content: (
+                <SearchableSelect label="Тип" theme={theme}
+                  options={typeOptions} value={type} onChange={setType} />
+              ),
+            }]
           : []),
       ]}
       canSubmit={!!name.trim() && (!showTypeSelector || !!type)}
@@ -134,12 +117,13 @@ export default function DirectoryTree({
   directoryTypes,
   typeLabels,
   storageKey = 'last_directory_type',
+  isWebAdmin = false,
+  allowedDirectoryRoots = null,
 }: DirectoryTreeProps) {
   const [itemsByLevel, setItemsByLevel] = useState<Record<number, DirectoryItem[]>>({});
   const [selectedPath, setSelectedPath] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Состояния для модалок
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -147,20 +131,39 @@ export default function DirectoryTree({
   const [editingItem, setEditingItem] = useState<DirectoryItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<DirectoryItem | null>(null);
 
-  // Работа с localStorage для последнего выбранного типа
-  const getLastType = (): string => {
-    return localStorage.getItem(storageKey) || directoryTypes[0]?.value || '';
-  };
-  const setLastType = (type: string) => {
-    localStorage.setItem(storageKey, type);
+  /* ---------- Права ---------- */
+
+  /** Может управлять корневыми элементами. */
+  const canManageRoots = isAuthenticated && isWebAdmin;
+
+  /** Разрешён ли корень по настройке роли. */
+  const isRootAllowedLocal = (rootId: number | null | undefined): boolean => {
+    if (!rootId) return false;
+    if (isWebAdmin) return true;
+    const allowed = allowedDirectoryRoots;
+    if (allowed === null || allowed === undefined) return true;
+    if (!Array.isArray(allowed) || allowed.length === 0) return true;
+    return allowed.includes(rootId);
   };
 
-  // Загрузка корневых элементов
+  /** Может ли пользователь изменять конкретный элемент на уровне. */
+  const canModify = (level: number): boolean => {
+    if (!isAuthenticated) return false;
+    if (level === 0) return canManageRoots;
+    // Для дочерних — проверяем корень по selectedPath[0]
+    return isRootAllowedLocal(selectedPath[0]);
+  };
+
+  /* ---------- localStorage ---------- */
+  const getLastType = (): string =>
+    localStorage.getItem(storageKey) || directoryTypes[0]?.value || '';
+  const setLastType = (type: string) => localStorage.setItem(storageKey, type);
+
+  /* ---------- Загрузка ---------- */
   const loadRoots = async () => {
     setLoading(true);
     try {
       const roots = await api.getRoots();
-      // Гарантируем тип 'root' для корневых элементов (если бэкенд не возвращает)
       const rootsWithType = roots.map(item => ({ ...item, type: 'root' }));
       setItemsByLevel(prev => ({ ...prev, 0: rootsWithType }));
       if (rootsWithType.length > 0 && selectedPath.length === 0) {
@@ -173,11 +176,8 @@ export default function DirectoryTree({
     }
   };
 
-  useEffect(() => {
-    loadRoots();
-  }, []);
+  useEffect(() => { loadRoots(); }, []);
 
-  // Загрузка дочерних элементов по parent_id
   const loadChildrenByParentId = async (parentId: number, level: number) => {
     try {
       const children = await api.getChildren(parentId);
@@ -187,12 +187,9 @@ export default function DirectoryTree({
     }
   };
 
-  // Выбор корневого элемента
   const handleRootSelect = async (rootItem: DirectoryItem) => {
-    const newPath = [rootItem.id];
-    setSelectedPath(newPath);
+    setSelectedPath([rootItem.id]);
     await loadChildrenByParentId(rootItem.id, 1);
-    // Очищаем уровни > 1
     setItemsByLevel(prev => {
       const newItems = { ...prev };
       for (const lvl in newItems) {
@@ -202,7 +199,6 @@ export default function DirectoryTree({
     });
   };
 
-  // Выбор элемента (не корневого)
   const handleSelect = async (item: DirectoryItem, level: number) => {
     const newPath = selectedPath.slice(0, level);
     newPath.push(item.id);
@@ -219,9 +215,9 @@ export default function DirectoryTree({
     });
   };
 
-  // ---- Добавление ----
+  /* ---------- Добавление ---------- */
   const handleAddClick = (parentId: number | null, type: string, level: number) => {
-    if (!isAuthenticated) return alert('Требуется авторизация');
+    if (!canModify(level)) return;
     setCurrentParent({ id: parentId, type, level });
     setAddModalOpen(true);
   };
@@ -230,14 +226,8 @@ export default function DirectoryTree({
     try {
       const parentId = currentParent?.id ?? null;
       const typeToUse = currentParent?.level === 0 ? 'root' : data.type;
-      await api.createItem({
-        parent_id: parentId,
-        name: data.name,
-        type: typeToUse,
-      });
-      if (currentParent?.level !== 0) {
-        setLastType(data.type);
-      }
+      await api.createItem({ parent_id: parentId, name: data.name, type: typeToUse });
+      if (currentParent?.level !== 0) setLastType(data.type);
       if (currentParent?.level === 0) {
         await loadRoots();
       } else {
@@ -250,9 +240,9 @@ export default function DirectoryTree({
     }
   };
 
-  // ---- Редактирование ----
-  const handleEditClick = (item: DirectoryItem) => {
-    if (!isAuthenticated) return alert('Требуется авторизация');
+  /* ---------- Редактирование ---------- */
+  const handleEditClick = (item: DirectoryItem, level: number) => {
+    if (!canModify(level)) return;
     setEditingItem(item);
     setEditModalOpen(true);
   };
@@ -261,7 +251,6 @@ export default function DirectoryTree({
     if (!editingItem) return;
     try {
       await api.updateItem(editingItem.id, { name: data.name, type: data.type });
-      // Обновляем локальное состояние
       setItemsByLevel(prev => {
         const newItems = { ...prev };
         for (const level in newItems) {
@@ -279,9 +268,9 @@ export default function DirectoryTree({
     }
   };
 
-  // ---- Удаление ----
-  const handleDeleteClick = (item: DirectoryItem) => {
-    if (!isAuthenticated) return alert('Требуется авторизация');
+  /* ---------- Удаление ---------- */
+  const handleDeleteClick = (item: DirectoryItem, level: number) => {
+    if (!canModify(level)) return;
     setDeletingItem(item);
     setDeleteModalOpen(true);
   };
@@ -290,7 +279,6 @@ export default function DirectoryTree({
     if (!deletingItem) return;
     try {
       await api.deleteItem(deletingItem.id);
-      // Удаляем из локального состояния
       setItemsByLevel(prev => {
         const newItems = { ...prev };
         for (const level in newItems) {
@@ -317,12 +305,11 @@ export default function DirectoryTree({
     }
   };
 
-  // ---- Перемещение ----
+  /* ---------- Перемещение ---------- */
   const handleMove = async (item: DirectoryItem, direction: 'up' | 'down', level: number) => {
-    if (!isAuthenticated) return;
+    if (!canModify(level)) return;
     try {
       await api.moveItem(item.id, direction);
-      // Обновляем текущий уровень
       const parentId = level === 0 ? null : selectedPath[level - 1];
       if (level === 0) {
         await loadRoots();
@@ -335,20 +322,7 @@ export default function DirectoryTree({
     }
   };
 
-  // ---- Вспомогательные функции ----
-  const getLevelTitle = (level: number) => {
-    if (level === 0) return 'Справочники';
-    const parentId = selectedPath[level - 1];
-    if (!parentId) return `Уровень ${level}`;
-    const parent = findItemById(parentId);
-    if (!parent) return `Уровень ${level}`;
-
-    const items = itemsByLevel[level] || [];
-    if (items.length === 0) return `Уровень ${level}`;
-    const firstItem = items[0];
-    return typeLabels[firstItem.type] || firstItem.type;
-  };
-
+  /* ---------- Вспомогательные ---------- */
   const findItemById = (id: number): DirectoryItem | undefined => {
     for (const level in itemsByLevel) {
       const found = itemsByLevel[level].find(item => item.id === id);
@@ -357,15 +331,27 @@ export default function DirectoryTree({
     return undefined;
   };
 
+  const getLevelTitle = (level: number) => {
+    if (level === 0) return 'Справочники';
+    const parentId = selectedPath[level - 1];
+    if (!parentId) return `Уровень ${level}`;
+    const parent = findItemById(parentId);
+    if (!parent) return `Уровень ${level}`;
+    const items = itemsByLevel[level] || [];
+    if (items.length === 0) return `Уровень ${level}`;
+    const firstItem = items[0];
+    return typeLabels[firstItem.type] || firstItem.type;
+  };
+
   const getMoveButtons = (item: DirectoryItem, level: number) => {
     const items = itemsByLevel[level] || [];
     const index = items.findIndex(el => el.id === item.id);
     return { canMoveUp: index > 0, canMoveDown: index < items.length - 1 };
   };
 
-  // ---- Рендеринг ----
+  /* ---------- Рендеринг ---------- */
   const levels = Object.keys(itemsByLevel).map(Number).sort((a, b) => a - b);
-  const maxLevel = Math.max(...levels);
+  const maxLevel = levels.length ? Math.max(...levels) : 0;
 
   return (
     <>
@@ -374,14 +360,13 @@ export default function DirectoryTree({
           const items = itemsByLevel[level] || [];
           const parentId = level === 0 ? null : selectedPath[level - 1] || null;
           const type = level === 0 ? 'root' : (findItemById(selectedPath[level - 1])?.type || '');
+          const levelEditable = canModify(level);
 
           return (
             <div
               key={level}
               style={{
-                minWidth: 200,
-                maxWidth: 300,
-                flexShrink: 0,
+                minWidth: 200, maxWidth: 300, flexShrink: 0,
                 borderRight: level < maxLevel ? `1px solid ${theme.border}` : 'none',
                 paddingRight: 16,
               }}
@@ -397,23 +382,16 @@ export default function DirectoryTree({
                     <div
                       key={item.id}
                       style={{
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        cursor: 'pointer',
+                        padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
                         background: isSelected ? theme.selectedBg : 'transparent',
                         color: isSelected ? theme.accent : theme.text,
-                        marginBottom: 4,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        marginBottom: 4, display: 'flex',
+                        justifyContent: 'space-between', alignItems: 'center',
                         transition: 'background 0.15s, color 0.15s',
                       }}
                       onClick={() => {
-                        if (level === 0) {
-                          handleRootSelect(item);
-                        } else {
-                          handleSelect(item, level);
-                        }
+                        if (level === 0) handleRootSelect(item);
+                        else handleSelect(item, level);
                       }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginRight: '10px' }}>
@@ -424,59 +402,37 @@ export default function DirectoryTree({
                           </span>
                         )}
                       </div>
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        {isAuthenticated && (
-                          <>
-                            {canMoveUp && (
-                              <Button
-                                icon="↑"
-                                variant="primary"
-                                outline
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); handleMove(item, 'up', level); }}
-                                theme={theme}
-                                style={{ padding: '2px 6px', fontSize: '12px' }}
-                              />
-                            )}
-                            {canMoveDown && (
-                              <Button
-                                icon="↓"
-                                variant="primary"
-                                outline
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); handleMove(item, 'down', level); }}
-                                theme={theme}
-                                style={{ padding: '2px 6px', fontSize: '12px' }}
-                              />
-                            )}
-                          </>
-                        )}
-                        {isAuthenticated && (
-                          <>
-                            <Button
-                              icon="✎"
-                              variant="primary"
-                              outline
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
+
+                      {/* ⬇ Кнопки действий — только если уровень редактируется */}
+                      {levelEditable && (
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          {canMoveUp && (
+                            <Button icon="↑" variant="primary" outline size="sm"
+                              onClick={(e) => { e.stopPropagation(); handleMove(item, 'up', level); }}
                               theme={theme}
-                            />
-                            <Button
-                              icon="✕"
-                              variant="danger"
-                              outline
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); handleDeleteClick(item); }}
+                              style={{ padding: '2px 6px', fontSize: '12px' }} />
+                          )}
+                          {canMoveDown && (
+                            <Button icon="↓" variant="primary" outline size="sm"
+                              onClick={(e) => { e.stopPropagation(); handleMove(item, 'down', level); }}
                               theme={theme}
-                            />
-                          </>
-                        )}
-                      </div>
+                              style={{ padding: '2px 6px', fontSize: '12px' }} />
+                          )}
+                          <Button icon="✎" variant="primary" outline size="sm"
+                            onClick={(e) => { e.stopPropagation(); handleEditClick(item, level); }}
+                            theme={theme} />
+                          <Button icon="✕" variant="danger" outline size="sm"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(item, level); }}
+                            theme={theme} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-              {isAuthenticated && (
+
+              {/* ⬇ Кнопка «+ Добавить» — только если уровень редактируется */}
+              {levelEditable && (
                 <Button
                   icon="＋"
                   variant="primary"
@@ -519,16 +475,30 @@ export default function DirectoryTree({
         directoryTypes={directoryTypes}
       />
 
-      {/* Подтверждение удаления */}
       {deleteModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: theme.bgSurface, padding: '30px', borderRadius: 12, maxWidth: 400, boxShadow: theme.shadowLg }}>
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }}>
+          <div style={{
+            background: theme.bgSurface, padding: '30px',
+            borderRadius: 12, maxWidth: 400, boxShadow: theme.shadowLg,
+          }}>
             <h3 style={{ color: theme.text, marginTop: 0 }}>Подтверждение удаления</h3>
-            <p style={{ color: theme.text }}>Вы уверены, что хотите удалить элемент <strong>{deletingItem?.name}</strong>?</p>
-            <p style={{ color: theme.danger, fontSize: '13px' }}>Все дочерние элементы также будут удалены.</p>
+            <p style={{ color: theme.text }}>
+              Вы уверены, что хотите удалить элемент <strong>{deletingItem?.name}</strong>?
+            </p>
+            <p style={{ color: theme.danger, fontSize: '13px' }}>
+              Все дочерние элементы также будут удалены.
+            </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-              <Button variant="primary" outline size="md" onClick={() => { setDeleteModalOpen(false); setDeletingItem(null); }} theme={theme}>Отмена</Button>
-              <Button variant="danger" size="md" onClick={handleDeleteConfirm} theme={theme}>Удалить</Button>
+              <Button variant="primary" outline size="md"
+                onClick={() => { setDeleteModalOpen(false); setDeletingItem(null); }}
+                theme={theme}>Отмена</Button>
+              <Button variant="danger" size="md" onClick={handleDeleteConfirm} theme={theme}>
+                Удалить
+              </Button>
             </div>
           </div>
         </div>
