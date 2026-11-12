@@ -31,8 +31,10 @@ export interface DirectoryTreeProps {
   isWebAdmin?: boolean;
   /** null / [] → все корни разрешены; иначе — только перечисленные id. */
   allowedDirectoryRoots?: number[] | null;
-  /** false → полностью отключает редактирование (add/edit/delete/move). По умолчанию true. */
+  /** Управляет созданием, редактированием и перемещением. По умолчанию true. */
   editable?: boolean;
+  /** Управляет удалением. По умолчанию true. */
+  deletable?: boolean;
 }
 
 // ===== Внутренняя модалка =====
@@ -122,6 +124,7 @@ export default function DirectoryTree({
   isWebAdmin = false,
   allowedDirectoryRoots = null,
   editable = true,
+  deletable = true,
 }: DirectoryTreeProps) {
   const [itemsByLevel, setItemsByLevel] = useState<Record<number, DirectoryItem[]>>({});
   const [selectedPath, setSelectedPath] = useState<number[]>([]);
@@ -136,8 +139,8 @@ export default function DirectoryTree({
 
   /* ---------- Права ---------- */
 
-  /** Может управлять корневыми элементами. */
-  const canManageRoots = editable && isAuthenticated && isWebAdmin;
+  /** Может управлять корневыми элементами (нужен webAdmin). */
+  const canManageRoots = isAuthenticated && isWebAdmin;
 
   /** Разрешён ли корень по настройке роли. */
   const isRootAllowedLocal = (rootId: number | null | undefined): boolean => {
@@ -149,9 +152,17 @@ export default function DirectoryTree({
     return allowed.includes(rootId);
   };
 
-  /** Может ли пользователь изменять конкретный элемент на уровне. */
-  const canModify = (level: number): boolean => {
+  /** Создание / редактирование / перемещение. */
+  const canEdit = (level: number): boolean => {
     if (!editable) return false;
+    if (!isAuthenticated) return false;
+    if (level === 0) return canManageRoots;
+    return isRootAllowedLocal(selectedPath[0]);
+  };
+
+  /** Удаление. */
+  const canDelete = (level: number): boolean => {
+    if (!deletable) return false;
     if (!isAuthenticated) return false;
     if (level === 0) return canManageRoots;
     return isRootAllowedLocal(selectedPath[0]);
@@ -220,7 +231,7 @@ export default function DirectoryTree({
 
   /* ---------- Добавление ---------- */
   const handleAddClick = (parentId: number | null, type: string, level: number) => {
-    if (!canModify(level)) return;
+    if (!canEdit(level)) return;
     setCurrentParent({ id: parentId, type, level });
     setAddModalOpen(true);
   };
@@ -245,7 +256,7 @@ export default function DirectoryTree({
 
   /* ---------- Редактирование ---------- */
   const handleEditClick = (item: DirectoryItem, level: number) => {
-    if (!canModify(level)) return;
+    if (!canEdit(level)) return;
     setEditingItem(item);
     setEditModalOpen(true);
   };
@@ -273,7 +284,7 @@ export default function DirectoryTree({
 
   /* ---------- Удаление ---------- */
   const handleDeleteClick = (item: DirectoryItem, level: number) => {
-    if (!canModify(level)) return;
+    if (!canDelete(level)) return;
     setDeletingItem(item);
     setDeleteModalOpen(true);
   };
@@ -310,7 +321,7 @@ export default function DirectoryTree({
 
   /* ---------- Перемещение ---------- */
   const handleMove = async (item: DirectoryItem, direction: 'up' | 'down', level: number) => {
-    if (!canModify(level)) return;
+    if (!canEdit(level)) return;
     try {
       await api.moveItem(item.id, direction);
       const parentId = level === 0 ? null : selectedPath[level - 1];
@@ -363,7 +374,9 @@ export default function DirectoryTree({
           const items = itemsByLevel[level] || [];
           const parentId = level === 0 ? null : selectedPath[level - 1] || null;
           const type = level === 0 ? 'root' : (findItemById(selectedPath[level - 1])?.type || '');
-          const levelEditable = canModify(level);
+          const levelEditable = canEdit(level);
+          const levelDeletable = canDelete(level);
+          const showActions = levelEditable || levelDeletable;
 
           return (
             <div
@@ -406,27 +419,31 @@ export default function DirectoryTree({
                         )}
                       </div>
 
-                      {/* ⬇ Кнопки действий — только если уровень редактируется */}
-                      {levelEditable && (
+                      {/* ⬇ Кнопки действий — edit / move доступны только при levelEditable, delete — при levelDeletable */}
+                      {showActions && (
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          {canMoveUp && (
+                          {levelEditable && canMoveUp && (
                             <Button icon="↑" variant="primary" outline size="sm"
                               onClick={(e) => { e.stopPropagation(); handleMove(item, 'up', level); }}
                               theme={theme}
                               style={{ padding: '2px 6px', fontSize: '12px' }} />
                           )}
-                          {canMoveDown && (
+                          {levelEditable && canMoveDown && (
                             <Button icon="↓" variant="primary" outline size="sm"
                               onClick={(e) => { e.stopPropagation(); handleMove(item, 'down', level); }}
                               theme={theme}
                               style={{ padding: '2px 6px', fontSize: '12px' }} />
                           )}
-                          <Button icon="✎" variant="primary" outline size="sm"
-                            onClick={(e) => { e.stopPropagation(); handleEditClick(item, level); }}
-                            theme={theme} />
-                          <Button icon="✕" variant="danger" outline size="sm"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(item, level); }}
-                            theme={theme} />
+                          {levelEditable && (
+                            <Button icon="✎" variant="primary" outline size="sm"
+                              onClick={(e) => { e.stopPropagation(); handleEditClick(item, level); }}
+                              theme={theme} />
+                          )}
+                          {levelDeletable && (
+                            <Button icon="✕" variant="danger" outline size="sm"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteClick(item, level); }}
+                              theme={theme} />
+                          )}
                         </div>
                       )}
                     </div>
