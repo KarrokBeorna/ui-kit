@@ -31,9 +31,11 @@ export interface DirectoryTreeProps {
   isWebAdmin?: boolean;
   /** null / [] → все корни разрешены; иначе — только перечисленные id. */
   allowedDirectoryRoots?: number[] | null;
-  /** Управляет созданием, редактированием и перемещением. По умолчанию true. */
+  /** Управляет созданием (кнопка «＋ Добавить»). По умолчанию true. */
+  creatable?: boolean;
+  /** Управляет редактированием и перемещением (кнопки «✎», «↑», «↓»). По умолчанию true. */
   editable?: boolean;
-  /** Управляет удалением. По умолчанию true. */
+  /** Управляет удалением (кнопка «✕»). По умолчанию true. */
   deletable?: boolean;
 }
 
@@ -123,6 +125,7 @@ export default function DirectoryTree({
   storageKey = 'last_directory_type',
   isWebAdmin = false,
   allowedDirectoryRoots = null,
+  creatable = true,
   editable = true,
   deletable = true,
 }: DirectoryTreeProps) {
@@ -152,7 +155,15 @@ export default function DirectoryTree({
     return allowed.includes(rootId);
   };
 
-  /** Создание / редактирование / перемещение. */
+  /** Создание. */
+  const canCreate = (level: number): boolean => {
+    if (!creatable) return false;
+    if (!isAuthenticated) return false;
+    if (level === 0) return canManageRoots;
+    return isRootAllowedLocal(selectedPath[0]);
+  };
+
+  /** Редактирование и перемещение. */
   const canEdit = (level: number): boolean => {
     if (!editable) return false;
     if (!isAuthenticated) return false;
@@ -231,7 +242,7 @@ export default function DirectoryTree({
 
   /* ---------- Добавление ---------- */
   const handleAddClick = (parentId: number | null, type: string, level: number) => {
-    if (!canEdit(level)) return;
+    if (!canCreate(level)) return;
     setCurrentParent({ id: parentId, type, level });
     setAddModalOpen(true);
   };
@@ -374,6 +385,7 @@ export default function DirectoryTree({
           const items = itemsByLevel[level] || [];
           const parentId = level === 0 ? null : selectedPath[level - 1] || null;
           const type = level === 0 ? 'root' : (findItemById(selectedPath[level - 1])?.type || '');
+          const levelCreatable = canCreate(level);
           const levelEditable = canEdit(level);
           const levelDeletable = canDelete(level);
           const showActions = levelEditable || levelDeletable;
@@ -419,7 +431,9 @@ export default function DirectoryTree({
                         )}
                       </div>
 
-                      {/* ⬇ Кнопки действий — edit / move доступны только при levelEditable, delete — при levelDeletable */}
+                      {/* ⬇ Кнопки действий:
+                          ↑ ↓ ✎ — только при levelEditable,
+                          ✕    — только при levelDeletable */}
                       {showActions && (
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                           {levelEditable && canMoveUp && (
@@ -451,8 +465,8 @@ export default function DirectoryTree({
                 })}
               </div>
 
-              {/* ⬇ Кнопка «+ Добавить» — только если уровень редактируется */}
-              {levelEditable && (
+              {/* ⬇ Кнопка «＋ Добавить» — только при levelCreatable */}
+              {levelCreatable && (
                 <Button
                   icon="＋"
                   variant="primary"
