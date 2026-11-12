@@ -31,6 +31,8 @@ export interface DirectoryTreeProps {
   isWebAdmin?: boolean;
   /** null / [] → все корни разрешены; иначе — только перечисленные id. */
   allowedDirectoryRoots?: number[] | null;
+  /** false → полностью отключает редактирование (add/edit/delete/move). По умолчанию true. */
+  editable?: boolean;
 }
 
 // ===== Внутренняя модалка =====
@@ -119,6 +121,7 @@ export default function DirectoryTree({
   storageKey = 'last_directory_type',
   isWebAdmin = false,
   allowedDirectoryRoots = null,
+  editable = true,
 }: DirectoryTreeProps) {
   const [itemsByLevel, setItemsByLevel] = useState<Record<number, DirectoryItem[]>>({});
   const [selectedPath, setSelectedPath] = useState<number[]>([]);
@@ -134,7 +137,7 @@ export default function DirectoryTree({
   /* ---------- Права ---------- */
 
   /** Может управлять корневыми элементами. */
-  const canManageRoots = isAuthenticated && isWebAdmin;
+  const canManageRoots = editable && isAuthenticated && isWebAdmin;
 
   /** Разрешён ли корень по настройке роли. */
   const isRootAllowedLocal = (rootId: number | null | undefined): boolean => {
@@ -148,9 +151,9 @@ export default function DirectoryTree({
 
   /** Может ли пользователь изменять конкретный элемент на уровне. */
   const canModify = (level: number): boolean => {
+    if (!editable) return false;
     if (!isAuthenticated) return false;
     if (level === 0) return canManageRoots;
-    // Для дочерних — проверяем корень по selectedPath[0]
     return isRootAllowedLocal(selectedPath[0]);
   };
 
