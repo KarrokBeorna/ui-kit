@@ -1,8 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, {
+  useState, useMemo, useCallback, useRef, useLayoutEffect, useInsertionEffect,
+} from 'react';
+import { createPortal } from 'react-dom';
 import type { Theme } from '../../themes/theme';
 import Modal from '../Modal';
 import { IcoChevronUp, IcoChevronDown } from '../icons';
-import Checkbox from '../inputs/Checkbox';
 import { useResponsive } from '../../context/ResponsiveContext';
 import { MobileCardList, type MobileCardField } from './MobileCardList';
 import { useSort, type SortState } from './useSort';
@@ -39,56 +41,41 @@ interface TableProps<T extends Record<string, any>> {
   onColumnOrderChange?: (order: string[]) => void;
   onVisibleColumnsChange?: (visible: string[]) => void;
   onApplySettings?: (visible: string[], order: string[]) => void;
-
-  // ── Встроенные хуки ─────────────────────────
-  /** Включить внутреннюю сортировку (useSort). */
   sortable?: boolean;
-  /** Ключ localStorage для персиста порядка/видимости колонок. */
   persistKey?: string;
-  /** Закреплённые колонки (по умолчанию = stickyRight). */
   pinnedColumns?: string[];
-  /** Интервал автообновления, мс. Требует refetch. */
   autoRefreshInterval?: number;
   autoRefreshPaused?: boolean;
   refetch?: () => void | Promise<void>;
-
-  // ── Мобильный режим ─────────────────────────
-  /** Автоматический MobileCardList на мобиле. @default true */
   responsive?: boolean;
-  /** Поля карточки. По умолчанию — все видимые колонки (кроме actions). */
   mobileFields?: MobileCardField<T>[];
-  /** Заголовок карточки. */
   mobileTitleRender?: (row: T) => React.ReactNode;
-  /** Максимум строк заголовка (line-clamp). @default 2 (в MobileCardList) */
   mobileTitleMaxLines?: number;
-  /** Максимум символов заголовка (посимвольно, с «…»). */
   mobileTitleMaxChars?: number;
-  /** Максимальная ширина колонки меток в карточке, px. @default 160 */
   mobileLabelMaxWidth?: number;
-  /** Максимум строк метки (line-clamp). `undefined` — без ограничения. */
   mobileLabelMaxLines?: number;
-  /**
-   * Иконки-действия в футере карточки.
-   * Если не передан, автоматически используется render колонки `key="actions"`.
-   */
   mobileActions?: (row: T) => React.ReactNode;
-  /** Полностью кастомный мобильный рендер. */
   renderMobile?: (data: T[]) => React.ReactNode;
-
   loading?: boolean;
 }
 
-/**
- * Таблица с интегрированными хуками.
- *
- * Внутри автоматически вызываются `useSort`, `usePersistedTableColumns`,
- * `useAutoRefresh` — на страницах их использовать не нужно. Достаточно
- * передать `sortable` / `persistKey` / `autoRefreshInterval` + `refetch`.
- *
- * На мобильных устройствах (`responsive=true`) рендерится `MobileCardList`.
- * Колонка `actions` (созданная через `ActionsColumn`) автоматически
- * выносится в футер карточки — см. `mobileActions`.
- */
+const TABLE_CSS_ID = 'kbs-table-css';
+const TABLE_CSS = `
+.kbs-table-gear { transition: background .2s, color .2s, transform .2s; }
+@media (hover: hover) {
+  .kbs-table-gear:hover { background: var(--kbs-gear-hover) !important; color: var(--kbs-gear-text) !important; }
+}
+.kbs-table-gear:focus-visible { outline: 2px solid var(--kbs-gear-accent); outline-offset: 2px; }
+.kbs-col-move { transition: background .15s, opacity .15s; }
+@media (hover: hover) {
+  .kbs-col-move:not(:disabled):hover { background: var(--kbs-gear-hover) !important; }
+}
+.kbs-col-move:focus-visible { outline: 2px solid var(--kbs-gear-accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) {
+  .kbs-table-gear, .kbs-col-move { transition: none !important; }
+}
+`;
+
 export default function Table<T extends Record<string, any>>({
   theme: t,
   columns,
@@ -110,14 +97,12 @@ export default function Table<T extends Record<string, any>>({
   onColumnOrderChange,
   onVisibleColumnsChange,
   onApplySettings,
-
   sortable = false,
   persistKey,
   pinnedColumns,
   autoRefreshInterval,
   autoRefreshPaused = false,
   refetch,
-
   responsive = true,
   mobileFields,
   mobileTitleRender,
@@ -127,16 +112,19 @@ export default function Table<T extends Record<string, any>>({
   mobileLabelMaxLines,
   mobileActions,
   renderMobile,
-
   loading = false,
 }: TableProps<T>) {
+  useInsertionEffect(() => {
+    if (typeof document === 'undefined' || document.getElementById(TABLE_CSS_ID)) return;
+    const el = document.createElement('style');
+    el.id = TABLE_CSS_ID;
+    el.textContent = TABLE_CSS;
+    document.head.appendChild(el);
+  }, []);
+
   const { isMobile } = useResponsive();
 
-  // =========================================================
-  // ХУКИ (все — до первого раннего return)
-  // =========================================================
-
-  // ---------- Встроенная сортировка ----------
+  /* ---------- Сортировка ---------- */
   const {
     sortedData,
     sortState: internalSortState,
@@ -144,7 +132,6 @@ export default function Table<T extends Record<string, any>>({
   } = useSort(data, initialSort);
 
   const sortState = externalSortState !== undefined ? externalSortState : internalSortState;
-
   const updateSortState = useCallback(
     (newState: SortState) => {
       if (onSortChange) onSortChange(newState);
@@ -152,32 +139,26 @@ export default function Table<T extends Record<string, any>>({
     },
     [onSortChange, setInternalSortState],
   );
-
   const dataToRender = sortable ? sortedData : data;
 
-  // ---------- Встроенный персист колонок ----------
+  /* ---------- Персист колонок ---------- */
   const allColumnKeys = useMemo(() => columns.map((c) => c.key), [columns]);
   const effectivePinned = pinnedColumns ?? stickyRight;
-
   const persisted = usePersistedTableColumns(
     persistKey ?? '__unused__',
     allColumnKeys,
     { pinnedKeys: effectivePinned, enabled: !!persistKey },
   );
 
-  // ---------- Встроенный авто-refresh ----------
+  /* ---------- Авто-refresh ---------- */
   const willRenderMobile = responsive && isMobile;
-
   useAutoRefresh(refetch ?? (() => {}), {
     intervalMs: autoRefreshInterval ?? 30_000,
     paused:
-      autoRefreshPaused ||
-      !refetch ||
-      autoRefreshInterval === undefined ||
-      willRenderMobile,
+      autoRefreshPaused || !refetch || autoRefreshInterval === undefined || willRenderMobile,
   });
 
-  // ---------- Порядок / видимость ----------
+  /* ---------- Порядок / видимость ---------- */
   const [internalOrder, setInternalOrder] = useState<string[]>(() => columns.map((c) => c.key));
   const [internalVisible, setInternalVisible] = useState<Set<string>>(
     () => new Set(columns.map((c) => c.key)),
@@ -199,7 +180,6 @@ export default function Table<T extends Record<string, any>>({
     [externalVisibleColumns, persistKey, persisted.visibleColumns, internalVisible],
   );
 
-  // ---------- Быстрые индексы ----------
   const columnByKey = useMemo(() => {
     const map = new Map<string, Column<T>>();
     for (const col of columns) map.set(col.key, col);
@@ -221,7 +201,6 @@ export default function Table<T extends Record<string, any>>({
     },
     [onColumnOrderChange],
   );
-
   const updateVisible = useCallback(
     (newVisible: Set<string>) => {
       if (onVisibleColumnsChange) onVisibleColumnsChange(Array.from(newVisible));
@@ -230,7 +209,7 @@ export default function Table<T extends Record<string, any>>({
     [onVisibleColumnsChange],
   );
 
-  // ---------- Модалка настроек ----------
+  /* ---------- Модалка настроек ---------- */
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsOrder, setSettingsOrder] = useState<string[]>([]);
   const [settingsVisible, setSettingsVisible] = useState<Set<string>>(new Set());
@@ -292,88 +271,109 @@ export default function Table<T extends Record<string, any>>({
     [stickyRightSet],
   );
 
-  // ⚠️ Эти два хука должны быть ДО `if (willRenderMobile) return`,
-  // иначе при повороте экрана React падает с «Rendered more/fewer hooks».
   const getMoveButtonStyle = useCallback(
     (canMove: boolean): React.CSSProperties => ({
+      width: 22, height: 22, padding: 0,
       background: t.bgSurface,
       border: `1px solid ${t.border}`,
       borderRadius: 4,
       cursor: canMove ? 'pointer' : 'default',
       color: canMove ? t.iconColor : t.placeholder,
-      padding: '4px 6px',
-      display: 'flex',
-      alignItems: 'center',
-      lineHeight: 1,
-      transition: 'background 0.15s, opacity 0.15s',
-      opacity: canMove ? 1 : 0.3,
-      pointerEvents: canMove ? 'auto' : 'none',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      lineHeight: 1, opacity: canMove ? 1 : 0.3,
+      flexShrink: 0,
     }),
     [t.bgSurface, t.border, t.iconColor, t.placeholder],
   );
 
-  const modalFields = useMemo(
-    () =>
-      settingsOrder.map((key, index) => {
-        const col = columnByKey.get(key);
-        if (!col) return { row: index, col: 0, content: null };
-        const isSticky = stickyRightSet.has(key);
-        const canMoveUp =
-          !isSticky && index > 0 && !stickyRightSet.has(settingsOrder[index - 1]);
-        const canMoveDown =
-          !isSticky &&
-          index < settingsOrder.length - 1 &&
-          !stickyRightSet.has(settingsOrder[index + 1]);
-        const moveButtons = [
-          { key: 'up', Icon: IcoChevronUp, canMove: canMoveUp, handler: moveUp },
-          { key: 'down', Icon: IcoChevronDown, canMove: canMoveDown, handler: moveDown },
-        ];
-        return {
-          row: index,
-          col: 0,
-          content: (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <Checkbox
-                theme={t}
-                checked={settingsVisible.has(key)}
-                onChange={() => toggleVisible(key)}
-                label={String(col.header)}
-              />
-              <div style={{ display: 'flex', gap: 4 }}>
-                {moveButtons.map((btn) => (
+  /**
+   * Компактный список: одна строка = 25.6px, gap 12px.
+   * Рендерится одним полем Modal (rows=1), чтобы сетка модалки
+   * не навязывала свои 44px на каждую колонку.
+   */
+  const settingsField = useMemo(
+    () => ({
+      row: 0,
+      col: 0,
+      content: (
+        <div
+          style={{
+            display: 'flex', flexDirection: 'column', gap: 12,
+            maxHeight: 'min(56vh, 460px)', overflowY: 'auto',
+            paddingRight: 4, overscrollBehavior: 'contain',
+          }}
+        >
+          {settingsOrder.map((key, index) => {
+            const col = columnByKey.get(key);
+            if (!col) return null;
+            const isSticky = stickyRightSet.has(key);
+            const canMoveUp =
+              !isSticky && index > 0 && !stickyRightSet.has(settingsOrder[index - 1]);
+            const canMoveDown =
+              !isSticky &&
+              index < settingsOrder.length - 1 &&
+              !stickyRightSet.has(settingsOrder[index + 1]);
+            const checked = settingsVisible.has(key);
+            return (
+              <div
+                key={key}
+                style={{
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 8, minHeight: 25.6,
+                }}
+              >
+                <label
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    flex: 1, minWidth: 0, cursor: 'pointer',
+                    fontSize: 14, lineHeight: '16px', color: t.text,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleVisible(key)}
+                    style={{
+                      width: 16, height: 16, margin: 0, flexShrink: 0,
+                      accentColor: t.accent, cursor: 'pointer',
+                    }}
+                  />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {String(col.header)}
+                  </span>
+                </label>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                   <button
-                    key={btn.key}
-                    onClick={() => btn.canMove && btn.handler(key)}
-                    style={getMoveButtonStyle(btn.canMove)}
-                    onMouseEnter={(e) => {
-                      if (btn.canMove) e.currentTarget.style.background = t.navHoverBg;
-                    }}
-                    onMouseLeave={(e) => {
-                      if (btn.canMove) e.currentTarget.style.background = t.bgSurface;
-                    }}
+                    type="button"
+                    className="kbs-col-move"
+                    aria-label={`Переместить «${String(col.header)}» вверх`}
+                    disabled={!canMoveUp}
+                    onClick={() => canMoveUp && moveUp(key)}
+                    style={getMoveButtonStyle(canMoveUp)}
                   >
-                    <btn.Icon s={16} />
+                    <IcoChevronUp s={14} />
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className="kbs-col-move"
+                    aria-label={`Переместить «${String(col.header)}» вниз`}
+                    disabled={!canMoveDown}
+                    onClick={() => canMoveDown && moveDown(key)}
+                    style={getMoveButtonStyle(canMoveDown)}
+                  >
+                    <IcoChevronDown s={14} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ),
-        };
-      }),
-    [
-      settingsOrder,
-      settingsVisible,
-      columnByKey,
-      stickyRightSet,
-      t,
-      moveUp,
-      moveDown,
-      toggleVisible,
-      getMoveButtonStyle,
-    ],
+            );
+          })}
+        </div>
+      ),
+    }),
+    [settingsOrder, settingsVisible, columnByKey, stickyRightSet, t, toggleVisible, moveUp, moveDown, getMoveButtonStyle],
   );
 
-  // ---------- Клик по заголовку ----------
+  /* ---------- Клик по заголовку ---------- */
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
     let newState: SortState = [];
@@ -399,7 +399,7 @@ export default function Table<T extends Record<string, any>>({
     updateSortState(newState);
   };
 
-  // ---------- Sticky ----------
+  /* ---------- Sticky ---------- */
   const firstStickyIndex = useMemo(() => {
     for (let i = 0; i < columns.length; i++) {
       if (stickyRightSet.has(columns[i].key)) return i;
@@ -422,7 +422,6 @@ export default function Table<T extends Record<string, any>>({
     [columns, stickyRightSet, firstStickyIndex, t.bgSurface, t.border],
   );
 
-  // ---------- Базовые стили ----------
   const cellBaseStyle: React.CSSProperties = {
     padding: '10px 14px',
     whiteSpace: 'nowrap',
@@ -455,7 +454,6 @@ export default function Table<T extends Record<string, any>>({
     background: t.bgSurface,
   };
 
-  // ---------- Отображаемые колонки ----------
   const displayColumns = useMemo(() => {
     const uniqueKeys = Array.from(new Set(order.filter((key) => visibleKeys.has(key))));
     return uniqueKeys
@@ -463,17 +461,47 @@ export default function Table<T extends Record<string, any>>({
       .filter((col): col is Column<T> => col !== undefined);
   }, [order, visibleKeys, columnByKey]);
 
+  /* ---------- Шестерёнка в портале (не обрезается overflow:hidden) ---------- */
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [gearPos, setGearPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (willRenderMobile || typeof window === 'undefined') { setGearPos(null); return; }
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.bottom < 8 || r.top > window.innerHeight - 8) {
+        setGearPos(null);
+        return;
+      }
+      const top = r.top - 12;
+      const left = r.left - 12;
+      setGearPos((prev) =>
+        prev && Math.abs(prev.top - top) < 0.5 && Math.abs(prev.left - left) < 0.5
+          ? prev
+          : { top, left },
+      );
+    };
+    update();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [willRenderMobile, height, fixedHeader]);
+
   // =========================================================
   // ⚠️ ВСЕ хуки выше. Теперь можно делать ранний return.
   // =========================================================
 
-  // ---------- Мобильный режим ----------
   if (willRenderMobile) {
     if (renderMobile) return <>{renderMobile(dataToRender)}</>;
 
-    // Автодетект actions-колонки: если пользователь не передал mobileActions,
-    // но в columns есть колонка key="actions", используем её render в футере
-    // карточки. Сама колонка исключается из полей `dl`.
     const actionsColumn = columns.find((c) => c.key === 'actions');
     const autoActions = actionsColumn?.render
       ? (row: T) => actionsColumn.render!((row as any)[actionsColumn.key], row)
@@ -513,53 +541,16 @@ export default function Table<T extends Record<string, any>>({
     );
   }
 
-  // ---------- Десктопный рендер ----------
   return (
     <>
-      {/*
-        Обёртка с position: relative нужна только ради шестерёнки.
-        Она позиционируется абсолютно относительно обёртки и сама двигается
-        вместе с таблицей при раскрытии FilterBar / изменении layout.
-      */}
       <div
+        ref={wrapRef}
         style={{
           position: 'relative',
           width: '100%',
           height: fixedHeader ? height : 'auto',
         }}
       >
-        {!settingsOpen && (
-          <button
-            type="button"
-            onClick={openSettings}
-            aria-label="Настройка таблицы"
-            style={{
-              position: 'absolute',
-              top: -12,
-              left: -12,
-              zIndex: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              background: t.bgSurface,
-              border: `1px solid ${t.border}`,
-              color: t.iconColor,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              padding: 0,
-              fontSize: 18,
-              transition: 'background 0.2s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = t.navHoverBg)}
-            onMouseLeave={(e) => (e.currentTarget.style.background = t.bgSurface)}
-          >
-            ⚙
-          </button>
-        )}
-
         <div style={tableContainerStyle}>
           <table
             style={{
@@ -666,17 +657,12 @@ export default function Table<T extends Record<string, any>>({
                       {displayColumns.map((col) => {
                         const originalIndex = columnIndexByKey.get(col.key);
                         const stickyStyle =
-                          originalIndex !== undefined
-                            ? getStickyStyle(originalIndex, false)
-                            : {};
+                          originalIndex !== undefined ? getStickyStyle(originalIndex, false) : {};
                         const cellContent = col.render
                           ? col.render((row as any)[col.key], row)
                           : (row as any)[col.key];
                         return (
-                          <td
-                            key={col.key}
-                            style={{ ...cellBaseStyle, ...stickyStyle, ...col.style }}
-                          >
+                          <td key={col.key} style={{ ...cellBaseStyle, ...stickyStyle, ...col.style }}>
                             {cellContent}
                           </td>
                         );
@@ -690,6 +676,36 @@ export default function Table<T extends Record<string, any>>({
         </div>
       </div>
 
+      {!settingsOpen && gearPos && typeof document !== 'undefined' && createPortal(
+        <button
+          type="button"
+          className="kbs-table-gear"
+          onClick={openSettings}
+          aria-label="Настройка таблицы"
+          title="Настройка таблицы"
+          style={{
+            position: 'fixed',
+            top: gearPos.top,
+            left: gearPos.left,
+            zIndex: 400,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 24, height: 24, borderRadius: '50%',
+            background: t.bgSurface,
+            border: `1px solid ${t.border}`,
+            color: t.iconColor,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            padding: 0, fontSize: 18, lineHeight: 1,
+            '--kbs-gear-hover': t.navHoverBg,
+            '--kbs-gear-text': t.text,
+            '--kbs-gear-accent': t.accent,
+          } as React.CSSProperties}
+        >
+          ⚙
+        </button>,
+        document.body,
+      )}
+
       <Modal
         theme={t}
         isOpen={settingsOpen}
@@ -697,11 +713,11 @@ export default function Table<T extends Record<string, any>>({
         onOk={applySettings}
         title="Настройка таблицы"
         columns={1}
-        rows={settingsOrder.length || 1}
+        rows={1}
         okText="Применить"
         cancelText="Отмена"
         canSubmit
-        fields={modalFields}
+        fields={[settingsField]}
       />
     </>
   );

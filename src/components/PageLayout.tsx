@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useInsertionEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  HorizontalHeader, VerticalHeader, themes, useAuthActions,
-  type Theme, type ThemeName, type LayoutMode,
-} from '../index';
-import { filterNavTabs, matchActiveTab, type NavTab, type NavUser } from './Nav';
+import { HorizontalHeader, VerticalHeader } from './header/Header';
+import { themes, type Theme, type ThemeName } from '../themes/theme';
+import type { LayoutMode } from './header/LayoutToggle';
+import { useAuthActions } from '../hooks/useAuthActions';
 import { useResponsive } from '../context/ResponsiveContext';
+import { filterNavTabs, matchActiveTab, type NavTab, type NavUser } from './Nav';
 
 type HeaderProps = React.ComponentProps<typeof HorizontalHeader>;
 
@@ -39,8 +39,40 @@ export interface PageLayoutProps<TUser extends NavUser = NavUser> {
   children: React.ReactNode;
 }
 
+/* Hover/фокус футера — без внешних CSS-файлов. */
+const FOOTER_CSS_ID = 'kbs-page-layout-css';
+const FOOTER_CSS = `
+.kbs-footer-link { transition: color .15s ease, border-bottom-color .15s ease; }
+@media (hover: hover) {
+  .kbs-footer:hover { opacity: 1; }
+  .kbs-footer-link:hover {
+    color: var(--kbs-footer-accent);
+    border-bottom-color: var(--kbs-footer-accent);
+  }
+}
+.kbs-footer-link:focus-visible,
+.kbs-footer-link:active {
+  color: var(--kbs-footer-accent);
+  border-bottom-color: var(--kbs-footer-accent);
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kbs-footer, .kbs-footer-link { transition: none !important; }
+}
+`;
+
+function useStyleTag(id: string, css: string) {
+  useInsertionEffect(() => {
+    if (typeof document === 'undefined' || document.getElementById(id)) return;
+    const el = document.createElement('style');
+    el.id = id;
+    el.textContent = css;
+    document.head.appendChild(el);
+  }, [id, css]);
+}
+
 const colorScheme = (bg: string): 'light' | 'dark' => {
-  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(bg.trim());
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(bg).trim());
   if (!m) return 'light';
   let h = m[1];
   if (h.length === 3) h = h.split('').map((c) => c + c).join('');
@@ -74,7 +106,9 @@ const CreatorFooter = ({ siteName, theme, config }: {
         fontFamily: 'system-ui, -apple-system, sans-serif',
         userSelect: 'text', whiteSpace: 'nowrap',
         overflow: 'hidden', textOverflow: 'ellipsis',
-      }}
+        transition: 'opacity .15s ease',
+        '--kbs-footer-accent': theme.accent,
+      } as React.CSSProperties}
     >
       <span style={{ fontWeight: 600, color: theme.text, opacity: 0.9 }}>{brand}</span>
       {sep}<span>{orgName}</span>{sep}
@@ -100,6 +134,7 @@ export function PageLayout<TUser extends NavUser = NavUser>({
   title, actions, padding, paddingBottom,
   scrollMode = 'content', onProfileClick, headerProps, footer, children,
 }: PageLayoutProps<TUser>) {
+  useStyleTag(FOOTER_CSS_ID, FOOTER_CSS);
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile } = useResponsive();
@@ -168,11 +203,13 @@ export function PageLayout<TUser extends NavUser = NavUser>({
             {actions && <div className="kbs-page-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions}</div>}
           </div>
         )}
+        {/* inner: страницы скроллятся сами — контейнер НЕ.clipует
+            всплывающие label и focus-тени полей. */}
         <div
           className="kbs-scroll"
           style={{
             flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
-            overflow: scrollMode === 'content' ? 'auto' : 'hidden',
+            overflow: scrollMode === 'content' ? 'auto' : 'visible',
             overscrollBehavior: 'contain',
           }}
         >
