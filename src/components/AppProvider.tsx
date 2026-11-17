@@ -4,9 +4,9 @@ import React, {
 } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import axios, { AxiosError, type AxiosInstance } from 'axios';
-import { themes, type Theme, type ThemeName } from './themes/theme';
-import type { LayoutMode } from './components/header/LayoutToggle';
-import { ResponsiveProvider } from './context/ResponsiveContext';
+import { themes, type Theme, type ThemeName } from '../themes/theme';
+import type { LayoutMode } from './header/LayoutToggle';
+import { ResponsiveProvider } from '../context/ResponsiveContext';
 import { PageLayout, type PageLayoutProps, type FooterConfig } from './PageLayout';
 import type { NavTab } from './Nav';
 
