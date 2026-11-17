@@ -1,186 +1,44 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Theme } from '../../themes/theme';
 import { useResponsive } from '../../context/ResponsiveContext';
-import { useResizeObserver } from '../../hooks/useResizeObserver';
+import { useResizeObserver } from './_shared/useResizeObserver';
+import { useDismissOnOutsideTap } from './_shared/useDismissOnOutsideTap';
+import { getColorById } from './_shared/color';
 
-// ─── Типы данных ──────────────────────────────────────────────
+// ─── Типы ─────────────────────────────────────────────────────
 
-/**
- * Один сегмент диаграммы. Диаграмма поддерживает многоуровневую (иерархическую)
- * структуру: элементы с `parent = null` — корневые кольца, дети рисуются
- * вложенными кольцами внутри родительского сектора.
- */
 export interface PieDataItem {
-  /** Уникальный идентификатор. */
   id: string | number;
-
-  /** Текстовая подпись сегмента (для легенды и центра). */
   label: string;
-
-  /** Числовое значение. Пропорционально углу сектора. */
   value: number;
-
-  /**
-   * ID родительского элемента или null для корня.
-   * Уровни (level) строятся автоматически по связям parent → child.
-   */
   parent?: string | number | null;
-
-  /**
-   * Уровень вложенности. 0 — корень, 1 — первое кольцо детей, и т.д.
-   * Используется для расчёта радиуса сегмента.
-   */
   level: number;
-
-  /**
-   * Явный цвет сегмента. Если не указан — генерируется автоматически
-   * по id (HSL с золотым сечением).
-   */
   color?: string;
 }
 
-/**
- * Отступы вокруг диаграммы.
- * Можно передать одно число (применяется ко всем сторонам)
- * или объект с отдельными сторонами.
- */
 export type PieChartMargin =
   | number
   | { top?: number; right?: number; bottom?: number; left?: number };
 
 export interface PieChartProps {
-  /**
-   * Плоский массив сегментов. Иерархия задаётся через parent/level,
-   * а не вложенными структурами.
-   */
   data: PieDataItem[];
-
-  /**
-   * Ширина диаграммы (включая легенду), px.
-   * На мобиле игнорируется — используется ширина контейнера.
-   * @default 600
-   */
   width?: number;
-
-  /**
-   * Высота диаграммы, px.
-   * На мобиле вычисляется от ширины (примерно w * 0.95, не более 400).
-   * @default 400
-   */
   height?: number;
-
-  /** Тема. Обязательна. */
   theme: Theme;
-
-  /**
-   * Показывать ли легенду.
-   * @default true
-   */
   showLegend?: boolean;
-
-  /**
-   * Положение легенды на десктопе.
-   * На мобиле всегда принудительно 'bottom'.
-   * @default 'right'
-   */
   legendPosition?: 'left' | 'right';
-
-  /**
-   * Показывать ли текстовые подписи сегментов внутри колец.
-   * На мобиле всегда false (нечитаемо).
-   * @default false
-   */
   showLabels?: boolean;
-
-  /**
-   * Размер шрифта подписей сегментов, px.
-   * На мобиле автоматически уменьшается на 1.
-   * @default 10
-   */
   labelFontSize?: number;
-
-  /**
-   * Ориентация подписей на сегментах:
-   *  - 'radial' — вдоль радиуса, читается от центра;
-   *  - 'radial90' — поворот 90°, читается «горизонтально»;
-   *  - 'horizontal' — без поворота.
-   * @default 'radial'
-   */
   labelOrientation?: 'radial' | 'radial90' | 'horizontal';
-
-  /**
-   * Внутренний радиус центрального «бублика», px.
-   * Задаёт «пустоту» в центре, где рисуется центр-лейбл.
-   * @default 30
-   */
   innerRadius?: number;
-
-  /**
-   * Толщина одного кольца (одного уровня), px.
-   * @default 28
-   */
   ringThickness?: number;
-
-  /**
-   * Непрозрачность неактивных сегментов при выделении одного
-   * (0..1). Меньше — сильнее затемнение остальных.
-   * @default 0.3
-   */
   dimOpacity?: number;
-
-  /**
-   * Колбэк при наведении (мышь) или тапе (палец) на сегмент
-   * или на элемент легенды.
-   * Получает сам элемент или null, когда выделение сброшено.
-   */
   onSegmentHover?: (item: PieDataItem | null) => void;
-
-  /**
-   * Снимать ли выделение при тапе в любом месте вне диаграммы.
-   * Работает только для тач-устройств (pointerType !== 'mouse').
-   * На десктопе выделение снимается само на mouseleave.
-   * @default true
-   */
   dismissOnOutsideTap?: boolean;
-
-  /**
-   * Отступы вокруг диаграммы, px.
-   * Можно передать одно число (все стороны) или объект с полями
-   * top/right/bottom/left. Не указанные стороны берут значение 20.
-   * @default 20
-   */
   margin?: PieChartMargin;
-
-  /**
-   * Расстояние между диаграммой и легендой (по горизонтали для
-   * 'left'/'right' или по вертикали для 'bottom'), px.
-   * @default 12
-   */
   legendGap?: number;
-
-  /**
-   * Показывать ли числовые значения в легенде рядом с процентами.
-   * При включении формат: `value - percent%`.
-   * @default false
-   */
   showLegendValues?: boolean;
-
-  /**
-   * Разделитель между значением и процентом в легенде
-   * (используется только при showLegendValues = true).
-   * @default ' - '
-   */
   legendValueSeparator?: string;
-}
-
-// ─── Вспомогательные функции ──────────────────────────────────
-
-function getColorById(id: string | number): string {
-  if (typeof id === 'string' && id.startsWith('#')) return id;
-  const num = typeof id === 'number' ? id : parseInt(id, 36);
-  const phi = 0.618033988749895;
-  const hue = (num * phi) % 1.0;
-  return `hsl(${hue * 360}, 70%, 55%)`;
 }
 
 interface TreeNode extends PieDataItem {
@@ -189,18 +47,19 @@ interface TreeNode extends PieDataItem {
   endAngle: number;
 }
 
+// ─── Вспомогательные ─────────────────────────────────────────
+
 function buildTree(data: PieDataItem[]): TreeNode[] {
   const map = new Map<string | number, TreeNode>();
   const roots: TreeNode[] = [];
 
   data.forEach((item) => {
-    const node: TreeNode = {
+    map.set(item.id, {
       ...item,
       children: [],
       startAngle: 0,
       endAngle: 0,
-    };
-    map.set(item.id, node);
+    });
   });
 
   data.forEach((item) => {
@@ -209,41 +68,54 @@ function buildTree(data: PieDataItem[]): TreeNode[] {
       roots.push(node);
     } else {
       const parent = map.get(item.parent);
-      if (parent) {
-        parent.children.push(node);
-      } else {
-        roots.push(node);
-      }
+      if (parent) parent.children.push(node);
+      else roots.push(node);
     }
   });
 
   return roots;
 }
 
-function computeAngles(nodes: TreeNode[], startAngle: number, endAngle: number): void {
-  if (nodes.length === 0) return;
-  const total = nodes.reduce((sum, n) => sum + n.value, 0);
-  if (total === 0) return;
-
-  let currentStart = startAngle;
-  nodes.forEach((node) => {
-    const fraction = node.value / total;
-    const angleSpan = (endAngle - startAngle) * fraction;
-    node.startAngle = currentStart;
-    node.endAngle = currentStart + angleSpan;
-    currentStart += angleSpan;
-    if (node.children.length > 0) {
-      computeAngles(node.children, node.startAngle, node.endAngle);
-    }
+/**
+ * Чистая функция: возвращает копии дерева с углами.
+ * Никаких мутаций — безопасно в StrictMode / Concurrent Mode.
+ */
+function withAngles(
+  nodes: TreeNode[],
+  start: number,
+  end: number
+): TreeNode[] {
+  const total = nodes.reduce((s, n) => s + n.value, 0);
+  if (total === 0) {
+    return nodes.map((n) => ({
+      ...n,
+      startAngle: start,
+      endAngle: start,
+      children: withAngles(n.children, start, start),
+    }));
+  }
+  let cur = start;
+  return nodes.map((n) => {
+    const span = (end - start) * (n.value / total);
+    const result: TreeNode = {
+      ...n,
+      startAngle: cur,
+      endAngle: cur + span,
+      children: withAngles(n.children, cur, cur + span),
+    };
+    cur += span;
+    return result;
   });
 }
 
 function flattenTree(nodes: TreeNode[]): TreeNode[] {
-  let result: TreeNode[] = [];
-  nodes.forEach((node) => {
-    result.push(node);
-    result = result.concat(flattenTree(node.children));
-  });
+  const result: TreeNode[] = [];
+  const stack = [...nodes];
+  while (stack.length) {
+    const n = stack.shift()!;
+    result.push(n);
+    stack.push(...n.children);
+  }
   return result;
 }
 
@@ -266,7 +138,6 @@ function describeArc(
   const endOuter = polarToCartesian(cx, cy, outerRadius, endAngle);
   const startInner = polarToCartesian(cx, cy, innerRadius, startAngle);
   const endInner = polarToCartesian(cx, cy, innerRadius, endAngle);
-
   const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
 
   return [
@@ -278,7 +149,7 @@ function describeArc(
   ].join(' ');
 }
 
-// ─── Основной компонент ──────────────────────────────────────
+// ─── Компонент ────────────────────────────────────────────────
 
 export function PieChart({
   data,
@@ -300,8 +171,6 @@ export function PieChart({
   showLegendValues = false,
   legendValueSeparator = ' - ',
 }: PieChartProps) {
-  // «Активный» — то, что подсвечено. Может быть установлен hover'ом мыши
-  // или tap'ом пальца. Работает одинаково для обоих сценариев.
   const [activeId, setActiveId] = useState<string | number | null>(null);
 
   const { isMobile } = useResponsive();
@@ -318,14 +187,22 @@ export function PieChart({
     ? 'bottom'
     : legendPosition;
 
-  const effectiveLabelFontSize = isMobile ? Math.max(8, labelFontSize - 1) : labelFontSize;
+  const effectiveLabelFontSize = isMobile
+    ? Math.max(8, labelFontSize - 1)
+    : labelFontSize;
   const effectiveShowLabels = isMobile ? false : showLabels;
+  const effectiveRingThickness = isMobile
+    ? Math.max(18, ringThickness - 6)
+    : ringThickness;
 
-  // ─── Отступы ─────────────────────────────────────────────
-  // Поддерживаем margin как число (все стороны) или как объект.
   const margin = useMemo(() => {
     if (typeof marginProp === 'number') {
-      return { top: marginProp, right: marginProp, bottom: marginProp, left: marginProp };
+      return {
+        top: marginProp,
+        right: marginProp,
+        bottom: marginProp,
+        left: marginProp,
+      };
     }
     return {
       top: marginProp.top ?? 20,
@@ -336,84 +213,42 @@ export function PieChart({
   }, [marginProp]);
 
   const roots = useMemo(() => buildTree(data), [data]);
-  const totalRootValue = useMemo(
-    () => roots.reduce((sum, r) => sum + r.value, 0),
+  const rootsWithAngles = useMemo(
+    () => withAngles(roots, 0, Math.PI * 2),
     [roots]
   );
+  const totalRootValue = useMemo(
+    () => rootsWithAngles.reduce((s, r) => s + r.value, 0),
+    [rootsWithAngles]
+  );
 
-  // NOTE: сохраняем оригинальное поведение (side-effect в useMemo)
-  useMemo(() => {
-    let start = 0;
-    roots.forEach((root) => {
-      const fraction = root.value / totalRootValue;
-      root.startAngle = start;
-      root.endAngle = start + fraction * 2 * Math.PI;
-      start += fraction * 2 * Math.PI;
-      if (root.children.length > 0) {
-        computeAngles(root.children, root.startAngle, root.endAngle);
-      }
-    });
-  }, [roots, totalRootValue]);
+  const allNodes = useMemo(() => flattenTree(rootsWithAngles), [rootsWithAngles]);
 
-  const allNodes = useMemo(() => flattenTree(roots), [roots]);
-
-  const nodeColorMap = useMemo(() => {
-    const map = new Map<string | number, string>();
-    allNodes.forEach((node) => {
-      map.set(node.id, node.color || getColorById(node.id));
-    });
-    return map;
+  const nodesById = useMemo(() => {
+    const m = new Map<string | number, TreeNode>();
+    for (const n of allNodes) m.set(n.id, n);
+    return m;
   }, [allNodes]);
 
-  // ─── Общий обработчик установки активного элемента ───────
+  const nodeColorMap = useMemo(() => {
+    const m = new Map<string | number, string>();
+    for (const n of allNodes) {
+      m.set(n.id, n.color || getColorById(n.id));
+    }
+    return m;
+  }, [allNodes]);
+
   const setActive = (node: TreeNode | null) => {
     setActiveId(node ? node.id : null);
-    if (onSegmentHover) onSegmentHover(node);
+    onSegmentHover?.(node);
   };
 
-  // ─── Тап вне интерактивных элементов снимает выделение ───
-  useEffect(() => {
-    if (!dismissOnOutsideTap) return;
-    const handler = (e: PointerEvent) => {
-      const target = e.target as Element | null;
-      if (!target) return;
-      if (target.closest('[data-pie-interactive]')) return;
-      setActiveId(null);
-      if (onSegmentHover) onSegmentHover(null);
-    };
-    document.addEventListener('pointerdown', handler);
-    return () => document.removeEventListener('pointerdown', handler);
-  }, [dismissOnOutsideTap, onSegmentHover]);
-
-  // ─── Сегмент ─────────────────────────────────────────────
-  const segmentHandlers = (node: TreeNode) => ({
-    onPointerDown: (e: React.PointerEvent) => {
-      // Для мыши pointerdown не нужен — уже работает hover.
-      // Для тача — tap фиксирует выделение.
-      if (e.pointerType === 'mouse') return;
-      e.stopPropagation();
-      setActive(node);
-    },
-    onPointerEnter: (e: React.PointerEvent) => {
-      // Hover только для мыши/пера: на таче pointerenter срабатывает
-      // на каждый новый элемент при движении пальца — не нужно.
-      if (e.pointerType === 'touch') return;
-      setActive(node);
-    },
-    onPointerLeave: (e: React.PointerEvent) => {
-      if (e.pointerType === 'touch') return;
-      // Уходим с сегмента, но активный остаётся, если пользователь кликнул,
-      // а не навёл. Определяем по типу pointer.
-      setActive(null);
-    },
-    onPointerCancel: () => {
-      // На таче, если жест превратился в скролл, браузер шлёт pointercancel.
-      // Не снимаем выделение — пользователь может продолжать смотреть.
-    },
+  useDismissOnOutsideTap(dismissOnOutsideTap, () => setActive(null), {
+    selector: '[data-pie-interactive]',
   });
 
-  // ─── Легенда ─────────────────────────────────────────────
-  const legendHandlers = (node: TreeNode) => ({
+  // ─── Общие pointer handlers ─────────────────────────────────
+  const interactiveHandlers = (node: TreeNode) => ({
     onPointerDown: (e: React.PointerEvent) => {
       if (e.pointerType === 'mouse') return;
       e.stopPropagation();
@@ -427,25 +262,30 @@ export function PieChart({
       if (e.pointerType === 'touch') return;
       setActive(null);
     },
+    onPointerCancel: () => {},
   });
 
-  const hoveredNode = allNodes.find((n) => n.id === activeId);
+  const hoveredNode = activeId != null ? nodesById.get(activeId) : undefined;
   const centerLabel = hoveredNode ? hoveredNode.label : 'Всего';
   const centerValue = hoveredNode ? hoveredNode.value : totalRootValue;
 
-  // Размеры и масштаб
-  const legendWidth = showLegend && effectiveLegendPosition !== 'bottom' ? 200 : 0;
+  const legendWidth =
+    showLegend && effectiveLegendPosition !== 'bottom' ? 200 : 0;
   const chartWidth =
-    effectiveWidth - margin.left - margin.right - legendWidth - (legendWidth ? legendGap : 0);
+    effectiveWidth -
+    margin.left -
+    margin.right -
+    legendWidth -
+    (legendWidth ? legendGap : 0);
   const chartHeight = effectiveHeight - margin.top - margin.bottom;
   const cx = margin.left + chartWidth / 2;
   const cy = margin.top + chartHeight / 2;
   const maxRadius = Math.min(chartWidth, chartHeight) / 2;
   const maxLevel = Math.max(...allNodes.map((n) => n.level), 0);
-  const totalThickness = (maxLevel + 1) * ringThickness;
+  const totalThickness = (maxLevel + 1) * effectiveRingThickness;
   const scale = Math.min(1, maxRadius / (innerRadius + totalThickness + 10));
   const scaledInner = innerRadius * scale;
-  const scaledThickness = ringThickness * scale;
+  const scaledThickness = effectiveRingThickness * scale;
 
   const renderArcs = () => {
     return allNodes.map((node) => {
@@ -463,7 +303,14 @@ export function PieChart({
       const outerOffset = outerR + offset;
       const innerOffset = innerR + offset;
 
-      const d = describeArc(cx, cy, innerOffset, outerOffset, node.startAngle, node.endAngle);
+      const d = describeArc(
+        cx,
+        cy,
+        innerOffset,
+        outerOffset,
+        node.startAngle,
+        node.endAngle
+      );
 
       const midAngle = (node.startAngle + node.endAngle) / 2;
       const labelRadius = (innerR + outerR) / 2;
@@ -474,7 +321,8 @@ export function PieChart({
 
       if (effectiveShowLabels && node.endAngle - node.startAngle > 0.15) {
         const angleDeg = (midAngle * 180) / Math.PI;
-        const isLeftHalf = midAngle > Math.PI / 2 && midAngle < (3 * Math.PI) / 2;
+        const isLeftHalf =
+          midAngle > Math.PI / 2 && midAngle < (3 * Math.PI) / 2;
         const isDownHalf = midAngle > Math.PI && midAngle < 2 * Math.PI;
 
         if (labelOrientation === 'horizontal') {
@@ -499,12 +347,11 @@ export function PieChart({
             strokeWidth={1.5}
             opacity={opacity}
             data-pie-interactive="true"
-            {...segmentHandlers(node)}
+            {...interactiveHandlers(node)}
             style={{
-              transition: 'opacity 0.25s ease, filter 0.25s ease, transform 0.25s ease',
+              transition:
+                'opacity 0.25s ease, filter 0.25s ease, transform 0.25s ease',
               cursor: 'pointer',
-              // Разрешаем тач-жесты: вертикальный скролл страницы,
-              // если пользователь начал жест на диаграмме.
               touchAction: 'manipulation',
               filter: isActive
                 ? 'brightness(1.1) drop-shadow(0 0 8px rgba(255,255,255,0.15))'
@@ -521,7 +368,11 @@ export function PieChart({
               dominantBaseline="central"
               pointerEvents="none"
               transform={labelTransform}
-              style={{ userSelect: 'none', opacity, transition: 'opacity 0.25s ease' }}
+              style={{
+                userSelect: 'none',
+                opacity,
+                transition: 'opacity 0.25s ease',
+              }}
             >
               {node.label}
             </text>
@@ -535,9 +386,8 @@ export function PieChart({
     if (!showLegend) return null;
 
     const isBottom = effectiveLegendPosition === 'bottom';
-    const rootNodes = roots;
 
-    const legendItems = rootNodes.map((node) => {
+    const legendItems = rootsWithAngles.map((node) => {
       const isActive = activeId === node.id;
       const color = nodeColorMap.get(node.id)!;
       const percent = ((node.value / totalRootValue) * 100).toFixed(1);
@@ -551,7 +401,7 @@ export function PieChart({
         <div
           key={node.id}
           data-pie-interactive="true"
-          {...legendHandlers(node)}
+          {...interactiveHandlers(node)}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -618,7 +468,6 @@ export function PieChart({
       gap: 4,
       marginLeft: effectiveLegendPosition === 'right' ? legendGap : 0,
       marginRight: effectiveLegendPosition === 'left' ? legendGap : 0,
-      // Для 'bottom' — вертикальный отступ между диаграммой и легендой
       marginTop: isBottom ? legendGap : 0,
     };
 
@@ -626,44 +475,37 @@ export function PieChart({
   };
 
   const renderCenter = () => (
-    <circle
-      cx={cx}
-      cy={cy}
-      r={Math.max(scaledInner - 2, 0)}
-      fill={theme.bgSurface}
-      stroke={theme.border}
-      strokeWidth={2}
-      style={{ transition: 'opacity 0.25s' }}
-    />
-  );
-
-  const renderCenterText = () => (
-    <text
-      x={cx}
-      y={cy - 12}
-      textAnchor="middle"
-      dominantBaseline="central"
-      fill={theme.text}
-      fontSize={effectiveLabelFontSize + 10}
-      fontWeight="bold"
-      style={{ pointerEvents: 'none', transition: 'opacity 0.25s' }}
-    >
-      {centerValue}
-    </text>
-  );
-
-  const renderCenterLabel = () => (
-    <text
-      x={cx}
-      y={cy + 20}
-      textAnchor="middle"
-      dominantBaseline="central"
-      fill={theme.textMuted}
-      fontSize={effectiveLabelFontSize + 6}
-      style={{ pointerEvents: 'none', transition: 'opacity 0.25s' }}
-    >
-      {centerLabel}
-    </text>
+    <g style={{ pointerEvents: 'none', transition: 'opacity 0.25s' }}>
+      <circle
+        cx={cx}
+        cy={cy}
+        r={Math.max(scaledInner - 2, 0)}
+        fill={theme.bgSurface}
+        stroke={theme.border}
+        strokeWidth={2}
+      />
+      <text
+        x={cx}
+        y={cy - 12}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={theme.text}
+        fontSize={effectiveLabelFontSize + 10}
+        fontWeight="bold"
+      >
+        {centerValue}
+      </text>
+      <text
+        x={cx}
+        y={cy + 20}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={theme.textMuted}
+        fontSize={effectiveLabelFontSize + 6}
+      >
+        {centerLabel}
+      </text>
+    </g>
   );
 
   if (!data || data.length === 0) {
@@ -682,11 +524,8 @@ export function PieChart({
         flexDirection: effectiveLegendPosition === 'bottom' ? 'column' : 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        // gap управляется через marginTop для 'bottom' и marginLeft/right в легенде,
-        // чтобы работал кастомный legendGap = 0.
         gap: 0,
         width: '100%',
-        // На тач-устройствах не выделяем текст и не даём случайных зумов
         WebkitTapHighlightColor: 'transparent',
       }}
     >
@@ -701,8 +540,6 @@ export function PieChart({
         <g>
           {renderArcs()}
           {renderCenter()}
-          {renderCenterText()}
-          {renderCenterLabel()}
         </g>
       </svg>
       {effectiveLegendPosition === 'right' && renderLegend()}

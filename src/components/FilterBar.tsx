@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Theme } from '../themes/theme';
-import { IcoFilter, IcoX, IcoChevronDown, IcoSearch, ExportIcon } from './icons';
+import { IcoFilter, IcoX, IcoChevronDown, ExportIcon } from './icons';
 import Button from './inputs/Button';
 import { useResponsive } from '../context/ResponsiveContext';
 
@@ -12,72 +12,41 @@ interface FilterItem {
 
 interface FilterBarProps {
   theme: Theme;
-  /** Список фильтров с указанием строки и количеством колонок */
   filters: FilterItem[];
-  /** Количество активных фильтров (для бейджа) */
   activeCount?: number;
-  /** Краткое описание активных фильтров (чипы) */
   chips?: string[];
-  /** Коллбэк при нажатии "Apply" */
-  onApply?: () => void;
-  /** Коллбэк при нажатии "Reset" или "Clear all" */
   onReset?: () => void;
-  /** Внешний контроль открытого состояния (опционально) */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** Если true – кнопка "Применить" не отображается, фильтры применяются мгновенно */
-  instantApply?: boolean;
-  /** Задержка debounce для instantApply, мс (по умолчанию 250) */
-  instantApplyDelay?: number;
-  /** Если true – нажатие Enter в любом поле ввода внутри фильтров вызывает onApply */
-  applyOnEnter?: boolean;
-  /** Коллбэк при нажатии "Экспорт в Excel" */
   onExport?: () => void;
-  /** Текст кнопки экспорта (по умолчанию "Экспорт в Excel") */
   exportLabel?: string;
-  /** Общее количество колонок в сетке (по умолчанию 1) */
   gridCols?: number;
-  /** Enter применяет фильтры на всей странице (кроме модалки) */
-  globalEnter?: boolean;
-  /**
-   * Максимальная высота открытой панели на мобиле.
-   * По умолчанию `calc(100dvh - 140px)` — примерно «весь экран минус
-   * верхняя панель и некоторый запас». Можно переопределить.
-   *
-   * На десктопе игнорируется — используется высота контента.
-   */
   mobileMaxHeight?: string;
-  /**
-   * Может ли тело фильтров стать скроллируемым.
-   * На мобиле всегда true (нельзя переопределить) — иначе панель
-   * не помещается в viewport.
-   * На десктопе:
-   *  - true  — тело скроллится, если контент выше max-height (по умолчанию);
-   *  - false — тело никогда не скроллится; при раскрытии контент
-   *            «проявляется» по мере роста max-height, scrollbar не появляется.
-   * @default true
-   */
   scrollable?: boolean;
+  mobileBackdrop?: boolean;
 }
 
+/**
+ * Панель фильтров.
+ *
+ * ⚠️ Никакого `onApply` — фильтры применяются по мере изменения. Дебаунс —
+ * на стороне потребителя: `useFetch(url, params, { debounceMs: 300 })` для
+ * серверных фильтров или `useDeferredValue(filters)` для локальных.
+ */
 export function FilterBar({
   theme: t,
   filters,
   activeCount = 0,
   chips = [],
-  onApply,
   onReset,
   open: externalOpen,
   onOpenChange,
-  instantApply = false,
-  instantApplyDelay = 250,
-  applyOnEnter = false,
   onExport,
   exportLabel = 'Экспорт в Excel',
   gridCols = 1,
-  globalEnter = false,
   mobileMaxHeight,
   scrollable = true,
+  mobileBackdrop = false,
 }: FilterBarProps) {
   const { isMobile } = useResponsive();
   const effectiveCols = isMobile ? 1 : gridCols;
@@ -91,77 +60,10 @@ export function FilterBar({
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const [bodyH, setBodyH] = useState(0);
+
   useEffect(() => {
     if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight);
   }, [filters, open, effectiveCols]);
-
-  useEffect(() => {
-    if (!applyOnEnter || !onApply) return;
-
-    const handleKeyDown = (e: Event) => {
-      if (!(e instanceof KeyboardEvent)) return;
-      if (e.key !== 'Enter') return;
-
-      const target = e.target as HTMLElement;
-
-      if (!globalEnter) {
-        if (!bodyRef.current || !bodyRef.current.contains(target)) return;
-      } else {
-        const modal = document.querySelector('[data-modal="true"]');
-        if (modal && modal.contains(target)) return;
-      }
-
-      e.preventDefault();
-      onApply();
-    };
-
-    const node = globalEnter ? document : bodyRef.current;
-    if (!node) return;
-
-    node.addEventListener('keydown', handleKeyDown);
-    return () => node.removeEventListener('keydown', handleKeyDown);
-  }, [applyOnEnter, onApply, globalEnter, bodyRef.current]);
-
-  const onApplyRef = useRef(onApply);
-  useEffect(() => {
-    onApplyRef.current = onApply;
-  });
-
-  const applyDelay = Math.max(0, instantApplyDelay);
-
-  useEffect(() => {
-    if (!instantApply) return;
-
-    const node = bodyRef.current;
-    if (!node) return;
-
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const applyNow = () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      onApplyRef.current?.();
-    };
-
-    const scheduleApply = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        onApplyRef.current?.();
-      }, applyDelay);
-    };
-
-    node.addEventListener('input', scheduleApply);
-    node.addEventListener('change', applyNow);
-
-    return () => {
-      if (timer) clearTimeout(timer);
-      node.removeEventListener('input', scheduleApply);
-      node.removeEventListener('change', applyNow);
-    };
-  }, [instantApply, applyDelay]);
 
   const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
   filters.forEach(({ component, row, cols = effectiveCols }) => {
@@ -170,11 +72,7 @@ export function FilterBar({
   });
   const sortedRows = Object.keys(rows).sort((a, b) => Number(a) - Number(b));
 
-  // ── Высота скролл-контейнера тела ────────────────────
-  // На десктопе — точная высота контента (max-height = 0, если свёрнуто).
-  // На мобиле — ограничиваем viewport'ом, чтобы панель стала скроллируемой.
   const isScrollable = isMobile ? true : scrollable;
-
   const maxBodyHeight: string | number = open
     ? isMobile
       ? `min(${bodyH || 600}px, ${mobileMaxHeight ?? 'calc(100dvh - 140px)'})`
@@ -182,211 +80,231 @@ export function FilterBar({
     : 0;
 
   return (
-    <div
-      style={{
-        background: t.bgSurface,
-        border: `1px solid ${t.border}`,
-        borderRadius: 14,
-        marginBottom: 16,
-        overflow: 'hidden',
-      }}
-    >
-      {/* Header */}
+    <>
+      {isMobile && mobileBackdrop && open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.35)',
+            zIndex: 9,
+          }}
+        />
+      )}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 18px',
-          cursor: 'pointer',
-          userSelect: 'none',
-          gap: 12,
-        }}
-        onClick={() => setOpen(!open)}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color: t.accent, display: 'flex' }}>
-            <IcoFilter />
-          </span>
-          <span
-            style={{
-              fontFamily: 'system-ui',
-              fontWeight: 600,
-              fontSize: 14,
-              color: t.text,
-            }}
-          >
-            Фильтры
-          </span>
-          {activeCount > 0 && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 20,
-                height: 20,
-                padding: '0 6px',
-                borderRadius: 20,
-                background: t.accent,
-                color: t.accentText,
-                fontSize: 11,
-                fontWeight: 700,
-                fontFamily: 'system-ui',
-                boxShadow: `0 0 10px ${t.accentGlow}`,
-              }}
-            >
-              {activeCount}
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {!open && chips.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {chips.map((chip, i) => (
-                <span
-                  key={i}
-                  style={{
-                    padding: '2px 9px',
-                    borderRadius: 20,
-                    fontSize: 11,
-                    fontFamily: 'system-ui',
-                    fontWeight: 500,
-                    color: t.accent,
-                    background: t.navHoverBg,
-                    border: `1px solid ${t.border}`,
-                  }}
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
-          )}
-          {activeCount > 0 && onReset && (
-            <Button
-              icon={<IcoX s={10} />}
-              variant="danger"
-              outline
-              size="sm"
-              onClick={(e: any) => {
-                e.stopPropagation();
-                onReset();
-              }}
-              theme={t}
-            >
-              Сбросить
-            </Button>
-          )}
-          <span style={{ color: t.textMuted, display: 'flex' }}>
-            <IcoChevronDown open={open} />
-          </span>
-        </div>
-      </div>
-
-      {/* Collapsible body — теперь скроллится, если не помещается */}
-      <div
-        ref={bodyRef}
-        style={{
-          maxHeight: maxBodyHeight,
-          overflow: open
-            ? isScrollable
-              ? 'auto'    // как было: скроллим, если не влезает
-              : 'hidden'  // скролл выключен, контент клипается
-            : 'hidden',   // в свёрнутом всегда hidden
-          overscrollBehavior: 'contain',
-          transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)',
-          WebkitOverflowScrolling: 'touch',
+          position: 'relative',
+          background: t.bgSurface,
+          border: `1px solid ${t.border}`,
+          borderRadius: 14,
+          marginBottom: 16,
+          overflow: 'hidden',
+          zIndex: isMobile && mobileBackdrop && open ? 10 : 'auto',
         }}
       >
+        {/* Header */}
         <div
           style={{
-            padding: '16px 18px 0',
-            borderTop: `1px solid ${t.borderSubtle}`,
             display: 'flex',
-            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 18px',
+            cursor: 'pointer',
+            userSelect: 'none',
             gap: 12,
           }}
+          onClick={() => setOpen(!open)}
         >
-          {sortedRows.map((rowKey) => {
-            const items = rows[Number(rowKey)];
-            return (
-              <div
-                key={rowKey}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: t.accent, display: 'flex' }}>
+              <IcoFilter />
+            </span>
+            <span style={{ fontFamily: 'system-ui', fontWeight: 600, fontSize: 14, color: t.text }}>
+              Фильтры
+            </span>
+            {activeCount > 0 && (
+              <span
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${effectiveCols}, 1fr)`,
-                  gap: '14px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 20,
+                  height: 20,
+                  padding: '0 6px',
+                  borderRadius: 20,
+                  background: t.accent,
+                  color: t.accentText,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontFamily: 'system-ui',
+                  boxShadow: `0 0 10px ${t.accentGlow}`,
                 }}
               >
-                {items.map((item, idx) => (
-                  <div
-                    key={idx}
+                {activeCount}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            {!open && chips.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  maxWidth: isMobile ? 200 : 'none',
+                  scrollbarWidth: 'none',
+                  flex: '0 1 auto',
+                  minWidth: 0,
+                }}
+              >
+                {chips.map((chip, i) => (
+                  <span
+                    key={i}
                     style={{
-                      gridColumn: `span ${Math.min(item.cols, effectiveCols)}`,
-                      minWidth: 0,
+                      padding: '2px 9px',
+                      borderRadius: 20,
+                      fontSize: 11,
+                      fontFamily: 'system-ui',
+                      fontWeight: 500,
+                      color: t.accent,
+                      background: t.navHoverBg,
+                      border: `1px solid ${t.border}`,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
                     }}
                   >
-                    {item.component}
-                  </div>
+                    {chip}
+                  </span>
                 ))}
               </div>
-            );
-          })}
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              {activeCount > 0 && onReset && (
+                <Button
+                  icon={<IcoX s={10} />}
+                  variant="danger"
+                  outline
+                  size="sm"
+                  onClick={(e: any) => {
+                    e.stopPropagation();
+                    onReset();
+                  }}
+                  theme={t}
+                >
+                  Сбросить
+                </Button>
+              )}
+              <span style={{ color: t.textMuted, display: 'flex' }}>
+                <IcoChevronDown open={open} />
+              </span>
+            </div>
+          </div>
+        </div>
 
+        {/* Body */}
+        <div
+          ref={bodyRef}
+          style={{
+            maxHeight: maxBodyHeight,
+            overflow: open ? (isScrollable ? 'auto' : 'hidden') : 'hidden',
+            overscrollBehavior: 'contain',
+            transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
           <div
             style={{
+              padding: '16px 18px 0',
+              borderTop: `1px solid ${t.borderSubtle}`,
               display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              paddingTop: 4,
-              paddingBottom: 18,
-              flexWrap: 'wrap',
-              justifyContent: 'flex-end',
+              flexDirection: 'column',
+              gap: 12,
             }}
           >
-            {onApply && !instantApply && (
-              <Button
-                icon={<IcoSearch s={12} />}
-                variant="primary"
-                size="md"
-                onClick={onApply}
-                theme={t}
-              >
-                Применить
-              </Button>
-            )}
+            {sortedRows.map((rowKey) => {
+              const items = rows[Number(rowKey)];
+              return (
+                <div
+                  key={rowKey}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${effectiveCols}, 1fr)`,
+                    gap: '14px',
+                  }}
+                >
+                  {items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        gridColumn: `span ${Math.min(item.cols, effectiveCols)}`,
+                        minWidth: 0,
+                      }}
+                    >
+                      {item.component}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
 
-            {onExport && (
-              <Button
-                icon={<ExportIcon s={12} />}
-                variant="primary"
-                outline
-                size="md"
-                onClick={onExport}
-                theme={t}
-              >
-                {exportLabel}
-              </Button>
-            )}
-
-            {onReset && (
-              <Button
-                icon={<IcoX s={12} />}
-                variant="danger"
-                outline
-                size="md"
-                onClick={(e: any) => {
-                  e.stopPropagation();
-                  onReset();
+            {/* Footer — только если есть что показать (Export / Reset) */}
+            {(onExport || onReset) && (
+              <div
+                style={{
+                  position: isMobile ? 'sticky' : 'static',
+                  bottom: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingTop: 8,
+                  paddingBottom: 18,
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
+                  background: isMobile ? t.bgSurface : 'transparent',
+                  marginLeft: isMobile ? -18 : 0,
+                  marginRight: isMobile ? -18 : 0,
+                  paddingLeft: isMobile ? 18 : 0,
+                  paddingRight: isMobile ? 18 : 0,
+                  boxShadow: isMobile ? '0 -4px 12px rgba(0,0,0,0.06)' : 'none',
                 }}
-                theme={t}
               >
-                Сбросить
-              </Button>
+                {onExport && (
+                  <Button
+                    icon={<ExportIcon s={12} />}
+                    variant="primary"
+                    outline
+                    size="md"
+                    onClick={onExport}
+                    theme={t}
+                  >
+                    {exportLabel}
+                  </Button>
+                )}
+                {onReset && (
+                  <Button
+                    icon={<IcoX s={12} />}
+                    variant="danger"
+                    outline
+                    size="md"
+                    onClick={(e: any) => {
+                      e.stopPropagation();
+                      onReset();
+                    }}
+                    theme={t}
+                  >
+                    Сбросить
+                  </Button>
+                )}
+              </div>
             )}
+
+            {/* Если футера нет — добавим отступ снизу */}
+            {!onExport && !onReset && <div style={{ height: 18 }} />}
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

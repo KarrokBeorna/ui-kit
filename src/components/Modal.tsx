@@ -27,19 +27,8 @@ interface ModalProps {
   width?: number | string;
   canSubmit?: boolean;
   rowAlign?: React.CSSProperties['alignItems'][];
-  /** Принудительно полноэкранный режим независимо от размера экрана */
   fullscreen?: boolean;
-  /**
-   * Показывать ли кнопку «Отмена» в футере.
-   * Полезно для read-only модалок (например, просмотр сканирований),
-   * где единственное действие — «Закрыть».
-   * @default true
-   */
   showCancel?: boolean;
-  /**
-   * Показывать ли кнопку подтверждения.
-   * @default true
-   */
   showOk?: boolean;
 }
 
@@ -63,69 +52,97 @@ export default function Modal({
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const { isMobile } = useResponsive();
-
   const fullscreen = fullscreenProp ?? isMobile;
 
   useBodyScrollLock(isOpen);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (!modalRef.current || !modalRef.current.contains(target)) return;
-      if (e.key === 'Escape') onClose();
+
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
       if (e.key === 'Enter' && canSubmit && showOk) {
+        // Не «проглатываем» Enter в textarea, кнопках, открытых дропдаунах.
+        const tag = target.tagName;
+        if (tag === 'TEXTAREA' || tag === 'BUTTON') return;
+        if (target.closest('[role="listbox"], [role="combobox"], [role="menu"]')) return;
         e.preventDefault();
         onOk();
       }
     };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown, true);
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, onClose, onOk, canSubmit, showOk]);
 
   if (!isOpen) return null;
 
+  // ─── Раскладка полей ─────────────────────────────────────
+  // grid[r][c] = content, если поле поставлено в (r, c).
+  // occupied — какие клетки уже заняты (включая rowspan/colspan).
   const grid: (React.ReactNode | null)[][] = Array.from({ length: rows }, () =>
-    Array(columns).fill(null)
+    Array(columns).fill(null),
   );
+  const occupied: boolean[][] = Array.from({ length: rows }, () =>
+    Array(columns).fill(false),
+  );
+  // Метаданные полей для отрисовки (rowspan/colspan/required).
+  const placedFields = new Map<string, ModalField>();
 
   fields.forEach((field) => {
     const r = field.row;
     const c = field.col;
-    if (r >= rows || c >= columns) return;
-    let occupied = false;
-    for (let dr = 0; dr < (field.rowspan || 1); dr++) {
-      for (let dc = 0; dc < (field.colspan || 1); dc++) {
-        if (grid[r + dr]?.[c + dc] !== null) occupied = true;
-      }
-    }
-    if (!occupied) {
-      for (let dr = 0; dr < (field.rowspan || 1); dr++) {
-        for (let dc = 0; dc < (field.colspan || 1); dc++) {
-          grid[r + dr][c + dc] = null;
+    if (r < 0 || c < 0 || r >= rows || c >= columns) return;
+
+    // Клампим span под размер сетки.
+    const spanR = Math.min(field.rowspan || 1, rows - r);
+    const spanC = Math.min(field.colspan || 1, columns - c);
+
+    // Не перекрываемся ли с уже поставленными полями?
+    let canPlace = true;
+    outer: for (let dr = 0; dr < spanR; dr++) {
+      for (let dc = 0; dc < spanC; dc++) {
+        if (occupied[r + dr][c + dc]) {
+          canPlace = false;
+          break outer;
         }
       }
-      grid[r][c] = field.content;
+    }
+    if (!canPlace) return;
+
+    grid[r][c] = field.content;
+    placedFields.set(`${r}-${c}`, field);
+    for (let dr = 0; dr < spanR; dr++) {
+      for (let dc = 0; dc < spanC; dc++) {
+        occupied[r + dr][c + dc] = true;
+      }
     }
   });
 
   const effectiveColumns = fullscreen ? 1 : columns;
   const effectiveRows = fullscreen ? fields.length : rows;
 
-  const gridToRender = fullscreen
+  const gridToRender: (React.ReactNode | null)[][] = fullscreen
     ? fields.map((f) => [f.content])
     : grid;
 
-  // Скрываем футер целиком, если обе кнопки отключены.
   const showFooter = showOk || showCancel;
+  const titleId = 'modal-title';
 
   return (
     <div
       ref={modalRef}
       data-modal="true"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
       style={{
         position: 'fixed',
         inset: 0,
@@ -135,7 +152,7 @@ export default function Modal({
         display: 'flex',
         alignItems: fullscreen ? 'stretch' : 'center',
         justifyContent: 'center',
-        animation: 'fadeIn 0.2s ease',
+        animation: 'modalFadeIn 0.2s ease',
       }}
     >
       <div
@@ -149,7 +166,7 @@ export default function Modal({
           display: 'flex',
           flexDirection: 'column',
           boxShadow: t.shadowLg,
-          animation: 'scaleIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          animation: fullscreen ? 'modalFadeIn 0.2s ease' : 'modalScaleIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           border: fullscreen ? 'none' : `1px solid ${t.border}`,
           overflow: 'hidden',
           paddingTop: fullscreen ? 'env(safe-area-inset-top, 0px)' : 0,
@@ -167,7 +184,7 @@ export default function Modal({
             flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 18, fontWeight: 600, color: t.text }}>
+          <span id={titleId} style={{ fontSize: 18, fontWeight: 600, color: t.text }}>
             {title}
           </span>
           <button
@@ -202,7 +219,14 @@ export default function Modal({
         </div>
 
         {/* Содержимое */}
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+        <div
+          style={{
+            padding: 20,
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            flex: 1,
+          }}
+        >
           <div
             style={{
               display: 'grid',
@@ -213,16 +237,15 @@ export default function Modal({
           >
             {gridToRender.map((row, ri) =>
               row.map((cell, ci) => {
-                const field = fullscreen
-                  ? fields[ri]
-                  : fields.find((f) => f.row === ri && f.col === ci);
-                const rowspan = field?.rowspan || 1;
-                const colspan = fullscreen ? 1 : field?.colspan || 1;
                 if (cell === null || cell === undefined) return null;
 
-                const alignSelf = fullscreen
-                  ? 'stretch'
-                  : rowAlign?.[ri] ?? 'end';
+                const field = fullscreen
+                  ? fields[ri]
+                  : placedFields.get(`${ri}-${ci}`);
+                const rowspan = field?.rowspan || 1;
+                const colspan = fullscreen ? 1 : field?.colspan || 1;
+
+                const alignSelf = fullscreen ? 'stretch' : rowAlign?.[ri] ?? 'end';
 
                 return (
                   <div
@@ -250,12 +273,12 @@ export default function Modal({
                     {cell}
                   </div>
                 );
-              })
+              }),
             )}
           </div>
         </div>
 
-        {/* Кнопки */}
+        {/* Футер */}
         {showFooter && (
           <div
             style={{
@@ -283,7 +306,7 @@ export default function Modal({
                   fontSize: 14,
                   fontFamily: 'inherit',
                   cursor: 'pointer',
-                  transition: 'all 0.15s',
+                  transition: 'background 0.15s, color 0.15s',
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = t.navHoverBg;
@@ -314,7 +337,7 @@ export default function Modal({
                   fontWeight: 500,
                   fontFamily: 'inherit',
                   cursor: canSubmit ? 'pointer' : 'not-allowed',
-                  transition: 'all 0.15s',
+                  transition: 'opacity 0.15s',
                   boxShadow: canSubmit ? `0 0 0 2px ${t.accentGlow}` : 'none',
                   opacity: canSubmit ? 1 : 0.6,
                 }}
@@ -333,13 +356,14 @@ export default function Modal({
       </div>
 
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
+        @keyframes modalFadeIn  { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes modalScaleIn {
+          from { transform: scale(0.94); opacity: 0 }
+          to   { transform: scale(1);    opacity: 1 }
         }
-        @keyframes scaleIn {
-          from { transform: scale(0.94); opacity: 0; }
-          to   { transform: scale(1);    opacity: 1; }
+        @media (prefers-reduced-motion: reduce) {
+          [role="dialog"] { animation: none !important; }
+          [role="dialog"] > div { animation: none !important; }
         }
       `}</style>
     </div>

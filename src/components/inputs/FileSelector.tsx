@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import type { Theme } from '../../themes/theme';
 import { IcoFile, IcoX } from '../icons';
+import { IconActionButton } from './_shared/field';
 
 interface FileSelectorProps {
   label: string;
@@ -27,12 +28,19 @@ function FileIcon({ type }: { type: string }) {
 }
 
 export default function FileSelector({
-  label, theme: t, accept, multiple = false, maxSizeMb, onFiles, error: externalError,
+  label,
+  theme: t,
+  accept,
+  multiple = false,
+  maxSizeMb,
+  onFiles,
+  error: externalError,
   disabled = false,
 }: FileSelectorProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [sizeError, setSizeError] = useState('');
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const error = externalError || sizeError;
@@ -60,42 +68,110 @@ export default function FileSelector({
     onFiles?.(next);
   };
 
+  const openDialog = () => {
+    if (!disabled) inputRef.current?.click();
+  };
+
   return (
     <div style={{ width: '100%', opacity: disabled ? 0.5 : 1 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: t.placeholder, marginBottom: 10 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.07em',
+          color: t.placeholder,
+          marginBottom: 10,
+        }}
+      >
         {label}
       </div>
 
       <div
-        onClick={() => { if (!disabled) inputRef.current?.click() }}
-        onDragOver={e => { if (!disabled) { e.preventDefault(); setDragging(true) } }}
-        onDragLeave={() => { if (!disabled) setDragging(false) }}
-        onDrop={e => { if (!disabled) { e.preventDefault(); setDragging(false); processFiles(e.dataTransfer.files) } }}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        aria-label={`${label}: загрузить файл`}
+        onClick={openDialog}
+        onKeyDown={e => {
+          if (disabled) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openDialog();
+          }
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onDragOver={e => {
+          if (!disabled) {
+            e.preventDefault();
+            setDragging(true);
+          }
+        }}
+        onDragLeave={() => {
+          if (!disabled) setDragging(false);
+        }}
+        onDrop={e => {
+          if (!disabled) {
+            e.preventDefault();
+            setDragging(false);
+            processFiles(e.dataTransfer.files);
+          }
+        }}
         style={{
-          border: `1.5px dashed ${error ? t.danger : dragging ? t.accent : t.border}`,
+          border: `1.5px dashed ${
+            error ? t.danger : dragging ? t.accent : t.border
+          }`,
           borderRadius: 12,
           padding: '28px 20px',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 8,
           cursor: disabled ? 'not-allowed' : 'pointer',
-          background: dragging ? `${t.accent}0a` : t.bg,
-          transition: 'all 0.2s ease',
+          background: dragging
+            ? `color-mix(in srgb, ${t.accent} 5%, transparent)`
+            : t.bg,
+          transition: 'border-color 0.2s ease, background 0.2s ease',
           pointerEvents: disabled ? 'none' : 'auto',
+          touchAction: 'manipulation',
+          outline: 'none',
+          boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
         }}
       >
-        <div style={{
-          width: 44, height: 44, borderRadius: 12,
-          background: `${t.accent}18`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: t.accent, transition: 'background 0.2s',
-        }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: `color-mix(in srgb, ${t.accent} 10%, transparent)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: t.accent,
+          }}
+        >
           <IcoFile type="file" s={22} />
         </div>
         <div style={{ textAlign: 'center' }}>
-          <p style={{ margin: 0, fontSize: 14, color: t.text, fontWeight: 500 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 14,
+              color: t.text,
+              fontWeight: 500,
+            }}
+          >
             Перетащите файл{multiple ? 'ы' : ''} или{' '}
             <span style={{ color: t.accent }}>выберите</span>
           </p>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: t.placeholder }}>
+          <p
+            style={{
+              margin: '4px 0 0',
+              fontSize: 12,
+              color: t.placeholder,
+            }}
+          >
             {accept ? accept.replace(/,/g, ', ') : 'Любой формат'}
             {maxSizeMb ? ` · до ${maxSizeMb} МБ` : ''}
           </p>
@@ -112,48 +188,65 @@ export default function FileSelector({
       </div>
 
       {files.length > 0 && (
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div
+          style={{
+            marginTop: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
           {files.map((f, i) => (
             <div
               key={i}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
                 background: t.bg,
                 border: `1px solid ${t.border}`,
-                borderRadius: 8, padding: '8px 12px',
+                borderRadius: 8,
+                padding: '8px 12px',
               }}
             >
               <div style={{ color: t.accent, flexShrink: 0 }}>
                 <FileIcon type={f.type} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: t.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: t.text,
+                    fontWeight: 500,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {f.name}
                 </div>
-                <div style={{ fontSize: 11, color: t.placeholder }}>{formatSize(f.size)}</div>
+                <div style={{ fontSize: 11, color: t.placeholder }}>
+                  {formatSize(f.size)}
+                </div>
               </div>
-              <button
-                type="button"
+              <IconActionButton
                 onClick={() => removeFile(i)}
+                t={t}
                 disabled={disabled}
-                style={{
-                  background: 'transparent', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-                  color: t.iconColor, padding: 4, borderRadius: 4,
-                  display: 'flex', alignItems: 'center',
-                  transition: 'color 0.15s',
-                  opacity: disabled ? 0.5 : 1,
-                }}
-                onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.danger }}
-                onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
+                ariaLabel={`Удалить ${f.name}`}
               >
                 <IcoX s={14} />
-              </button>
+              </IconActionButton>
             </div>
           ))}
         </div>
       )}
 
-      {error && <p style={{ margin: '6px 0 0 0', fontSize: 12, color: t.danger }}>{error}</p>}
+      {error && (
+        <p style={{ margin: '6px 0 0 0', fontSize: 12, color: t.danger }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

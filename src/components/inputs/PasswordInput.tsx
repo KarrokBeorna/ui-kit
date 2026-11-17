@@ -1,6 +1,14 @@
 import { useState, useId, useRef } from 'react';
 import type { Theme } from '../../themes/theme';
-import { IcoEye, IcoX } from '../icons';
+import { IcoEye } from '../icons';
+import {
+  getInputStyle,
+  FloatingLabel,
+  FieldActions,
+  ClearButton,
+  IconActionButton,
+  FieldError,
+} from './_shared/field';
 
 function StrengthBar({ value, t }: { value: string; t: Theme }) {
   const score = (() => {
@@ -25,11 +33,16 @@ function StrengthBar({ value, t }: { value: string; t: Theme }) {
     <div style={{ marginTop: 8, paddingLeft: 2 }}>
       <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
         {[1, 2, 3, 4].map(i => (
-          <div key={i} style={{
-            flex: 1, height: 3, borderRadius: 2,
-            background: i <= score ? color : t.border,
-            transition: 'background 0.3s ease',
-          }} />
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: 3,
+              borderRadius: 2,
+              background: i <= score ? color : t.border,
+              transition: 'background 0.3s ease',
+            }}
+          />
         ))}
       </div>
       <span style={{ fontSize: 11, color }}>{label}</span>
@@ -62,13 +75,6 @@ export default function PasswordInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const floated = focused || String(value).length > 0;
 
-  const handleFocus = () => {
-    if (!disabled) setFocused(true);
-  };
-  const handleBlur = () => {
-    setFocused(false);
-  };
-
   const handleClear = () => {
     if (disabled) return;
     onChange('');
@@ -85,89 +91,48 @@ export default function PasswordInput({
           id={id}
           type={visible ? 'text' : 'password'}
           value={value}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          onChange={e => { if (!disabled) onChange(e.target.value) }}
+          onFocus={() => {
+            if (!disabled) setFocused(true);
+          }}
+          onBlur={() => setFocused(false)}
+          onChange={e => {
+            if (!disabled) onChange(e.target.value);
+          }}
           placeholder=""
           disabled={disabled}
           style={{
-            width: '100%', boxSizing: 'border-box',
-            background: t.bg,
-            border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
-            borderRadius: 10,
-            padding: '18px 76px 8px 16px',
-            fontSize: 15, color: t.text, outline: 'none',
-            transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
-            boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
-            fontFamily: 'inherit',
+            ...getInputStyle(t, {
+              error,
+              focused,
+              disabled,
+              padding: '18px 76px 8px 16px',
+            }),
             letterSpacing: visible ? 'normal' : value ? '2px' : 'normal',
-            height: '50px',
-            opacity: disabled ? 0.5 : 1,
-            cursor: disabled ? 'not-allowed' : 'text',
           }}
           autoComplete="new-password"
         />
-        <label
-          htmlFor={id}
-          style={{
-            position: 'absolute', left: 14,
-            top: floated ? 0 : '50%',
-            transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(-50%)',
-            transformOrigin: 'left center',
-            color: error ? t.danger : floated ? t.labelFloat : t.placeholder,
-            fontSize: 15, pointerEvents: 'none',
-            transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
-            background: floated ? t.labelBg : 'transparent',
-            padding: floated ? '0 4px' : '0',
-            borderRadius: 3, lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1,
-            letterSpacing: 'normal',
-          }}
-        >
-          {label}
-        </label>
+        <FloatingLabel htmlFor={id} label={label} floated={floated} error={error} t={t} />
 
-        <div style={{
-          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-          display: 'flex', alignItems: 'center', gap: 2,
-        }}>
+        <FieldActions>
           {value && (
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={disabled}
-              style={{
-                width: 28, height: 28, background: 'transparent', border: 'none',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: t.iconColor, borderRadius: 6, transition: 'color 0.15s', padding: 0,
-                opacity: disabled ? 0.5 : 1,
-              }}
-              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
-              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
-            >
-              <IcoX s={12} />
-            </button>
+            <ClearButton onClick={handleClear} t={t} disabled={disabled} size={12} />
           )}
-          <button
-            type="button"
-            onClick={() => { if (!disabled) setVisible(v => !v) }}
-            disabled={disabled}
-            style={{
-              width: 28, height: 28, background: 'transparent', border: 'none',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              padding: 4,
-              color: visible ? t.accent : t.iconColor,
-              transition: 'color 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 6,
-              opacity: disabled ? 0.5 : 1,
+          <IconActionButton
+            onClick={() => {
+              if (!disabled) setVisible(v => !v);
             }}
+            t={t}
+            disabled={disabled}
+            active={visible}
+            activeColor={t.accent}
+            ariaLabel={visible ? 'Скрыть пароль' : 'Показать пароль'}
           >
             <IcoEye s={18} off={!visible} />
-          </button>
-        </div>
+          </IconActionButton>
+        </FieldActions>
       </div>
       {showStrength && <StrengthBar value={value} t={t} />}
-      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
+      <FieldError error={error} t={t} />
     </div>
   );
 }

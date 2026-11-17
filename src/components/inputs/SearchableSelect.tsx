@@ -1,8 +1,16 @@
 import React, { useState, useId, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import type { Theme } from '../../themes/theme';
-import { IcoChevronDown, IcoX, IcoCheck } from '../icons';
-import { useDropdownPosition } from '../../hooks/useDropdownPosition';
+import { IcoChevronDown, IcoCheck } from '../icons';
+import { useDropdownPosition } from './_shared/useDropdownPosition';
+import {
+  getInputStyle,
+  FloatingLabel,
+  FieldActions,
+  ClearButton,
+  IconActionButton,
+  FieldError,
+} from './_shared/field';
 
 export interface SelectOption {
   value: string;
@@ -21,7 +29,12 @@ interface SearchableSelectProps {
 }
 
 export default function SearchableSelect({
-  label, theme: t, options, value, onChange, error,
+  label,
+  theme: t,
+  options,
+  value,
+  onChange,
+  error,
   usePortal = true,
   disabled = false,
 }: SearchableSelectProps) {
@@ -36,18 +49,17 @@ export default function SearchableSelect({
 
   const selected = options.find(o => o.value === value);
   const floated = focused || open || !!selected;
-  const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
-
-  const queryRef = useRef(query);
-  useEffect(() => {
-    queryRef.current = query;
-  }, [query]);
+  const filtered = options.filter(o =>
+    o.label.toLowerCase().includes(query.toLowerCase())
+  );
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (disabled) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false); setQuery(''); setFocused(false);
+        setOpen(false);
+        setQuery('');
+        setFocused(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -57,7 +69,11 @@ export default function SearchableSelect({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (disabled) return;
-      if (e.key === 'Escape') { setOpen(false); setQuery(''); setFocused(false); }
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setQuery('');
+        setFocused(false);
+      }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
@@ -88,13 +104,18 @@ export default function SearchableSelect({
 
   const handleSelect = (opt: SelectOption) => {
     if (disabled) return;
-    onChange(opt.value); setOpen(false); setQuery(''); setFocused(false);
+    onChange(opt.value);
+    setOpen(false);
+    setQuery('');
+    setFocused(false);
   };
 
-  const handleClear = (e: React.MouseEvent) => {
+  const handleClear = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled) return;
     e.stopPropagation();
-    onChange(''); setOpen(false); setQuery('');
+    onChange('');
+    setOpen(false);
+    setQuery('');
     setTimeout(() => {
       inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
     }, 0);
@@ -119,16 +140,16 @@ export default function SearchableSelect({
           Ничего не найдено
         </div>
       ) : (
-        filtered.map((opt) => (
+        filtered.map(opt => (
           <div
             key={opt.value}
-            onMouseDown={(e) => {
+            onMouseDown={e => {
               e.preventDefault();
               e.stopPropagation();
               handleSelect(opt);
             }}
             style={{
-              padding: '11px 16px',
+              padding: '12px 16px',
               fontSize: 14,
               cursor: 'pointer',
               color: opt.value === value ? t.dropdownSelectedText : t.text,
@@ -137,13 +158,19 @@ export default function SearchableSelect({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
+              minHeight: 44,
+              touchAction: 'manipulation',
             }}
-            onMouseEnter={(e) => {
-              if (opt.value !== value) e.currentTarget.style.background = t.dropdownHover;
+            onPointerEnter={e => {
+              if (e.pointerType === 'mouse' && opt.value !== value) {
+                e.currentTarget.style.background = t.dropdownHover;
+              }
             }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background =
-                opt.value === value ? t.dropdownSelected : 'transparent';
+            onPointerLeave={e => {
+              if (e.pointerType === 'mouse') {
+                e.currentTarget.style.background =
+                  opt.value === value ? t.dropdownSelected : 'transparent';
+              }
             }}
           >
             <div
@@ -172,14 +199,22 @@ export default function SearchableSelect({
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <div
-        style={{ position: 'relative', cursor: disabled ? 'not-allowed' : 'pointer' }}
-        onMouseDown={(e) => { e.preventDefault(); if (!disabled) openDropdown(); }}
+        style={{
+          position: 'relative',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+        onMouseDown={e => {
+          e.preventDefault();
+          if (!disabled) openDropdown();
+        }}
       >
         <input
           ref={inputRef}
           id={id}
-          value={open ? query : (selected?.label ?? '')}
-          onChange={e => { if (!disabled) setQuery(e.target.value) }}
+          value={open ? query : selected?.label ?? ''}
+          onChange={e => {
+            if (!disabled) setQuery(e.target.value);
+          }}
           onFocus={() => {
             if (!disabled) {
               setFocused(true);
@@ -190,76 +225,47 @@ export default function SearchableSelect({
           placeholder=""
           disabled={disabled}
           style={{
-            width: '100%', boxSizing: 'border-box',
-            background: t.bg,
-            border: `1.5px solid ${error ? t.danger : open ? t.borderFocus : t.border}`,
-            borderRadius: open ? '10px 10px 0 0' : 10,
-            padding: '18px 68px 8px 16px',
-            fontSize: 15, color: t.text, outline: 'none',
-            cursor: disabled ? 'not-allowed' : (open ? 'text' : 'pointer'),
-            transition: 'border-color 0.25s ease, box-shadow 0.25s ease, border-radius 0.15s ease',
-            boxShadow: open ? `0 0 0 3px ${t.accentGlow}` : 'none',
-            fontFamily: 'inherit',
-            height: '50px',
-            opacity: disabled ? 0.5 : 1,
+            ...getInputStyle(t, {
+              error,
+              focused: open,
+              disabled,
+              padding: '18px 68px 8px 16px',
+              borderRadius: open ? '10px 10px 0 0' : 10,
+            }),
+            cursor: disabled ? 'not-allowed' : open ? 'text' : 'pointer',
           }}
           autoComplete="off"
         />
-        <label
-          htmlFor={id}
-          style={{
-            position: 'absolute', left: 14,
-            top: floated ? 0 : '50%',
-            transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(-50%)',
-            transformOrigin: 'left center',
-            color: error ? t.danger : floated ? t.labelFloat : t.placeholder,
-            fontSize: 15, pointerEvents: 'none',
-            transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
-            background: floated ? t.labelBg : 'transparent',
-            padding: floated ? '0 4px' : '0',
-            borderRadius: 3, lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1,
-          }}
-        >
-          {label}
-        </label>
+        <FloatingLabel htmlFor={id} label={label} floated={floated} error={error} t={t} />
 
-        <div style={{
-          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-          display: 'flex', alignItems: 'center', gap: 2,
-        }}>
+        <FieldActions>
           {value && (
-            <button
-              type="button"
-              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleClear(e); }}
+            <ClearButton
+              onClick={handleClear}
+              t={t}
               disabled={disabled}
-              style={{
-                width: 28, height: 28, background: 'transparent', border: 'none',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: t.iconColor, borderRadius: 6, transition: 'color 0.15s', padding: 0,
-                opacity: disabled ? 0.5 : 1,
-              }}
-              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
-              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
-            >
-              <IcoX s={12} />
-            </button>
+              size={12}
+              stopPropagation
+            />
           )}
-          <div
-            style={{ color: t.iconColor, display: 'flex', alignItems: 'center', opacity: disabled ? 0.5 : 1 }}
-            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); toggleDropdown(); }}
+          <IconActionButton
+            onMouseDown={e => {
+              e.stopPropagation();
+              e.preventDefault();
+              toggleDropdown();
+            }}
+            t={t}
+            disabled={disabled}
+            ariaLabel={open ? 'Закрыть список' : 'Открыть список'}
           >
             <IcoChevronDown s={16} open={open} />
-          </div>
-        </div>
+          </IconActionButton>
+        </FieldActions>
       </div>
 
-      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
+      <FieldError error={error} t={t} />
 
-      {usePortal
-        ? ReactDOM.createPortal(dropdownContent, document.body)
-        : dropdownContent
-      }
+      {usePortal ? ReactDOM.createPortal(dropdownContent, document.body) : dropdownContent}
 
       <style>{`
         @keyframes dropDown {

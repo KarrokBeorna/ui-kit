@@ -1,46 +1,44 @@
 // RangeSlider.tsx
-import { useState, useRef } from 'react'
-import type { Theme } from '../../themes/theme'
-import { IcoX } from '../icons'
+import { useState, useRef } from 'react';
+import type { Theme } from '../../themes/theme';
+import { IcoX } from '../icons';
 
-// ─── Single-value mode ───────────────────────────────────────────────────────
 interface SingleProps {
-  range?: false
-  value: number
-  onChange: (v: number) => void
+  range?: false;
+  value: number;
+  onChange: (v: number) => void;
 }
 
-// ─── Range mode (with optional null bounds) ────────────────────────────────
 interface RangeProps {
-  range: true
-  value: [number | null, number | null]
-  onChange: (v: [number | null, number | null]) => void
+  range: true;
+  value: [number | null, number | null];
+  onChange: (v: [number | null, number | null]) => void;
 }
 
 type RangeSliderProps = (SingleProps | RangeProps) & {
-  label: string
-  theme: Theme
-  min?: number
-  max?: number
-  step?: number
-  formatValue?: (v: number | null) => string
-  parseValue?: (s: string) => number | null
-  disabled?: boolean
-}
+  label: string;
+  theme: Theme;
+  min?: number;
+  max?: number;
+  step?: number;
+  formatValue?: (v: number | null) => string;
+  parseValue?: (s: string) => number | null;
+  disabled?: boolean;
+};
 
 function clamp(v: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, v))
+  return Math.max(min, Math.min(max, v));
 }
 
 function snap(v: number, min: number, step: number) {
-  return Math.round((v - min) / step) * step + min
+  return Math.round((v - min) / step) * step + min;
 }
 
 function pct(v: number, min: number, max: number) {
-  return ((v - min) / (max - min)) * 100
+  return ((v - min) / (max - min)) * 100;
 }
 
-// ─── Mini number input for manual entry ──────────────────────────────────────
+// ─── Mini number input ───────────────────────────────────────────────────────
 function ManualInput({
   value,
   onCommit,
@@ -51,68 +49,78 @@ function ManualInput({
   disabled,
   inputRef,
 }: {
-  value: number | null
-  onCommit: (v: number | null) => void
-  format: (v: number | null) => string
-  parse: (s: string) => number | null
-  t: Theme
-  label?: string
-  disabled?: boolean
-  inputRef?: React.RefObject<HTMLInputElement | null>
+  value: number | null;
+  onCommit: (v: number | null) => void;
+  format: (v: number | null) => string;
+  parse: (s: string) => number | null;
+  t: Theme;
+  label?: string;
+  disabled?: boolean;
+  /** React 18: RefObject<HTMLInputElement>, без `| null` — иначе TS ругается на `ref` */
+  inputRef?: React.RefObject<HTMLInputElement>;
 }) {
-  const [editing, setEditing] = useState(false)
-  const [raw, setRaw] = useState('')
+  const [editing, setEditing] = useState(false);
+  const [raw, setRaw] = useState('');
 
   const startEdit = () => {
-    if (disabled) return
-    setEditing(true)
-    setRaw(value !== null ? String(value) : '')
-  }
+    if (disabled) return;
+    setEditing(true);
+    setRaw(value !== null ? String(value) : '');
+  };
 
   const commit = () => {
-    setEditing(false)
-    const trimmed = raw.trim()
+    setEditing(false);
+    const trimmed = raw.trim();
     if (trimmed === '') {
-      onCommit(null)
-      return
+      onCommit(null);
+      return;
     }
-    const n = parse(trimmed)
-    if (n !== null) onCommit(n)
-    // if parse fails, keep previous value (no change)
-  }
+    const n = parse(trimmed);
+    if (n !== null) onCommit(n);
+  };
 
   const handleClear = () => {
-    if (disabled) return
-    setEditing(false)
-    onCommit(null)
+    if (disabled) return;
+    setEditing(false);
+    onCommit(null);
     setTimeout(() => {
-      (inputRef as { current: HTMLInputElement | null } | undefined)?.current
-        ?.dispatchEvent(new Event('change', { bubbles: true }))
-    }, 0)
-  }
+      inputRef?.current?.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 72 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 3,
+        minWidth: 76,
+      }}
+    >
       {label && (
-        <span style={{ fontSize: 10, color: t.placeholder, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <span
+          style={{
+            fontSize: 10,
+            color: t.placeholder,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}
+        >
           {label}
         </span>
       )}
       <div style={{ position: 'relative', width: '100%' }}>
         <input
-          // callback-ref: не полагаемся на форму RefObject, принимаем node напрямую
-          ref={(node) => {
-            if (inputRef) {
-              (inputRef as { current: HTMLInputElement | null }).current = node
-            }
-          }}
+          ref={inputRef}
           type="text"
+          inputMode="decimal"
           value={editing ? raw : format(value)}
           onFocus={startEdit}
-          onChange={(e) => setRaw(e.target.value)}
+          onChange={e => setRaw(e.target.value)}
           onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit()
+          onKeyDown={e => {
+            if (e.key === 'Enter') commit();
           }}
           disabled={disabled}
           style={{
@@ -121,8 +129,8 @@ function ManualInput({
             background: t.bg,
             border: `1.5px solid ${editing ? t.borderFocus : t.border}`,
             borderRadius: 8,
-            padding: '6px 28px 6px 10px',
-            fontSize: 13,
+            padding: '10px 36px 10px 10px',
+            fontSize: 16, // iOS: < 16px → авто-зум
             fontWeight: 600,
             color: t.accent,
             outline: 'none',
@@ -133,19 +141,22 @@ function ManualInput({
             fontVariantNumeric: 'tabular-nums',
             opacity: disabled ? 0.5 : 1,
             cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: 44,
+            touchAction: 'manipulation',
           }}
         />
         {value !== null && !disabled && (
           <button
             type="button"
             onClick={handleClear}
+            aria-label="Очистить"
             style={{
               position: 'absolute',
-              right: 6,
+              right: 0,
               top: '50%',
               transform: 'translateY(-50%)',
-              width: 20,
-              height: 20,
+              width: 36,
+              height: 36,
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
@@ -156,19 +167,24 @@ function ManualInput({
               borderRadius: 4,
               transition: 'color 0.15s',
               padding: 0,
+              touchAction: 'manipulation',
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = t.text)}
-            onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
+            onPointerEnter={e => {
+              if (e.pointerType === 'mouse') e.currentTarget.style.color = t.text;
+            }}
+            onPointerLeave={e => {
+              if (e.pointerType === 'mouse') e.currentTarget.style.color = t.iconColor;
+            }}
           >
             <IcoX s={12} />
           </button>
         )}
       </div>
     </div>
-  )
+  );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main component ──────────────────────────────────────────────────────────
 export default function RangeSlider(props: RangeSliderProps) {
   const {
     label,
@@ -176,123 +192,116 @@ export default function RangeSlider(props: RangeSliderProps) {
     min = 0,
     max = 100,
     step = 1,
-    formatValue = (v) => (v !== null ? String(v) : ''),
+    formatValue = v => (v !== null ? String(v) : ''),
     parseValue,
     disabled = false,
-  } = props
+  } = props;
 
   const defaultParse = (s: string) => {
-    const n = parseFloat(s.replace(/[^\d.,-]/g, '').replace(',', '.'))
-    return isNaN(n) ? null : clamp(snap(n, min, step), min, max)
-  }
-  const parse = parseValue ?? defaultParse
+    const n = parseFloat(s.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    return isNaN(n) ? null : clamp(snap(n, min, step), min, max);
+  };
+  const parse = parseValue ?? defaultParse;
 
-  const trackRef = useRef<HTMLDivElement>(null)
-  const dragging = useRef<'lo' | 'hi' | null>(null)
-  const [focusedThumb, setFocusedThumb] = useState<'lo' | 'hi' | null>(null)
-  const loInputRef = useRef<HTMLInputElement | null>(null)
-  const hiInputRef = useRef<HTMLInputElement | null>(null)
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef<'lo' | 'hi' | null>(null);
+  const [focusedThumb, setFocusedThumb] = useState<'lo' | 'hi' | null>(null);
+  // React 18: useRef<HTMLInputElement>(null) → RefObject<HTMLInputElement>
+  const loInputRef = useRef<HTMLInputElement>(null);
+  const hiInputRef = useRef<HTMLInputElement>(null);
 
-  // Derive lo/hi from props
-  const isRange = props.range === true
-  const lo = isRange ? (props as RangeProps).value[0] : (props as SingleProps).value
-  const hi = isRange ? (props as RangeProps).value[1] : (props as SingleProps).value
+  const isRange = props.range === true;
+  const lo = isRange
+    ? (props as RangeProps).value[0]
+    : (props as SingleProps).value;
+  const hi = isRange
+    ? (props as RangeProps).value[1]
+    : (props as SingleProps).value;
 
-  // ─── Установка значений ───────────────────────────────────────────────────
   const setLo = (v: number | null) => {
-    if (disabled) return
+    if (disabled) return;
     if (isRange) {
-      if (v === null) {
-        ;(props as RangeProps).onChange([null, hi])
-      } else {
-        const upper = hi !== null ? hi : max
-        const clamped = clamp(v, min, upper)
-        ;(props as RangeProps).onChange([clamped, hi])
+      if (v === null) (props as RangeProps).onChange([null, hi]);
+      else {
+        const upper = hi !== null ? hi : max;
+        (props as RangeProps).onChange([clamp(v, min, upper), hi]);
       }
     } else {
-      ;(props as SingleProps).onChange(clamp(v as number, min, max))
+      (props as SingleProps).onChange(clamp(v as number, min, max));
     }
-  }
+  };
 
   const setHi = (v: number | null) => {
-    if (disabled || !isRange) return
+    if (disabled || !isRange) return;
     if (v === null) {
-      ;(props as RangeProps).onChange([lo, null])
+      (props as RangeProps).onChange([lo, null]);
     } else {
-      const lower = lo !== null ? lo : min
-      const clamped = clamp(v, lower, max)
-      ;(props as RangeProps).onChange([lo, clamped])
+      const lower = lo !== null ? lo : min;
+      (props as RangeProps).onChange([lo, clamp(v, lower, max)]);
     }
-  }
+  };
 
-  const pctLo = lo !== null ? pct(lo, min, max) : 0
-  const pctHi = hi !== null ? pct(hi, min, max) : 100
+  const pctLo = lo !== null ? pct(lo, min, max) : 0;
+  const pctHi = hi !== null ? pct(hi, min, max) : 100;
 
-  const valueFromEvent = (clientX: number): number => {
-    const rect = trackRef.current?.getBoundingClientRect()
-    if (!rect) return lo !== null ? lo : min
-    const raw = (clientX - rect.left) / rect.width
-    return clamp(snap(raw * (max - min) + min, min, step), min, max)
-  }
+  const valueFromClientX = (clientX: number): number => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return lo !== null ? lo : min;
+    const raw = (clientX - rect.left) / rect.width;
+    return clamp(snap(raw * (max - min) + min, min, step), min, max);
+  };
 
-  const startDrag = (thumb: 'lo' | 'hi') => (e: React.MouseEvent) => {
-    if (disabled) return
-    e.preventDefault()
-    dragging.current = thumb
-    const move = (ev: MouseEvent) => {
-      const v = valueFromEvent(ev.clientX)
-      if (dragging.current === 'lo') {
-        setLo(v)
-      } else if (dragging.current === 'hi') {
-        setHi(v)
-      }
-    }
+  // ─── Pointer Events (мышь + палец + перо) ────────────────────────────────
+  const startDrag = (thumb: 'lo' | 'hi') => (e: React.PointerEvent) => {
+    if (disabled) return;
+    e.preventDefault();
+    dragging.current = thumb;
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+
+    const move = (ev: PointerEvent) => {
+      const v = valueFromClientX(ev.clientX);
+      if (dragging.current === 'lo') setLo(v);
+      else if (dragging.current === 'hi') setHi(v);
+    };
     const up = () => {
-      dragging.current = null
-      document.removeEventListener('mousemove', move)
-      document.removeEventListener('mouseup', up)
-    }
-    document.addEventListener('mousemove', move)
-    document.addEventListener('mouseup', up)
-  }
+      dragging.current = null;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
 
-  const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (disabled || dragging.current) return
-    const v = valueFromEvent(e.clientX)
+  const handleTrackClick = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled || dragging.current) return;
+    const v = valueFromClientX(e.clientX);
 
     if (!isRange) {
-      setLo(v)
-      return
+      setLo(v);
+      return;
     }
 
-    if (lo === null) {
-      setLo(v)
-    } else if (hi === null) {
-      setHi(v)
-    } else {
-      const distLo = Math.abs(v - lo)
-      const distHi = Math.abs(v - hi)
-      if (distLo <= distHi) {
-        setLo(Math.min(v, hi))
-      } else {
-        setHi(Math.max(v, lo))
-      }
+    if (lo === null) setLo(v);
+    else if (hi === null) setHi(v);
+    else {
+      const distLo = Math.abs(v - lo);
+      const distHi = Math.abs(v - hi);
+      if (distLo <= distHi) setLo(Math.min(v, hi));
+      else setHi(Math.max(v, lo));
     }
-  }
+  };
 
-  // Очистка обеих границ в range-режиме
   const handleClearAll = () => {
-    if (disabled) return
-    ;(props as RangeProps).onChange([null, null])
+    if (disabled || !isRange) return;
+    (props as RangeProps).onChange([null, null]);
     setTimeout(() => {
-      loInputRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
-    }, 0)
-  }
+      loInputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  };
 
-  const thumbStyle = (active: boolean): React.CSSProperties => ({
-    position: 'absolute',
-    top: '50%',
-    transform: 'translate(-50%, -50%)',
+  const visualThumb = (active: boolean): React.CSSProperties => ({
     width: 22,
     height: 22,
     borderRadius: '50%',
@@ -304,46 +313,54 @@ export default function RangeSlider(props: RangeSliderProps) {
     cursor: disabled ? 'not-allowed' : 'grab',
     transition: 'box-shadow 0.2s ease',
     outline: 'none',
-    zIndex: active ? 3 : 2,
-    opacity: disabled ? 0.5 : 1,
-  })
+    pointerEvents: 'none',
+  });
+
+  const hitWrapper = (leftPct: number): React.CSSProperties => ({
+    position: 'absolute',
+    top: '50%',
+    left: `${leftPct}%`,
+    transform: 'translate(-50%, -50%)',
+    width: 44,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    touchAction: 'none',
+    outline: 'none',
+  });
 
   const keyDown = (thumb: 'lo' | 'hi') => (e: React.KeyboardEvent) => {
-    if (disabled || !isRange) return
-    const isLo = thumb === 'lo'
+    if (disabled || !isRange) return;
+    const isLo = thumb === 'lo';
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-      e.preventDefault()
+      e.preventDefault();
       if (isLo) {
-        if (lo !== null) {
-          const newVal = Math.min(lo + step, hi !== null ? hi : max)
-          setLo(newVal)
-        }
+        if (lo !== null) setLo(Math.min(lo + step, hi !== null ? hi : max));
       } else {
-        if (hi !== null) {
-          const newVal = Math.min(hi + step, max)
-          setHi(newVal)
-        }
+        if (hi !== null) setHi(Math.min(hi + step, max));
       }
     }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-      e.preventDefault()
+      e.preventDefault();
       if (isLo) {
-        if (lo !== null) {
-          const newVal = Math.max(lo - step, min)
-          setLo(newVal)
-        }
+        if (lo !== null) setLo(Math.max(lo - step, min));
       } else {
-        if (hi !== null) {
-          const newVal = Math.max(hi - step, lo !== null ? lo : min)
-          setHi(newVal)
-        }
+        if (hi !== null) setHi(Math.max(hi - step, lo !== null ? lo : min));
       }
     }
-  }
+  };
 
   return (
     <div style={{ width: '100%', opacity: disabled ? 0.5 : 1 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 20,
+        }}
+      >
         <span
           style={{
             fontSize: 12,
@@ -369,6 +386,7 @@ export default function RangeSlider(props: RangeSliderProps) {
               textDecoration: 'underline',
               padding: 0,
               opacity: disabled ? 0.5 : 1,
+              touchAction: 'manipulation',
             }}
             title="Очистить оба значения"
           >
@@ -377,14 +395,19 @@ export default function RangeSlider(props: RangeSliderProps) {
         )}
       </div>
 
-      {/* Track */}
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', padding: '16px 0' }}>
         <div
           ref={trackRef}
-          onClick={handleTrackClick}
-          style={{ position: 'relative', height: 6, borderRadius: 3, background: t.border, cursor: disabled ? 'not-allowed' : 'pointer' }}
+          onPointerDown={handleTrackClick}
+          style={{
+            position: 'relative',
+            height: 6,
+            borderRadius: 3,
+            background: t.border,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            touchAction: 'none',
+          }}
         >
-          {/* Fill bar */}
           <div
             style={{
               position: 'absolute',
@@ -400,9 +423,11 @@ export default function RangeSlider(props: RangeSliderProps) {
 
           {lo !== null && (
             <div
-              style={{ ...thumbStyle(focusedThumb === 'lo'), left: `${pctLo}%` }}
-              onMouseDown={startDrag('lo')}
-              onFocus={() => { if (!disabled) setFocusedThumb('lo') }}
+              style={hitWrapper(pctLo)}
+              onPointerDown={startDrag('lo')}
+              onFocus={() => {
+                if (!disabled) setFocusedThumb('lo');
+              }}
               onBlur={() => setFocusedThumb(null)}
               onKeyDown={isRange ? keyDown('lo') : undefined}
               tabIndex={disabled ? -1 : 0}
@@ -410,14 +435,19 @@ export default function RangeSlider(props: RangeSliderProps) {
               aria-valuemin={min}
               aria-valuemax={isRange && hi !== null ? hi : max}
               aria-valuenow={lo}
-            />
+              aria-label={isRange ? `${label}: от` : label}
+            >
+              <div style={visualThumb(focusedThumb === 'lo')} />
+            </div>
           )}
 
           {isRange && hi !== null && (
             <div
-              style={{ ...thumbStyle(focusedThumb === 'hi'), left: `${pctHi}%` }}
-              onMouseDown={startDrag('hi')}
-              onFocus={() => { if (!disabled) setFocusedThumb('hi') }}
+              style={hitWrapper(pctHi)}
+              onPointerDown={startDrag('hi')}
+              onFocus={() => {
+                if (!disabled) setFocusedThumb('hi');
+              }}
               onBlur={() => setFocusedThumb(null)}
               onKeyDown={keyDown('hi')}
               tabIndex={disabled ? -1 : 0}
@@ -425,18 +455,29 @@ export default function RangeSlider(props: RangeSliderProps) {
               aria-valuemin={lo !== null ? lo : min}
               aria-valuemax={max}
               aria-valuenow={hi}
-            />
+              aria-label={`${label}: до`}
+            >
+              <div style={visualThumb(focusedThumb === 'hi')} />
+            </div>
           )}
         </div>
 
-        {/* Min/max axis labels */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-          <span style={{ fontSize: 11, color: t.placeholder }}>{formatValue(min)}</span>
-          <span style={{ fontSize: 11, color: t.placeholder }}>{formatValue(max)}</span>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: 10,
+          }}
+        >
+          <span style={{ fontSize: 11, color: t.placeholder }}>
+            {formatValue(min)}
+          </span>
+          <span style={{ fontSize: 11, color: t.placeholder }}>
+            {formatValue(max)}
+          </span>
         </div>
       </div>
 
-      {/* Manual inputs */}
       <div
         style={{
           display: 'flex',
@@ -447,7 +488,15 @@ export default function RangeSlider(props: RangeSliderProps) {
         <ManualInput
           inputRef={loInputRef}
           value={lo}
-          onCommit={(v) => setLo(isRange ? (v !== null ? Math.min(v, hi !== null ? hi : max) : null) : v)}
+          onCommit={v =>
+            setLo(
+              isRange
+                ? v !== null
+                  ? Math.min(v, hi !== null ? hi : max)
+                  : null
+                : v
+            )
+          }
           format={formatValue}
           parse={parse}
           t={t}
@@ -472,7 +521,11 @@ export default function RangeSlider(props: RangeSliderProps) {
             <ManualInput
               inputRef={hiInputRef}
               value={hi}
-              onCommit={(v) => setHi(v !== null ? Math.max(v, lo !== null ? lo : min) : null)}
+              onCommit={v =>
+                setHi(
+                  v !== null ? Math.max(v, lo !== null ? lo : min) : null
+                )
+              }
               format={formatValue}
               parse={parse}
               t={t}
@@ -483,5 +536,5 @@ export default function RangeSlider(props: RangeSliderProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

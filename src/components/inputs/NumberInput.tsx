@@ -1,6 +1,12 @@
-import { useState, useId, useEffect, useRef } from 'react';
+import { useState, useId, useRef } from 'react';
 import type { Theme } from '../../themes/theme';
 import { IcoX, IcoArrowUp, IcoArrowDown } from '../icons';
+import {
+  getInputStyle,
+  FloatingLabel,
+  FieldActions,
+  FieldError,
+} from './_shared/field';
 
 interface NumberInputProps {
   label: string;
@@ -16,24 +22,28 @@ interface NumberInputProps {
 }
 
 export default function NumberInput({
-  label, theme: t, value, onChange,
-  allowDecimal = true, min, max, step, error,
+  label,
+  theme: t,
+  value,
+  onChange,
+  allowDecimal = true,
+  min,
+  max,
+  step,
+  error,
   disabled = false,
 }: NumberInputProps) {
   const [focused, setFocused] = useState(false);
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  const valueRef = useRef(value);
-
-  useEffect(() => {
-    valueRef.current = value;
-  }, [value]);
-
   const floated = focused || String(value).length > 0;
 
   const handleChange = (raw: string) => {
     if (disabled) return;
-    if (raw === '' || raw === '-') { onChange(raw); return; }
+    if (raw === '' || raw === '-') {
+      onChange(raw);
+      return;
+    }
     const pattern = allowDecimal ? /^-?\d*\.?\d*$/ : /^-?\d*$/;
     if (pattern.test(raw)) onChange(raw);
   };
@@ -48,19 +58,36 @@ export default function NumberInput({
     onChange(String(next));
   };
 
-  const handleFocus = () => {
-    if (!disabled) setFocused(true);
-  };
-  const handleBlur = () => {
-    setFocused(false);
-  };
-
   const handleClear = () => {
     if (disabled) return;
     onChange('');
     setTimeout(() => {
       inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }));
     }, 0);
+  };
+
+  const stepperStyle: React.CSSProperties = {
+    width: 22,
+    height: 16,
+    background: 'transparent',
+    border: 'none',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 4,
+    padding: 0,
+    color: t.iconColor,
+    transition: 'color 0.15s',
+    opacity: disabled ? 0.5 : 1,
+    touchAction: 'manipulation',
+  };
+
+  const hoverOn = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === 'mouse' && !disabled) e.currentTarget.style.color = t.accent;
+  };
+  const hoverOff = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === 'mouse' && !disabled) e.currentTarget.style.color = t.iconColor;
   };
 
   return (
@@ -71,104 +98,96 @@ export default function NumberInput({
           id={id}
           inputMode={allowDecimal ? 'decimal' : 'numeric'}
           value={value}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
+          onFocus={() => {
+            if (!disabled) setFocused(true);
+          }}
+          onBlur={() => setFocused(false)}
           onChange={e => handleChange(e.target.value)}
           placeholder=""
           disabled={disabled}
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            background: t.bg,
-            border: `1.5px solid ${error ? t.danger : focused ? t.borderFocus : t.border}`,
-            borderRadius: 10,
+          style={getInputStyle(t, {
+            error,
+            focused,
+            disabled,
             padding: '18px 80px 8px 16px',
-            fontSize: 15, color: t.text, outline: 'none',
-            transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
-            boxShadow: focused ? `0 0 0 3px ${t.accentGlow}` : 'none',
-            fontFamily: 'inherit',
-            height: '50px',
-            opacity: disabled ? 0.5 : 1,
-            cursor: disabled ? 'not-allowed' : 'text',
-          }}
+          })}
           autoComplete="off"
         />
-        <label
-          htmlFor={id}
-          style={{
-            position: 'absolute', left: 14,
-            top: floated ? 0 : '50%',
-            transform: floated ? 'translateY(-50%) scale(0.78)' : 'translateY(-50%)',
-            transformOrigin: 'left center',
-            color: error ? t.danger : floated ? t.labelFloat : t.placeholder,
-            fontSize: 15, pointerEvents: 'none',
-            transition: 'top 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s ease',
-            background: floated ? t.labelBg : 'transparent',
-            padding: floated ? '0 4px' : '0',
-            borderRadius: 3, lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1,
-          }}
-        >
-          {label}
-        </label>
+        <FloatingLabel htmlFor={id} label={label} floated={floated} error={error} t={t} />
 
-        <div style={{
-          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-          display: 'flex', alignItems: 'center', gap: 2,
-        }}>
+        <FieldActions>
           {value && (
             <button
               type="button"
               onClick={handleClear}
               disabled={disabled}
+              aria-label="Очистить"
               style={{
-                width: 24, height: 24, background: 'transparent', border: 'none',
+                width: 24,
+                height: 24,
+                background: 'transparent',
+                border: 'none',
                 cursor: disabled ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: t.iconColor, borderRadius: 4, transition: 'color 0.15s', padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: t.iconColor,
+                borderRadius: 4,
+                transition: 'color 0.15s',
+                padding: 0,
                 opacity: disabled ? 0.5 : 1,
+                touchAction: 'manipulation',
               }}
-              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.text }}
-              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
+              onPointerEnter={e => {
+                if (e.pointerType === 'mouse' && !disabled) e.currentTarget.style.color = t.text;
+              }}
+              onPointerLeave={e => {
+                if (e.pointerType === 'mouse' && !disabled) e.currentTarget.style.color = t.iconColor;
+              }}
             >
               <IcoX s={12} />
             </button>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              marginLeft: value ? 2 : 0,
+            }}
+          >
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); step_(1); }}
-              disabled={disabled}
-              style={{
-                width: 22, height: 16, background: 'transparent', border: 'none',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
-                opacity: disabled ? 0.5 : 1,
+              onPointerDown={e => {
+                e.preventDefault();
+                step_(1);
               }}
-              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.accent }}
-              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
+              disabled={disabled}
+              aria-label="Увеличить"
+              style={stepperStyle}
+              onPointerEnter={hoverOn}
+              onPointerLeave={hoverOff}
             >
               <IcoArrowUp s={12} />
             </button>
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); step_(-1); }}
-              disabled={disabled}
-              style={{
-                width: 22, height: 16, background: 'transparent', border: 'none',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRadius: 4, padding: 0, color: t.iconColor, transition: 'color 0.15s',
-                opacity: disabled ? 0.5 : 1,
+              onPointerDown={e => {
+                e.preventDefault();
+                step_(-1);
               }}
-              onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = t.accent }}
-              onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = t.iconColor }}
+              disabled={disabled}
+              aria-label="Уменьшить"
+              style={stepperStyle}
+              onPointerEnter={hoverOn}
+              onPointerLeave={hoverOff}
             >
               <IcoArrowDown s={12} />
             </button>
           </div>
-        </div>
+        </FieldActions>
       </div>
-      {error && <p style={{ margin: '4px 0 0 4px', fontSize: 12, color: t.danger }}>{error}</p>}
+      <FieldError error={error} t={t} />
     </div>
   );
 }

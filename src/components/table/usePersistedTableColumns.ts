@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const STORAGE_PREFIX = 'table-columns:';
+const hasStorage = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
 interface Stored {
   order: string[];
@@ -8,6 +9,7 @@ interface Stored {
 }
 
 function load(key: string): Stored | null {
+  if (!hasStorage) return null;
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
@@ -24,6 +26,24 @@ function load(key: string): Stored | null {
   return null;
 }
 
+function save(key: string, value: Stored): void {
+  if (!hasStorage) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+}
+
+function remove(key: string): void {
+  if (!hasStorage) return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 function reconcileOrder(stored: string[], allKeys: string[]): string[] {
   const allSet = new Set(allKeys);
   const result = stored.filter((k) => allSet.has(k));
@@ -34,7 +54,7 @@ function reconcileOrder(stored: string[], allKeys: string[]): string[] {
 function reconcileVisible(
   storedVisible: string[],
   storedOrder: string[],
-  allKeys: string[]
+  allKeys: string[],
 ): string[] {
   const allSet = new Set(allKeys);
   const storedOrderSet = new Set(storedOrder);
@@ -45,51 +65,58 @@ function reconcileVisible(
   return result;
 }
 
-function same(a: string[], b: string[]) {
+function same(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 export interface UsePersistedTableColumnsOptions {
   /**
-   * Колонки, которые всегда видимы, всегда в конце и не хранятся в localStorage.
-   * Классический пример — колонка с действиями.
+   * Всегда видимые колонки в конце, не персистятся (например, `'actions'`).
    */
   pinnedKeys?: string[];
+  /**
+   * Если `false` — не читает и не пишет localStorage (возвращает дефолты).
+   * Позволяет вызывать хук безусловно (rules of hooks), но не засорять storage
+   * при `persistKey=undefined` в `<Table>`.
+   * @default true
+   */
+  enabled?: boolean;
 }
 
 /**
- * Управление порядком и видимостью колонок `<Table>` с персистом
- * в localStorage под ключом `table-columns:<tableKey>`.
- *
- * Возвращает набор пропсов, которые можно «распылить» в `<Table {...tableCols} />`.
+ * Управление порядком/видимостью колонок `<Table>` с персистом в localStorage
+ * под ключом `table-columns:<tableKey>`.
  */
 export function usePersistedTableColumns(
   tableKey: string,
   allColumnKeys: string[],
-  options: UsePersistedTableColumnsOptions = {}
+  options: UsePersistedTableColumnsOptions = {},
 ) {
   const storageKey = STORAGE_PREFIX + tableKey;
+  const enabled = options.enabled !== false;
 
   const pinnedSignature = (options.pinnedKeys ?? []).join('\u0001');
   const pinnedKeys = useMemo(
     () => options.pinnedKeys ?? [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pinnedSignature]
+    [pinnedSignature],
   );
   const pinnedSet = useMemo(() => new Set(pinnedKeys), [pinnedKeys]);
 
   const persistableKeys = useMemo(
     () => allColumnKeys.filter((k) => !pinnedSet.has(k)),
-    [allColumnKeys, pinnedSet]
+    [allColumnKeys, pinnedSet],
   );
   const signature = persistableKeys.join('\u0001');
 
   const [order, setOrder] = useState<string[]>(() => {
+    if (!enabled) return persistableKeys;
     const s = load(storageKey);
     return s ? reconcileOrder(s.order, persistableKeys) : persistableKeys;
   });
 
   const [visible, setVisible] = useState<string[]>(() => {
+    if (!enabled) return persistableKeys;
     const s = load(storageKey);
     if (!s) return persistableKeys;
     return reconcileVisible(s.visible, s.order, persistableKeys);
@@ -119,34 +146,30 @@ export function usePersistedTableColumns(
         return same(prev, next) ? prev : next;
       });
     }
-
     prevKeysRef.current = current;
   }, [signature]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify({ order, visible }));
-  }, [storageKey, order, visible]);
+    if (!enabled) return;
+    save(storageKey, { order, visible });
+  }, [storageKey, order, visible, enabled]);
 
   const onApplySettings = useCallback(
     (v: string[], o: string[]) => {
       setVisible(v.filter((k) => !pinnedSet.has(k)));
       setOrder(o.filter((k) => !pinnedSet.has(k)));
     },
-    [pinnedSet]
+    [pinnedSet],
   );
 
   const reset = useCallback(() => {
     setOrder(allKeysRef.current);
     setVisible(allKeysRef.current);
-  }, []);
+    if (enabled) remove(storageKey);
+  }, [storageKey, enabled]);
 
   const columnOrder = useMemo(() => [...order, ...pinnedKeys], [order, pinnedKeys]);
   const visibleColumns = useMemo(() => [...visible, ...pinnedKeys], [visible, pinnedKeys]);
 
-  return {
-    columnOrder,
-    visibleColumns,
-    onApplySettings,
-    reset,
-  };
+  return { columnOrder, visibleColumns, onApplySettings, reset };
 }

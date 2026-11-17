@@ -20,12 +20,14 @@ export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: 
   return (
     <nav
       className={className}
+      role="navigation"
       style={{
         width: 240,
-        height: '100vh',
+        height: '100dvh',
         position: 'sticky',
         top: 0,
         overflowY: 'auto',
+        overscrollBehavior: 'contain',
         background: theme.bgSurface,
         borderRight: `1px solid ${theme.border}`,
         padding: '16px 8px',
@@ -42,6 +44,7 @@ export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: 
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
+            aria-current={isActive ? 'page' : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -55,7 +58,7 @@ export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: 
               fontWeight: isActive ? 600 : 400,
               color: isActive ? theme.accentText : theme.textMuted,
               background: isActive ? theme.accent : 'transparent',
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: 'background 0.2s, color 0.2s',
               width: '100%',
               textAlign: 'left',
               boxShadow: isActive ? `0 2px 12px ${theme.accentGlow}` : 'none',
@@ -75,7 +78,7 @@ export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: 
           >
             {tab.icon && (
               <span style={{ display: 'inline-flex', fontSize: 18, lineHeight: 1 }}>
-                {typeof tab.icon === 'string' ? tab.icon : tab.icon}
+                {tab.icon}
               </span>
             )}
             <span>{tab.label}</span>

@@ -1,5 +1,5 @@
 import { useEffect, RefObject } from 'react';
-import { isOverlayOpen } from './useAutoRefresh';
+import { isOverlayOpen } from '../components/table/useAutoRefresh';
 
 interface UseAutofocusOptions {
   /** Интервал попыток вернуть фокус, мс. По умолчанию 5000. */

@@ -1,242 +1,45 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Theme } from '../../themes/theme';
 import { useResponsive } from '../../context/ResponsiveContext';
-import { useResizeObserver } from '../../hooks/useResizeObserver';
+import { useResizeObserver } from './_shared/useResizeObserver';
+import { useDismissOnOutsideTap } from './_shared/useDismissOnOutsideTap';
+import { getColorById } from './_shared/color';
 
 // ─── Типы данных ──────────────────────────────────────────────
 
-/**
- * Один столбик. Плоская структура: серия задаётся полем `series`,
- * а не вложенными массивами. Если `series` не указана —
- * используется String(id), то есть каждый столбик своей серией.
- */
 export interface HistogramDataItem {
-  /** Уникальный идентификатор. */
   id: string | number;
-
-  /** Подпись по оси X (категория). Одинаковые label группируются. */
   label: string;
-
-  /** Числовое значение высоты столбика. */
   value: number;
-
-  /**
-   * Имя серии. Столбики одной серии получают одинаковый цвет
-   * и группируются рядом (или друг на друга при stacked).
-   * Если не указано — берётся String(id).
-   */
   series?: string;
-
-  /**
-   * Явный цвет столбика. Если не указан для серии —
-   * генерируется автоматически по её имени (HSL с золотым сечением).
-   * Первый указанный цвет для серии «выигрывает».
-   */
   color?: string;
 }
 
 export interface HistogramProps {
-  /** Плоский массив элементов. Группировка по label и series. */
   data: HistogramDataItem[];
-
-  /**
-   * Ширина диаграммы, px.
-   * На мобиле игнорируется — берётся ширина контейнера.
-   * @default 700
-   */
   width?: number;
-
-  /**
-   * Высота диаграммы (включая легенду), px.
-   * На мобиле вычисляется от ширины (примерно w * 0.75, не более 380).
-   * @default 450
-   */
   height?: number;
-
-  /** Тема. Обязательна. */
   theme: Theme;
-
-  /**
-   * Показывать ли легенду серий.
-   * Легенда кликабельна: тап/hover по элементу выделяет всю серию.
-   * @default true
-   */
   showLegend?: boolean;
-
-  /**
-   * Показывать ли ось X с подписями категорий.
-   * @default true
-   */
   showXAxis?: boolean;
-
-  /**
-   * Показывать ли ось Y со шкалой значений.
-   * @default true
-   */
   showYAxis?: boolean;
-
-  /**
-   * Показывать ли числовые значения внутри столбиков.
-   * Если столбик слишком узкий — текст автоматически поворачивается
-   * под 45° или 90°, а если и это не спасает — не рисуется.
-   * @default false
-   */
   showValues?: boolean;
-
-  /**
-   * Подпись под осью X. На мобиле не рендерится (нет места).
-   * Скрывается, если не указано.
-   */
   xAxisLabel?: string;
-
-  /**
-   * Подпись слева от оси Y (повёрнута на -90°). На мобиле не рендерится.
-   */
   yAxisLabel?: string;
-
-  /**
-   * Размер шрифта подписей осей и легенды, px.
-   * На мобиле автоматически уменьшается на 2.
-   * @default 12
-   */
   axisLabelFontSize?: number;
-
-  /**
-   * Размер шрифта значений внутри столбиков, px.
-   * На мобиле автоматически уменьшается на 2.
-   * @default 12
-   */
   valuesFontSize?: number;
-
-  /**
-   * Режим отрисовки баров:
-   *  - 'grouped' — столбики разных серий стоят рядом внутри категории;
-   *  - 'stacked' — столбики серий накладываются друг на друга,
-   *                 высота отражает сумму.
-   * @default 'grouped'
-   */
   barMode?: 'stacked' | 'grouped';
-
-  /**
-   * Сортировка сегментов внутри стека (только при barMode='stacked').
-   *  - 'none' — порядок как в seriesSet (по умолчанию);
-   *  - 'desc' — по убыванию значения (крупные сегменты — у основания столбца);
-   *  - 'asc'  — по возрастанию значения.
-   * Сортировка выполняется отдельно для каждой колонки (per-label),
-   * чтобы внутри каждого столбца крупные сегменты были снизу.
-   * @default 'none'
-   */
   sortStackedSegments?: 'none' | 'desc' | 'asc';
-
-  /**
-   * Фиксированный шаг шкалы Y. Если не указан — подбирается
-   * автоматически «красивым» числом (1, 2, 5, 10, 20, 50...).
-   * На мобиле авто-подбор использует 4 деления, на десктопе — 6.
-   */
   stepSize?: number;
-
-  /**
-   * Отступ между группами баров в режиме 'grouped' (0..0.8).
-   * 0 — вплотную, 0.8 — почти без баров.
-   * @default 0.2
-   */
   groupGap?: number;
-
-  /**
-   * Непрозрачность неактивных серий при выделении одной (0..1).
-   * Меньше — сильнее затемнение остальных серий.
-   * @default 0.25
-   */
   dimOpacity?: number;
-
-  /**
-   * Колбэк при наведении (мышь) или тапе (палец) на бар
-   * или на элемент легенды.
-   * Получает сам item или null, когда выделение сброшено.
-   *
-   * Замечание: для элемента легенды в колбэк передаётся
-   * «первый подходящий» элемент серии (первый по порядку в data
-   * с этой series), т.к. у легенды нет своего конкретного item.
-   */
   onBarHover?: (item: HistogramDataItem | null) => void;
-
-  /**
-   * Колбэк при клике (мышью) или тапе (пальцем) по конкретному
-   * бару. При тапе по элементу легенды НЕ вызывается.
-   * Получает сам item.
-   */
   onBarClick?: (item: HistogramDataItem | null) => void;
-
-  /**
-   * Снимать ли выделение серии при тапе в любом месте вне диаграммы.
-   * Работает только для тач-устройств (pointerType !== 'mouse').
-   * На десктопе выделение снимается само на pointerleave.
-   * @default true
-   */
   dismissOnOutsideTap?: boolean;
 }
 
-// ─── Вспомогательные функции ──────────────────────────────────
+// ─── Вспомогательные ──────────────────────────────────────────
 
-/**
- * Быстрый строковый хеш (FNV-1a). Работает для любых Unicode-строк:
- * кириллицы, эмодзи, иероглифов. Используется для генерации
- * стабильного цвета серии по её имени, когда parseInt(..., 36)
- * не может этого сделать.
- */
-function stringHash(s: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-const CSS_FN_COLOR = /^(rgb|rgba|hsl|hsla)\(/i;
-
-/**
- * Возвращает CSS-цвет по id/имени серии.
- * - '#...'                 — hex как есть;
- * - 'rgb(...)', 'hsl(...)' — функциональные цвета как есть;
- * - число                  — детерминированный HSL по золотому сечению;
- * - строка                 — хеш строки → HSL (работает для кириллицы,
- *                             эмодзи и любых Unicode-строк).
- *
- * Замечание: раньше здесь использовался parseInt(id, 36), который для
- * строк вроде 'Производство' возвращает NaN — браузер молча игнорировал
- * невалидный hsl(NaN, ...), и столбик рисовался чёрным/прозрачным.
- */
-function getColorById(id: string | number): string {
-  // 1. Явный CSS-цвет — возвращаем без изменений
-  if (typeof id === 'string') {
-    const t = id.trim();
-    if (t.startsWith('#')) return t;
-    if (CSS_FN_COLOR.test(t)) return t;
-  }
-
-  // 2. Определяем seed: число — как есть, «числовая» строка — в число,
-  //    иначе — стабильный хеш от строки
-  let seed: number;
-  if (typeof id === 'number') {
-    seed = id;
-  } else {
-    const asNum = Number(id);
-    seed = id.trim() !== '' && !isNaN(asNum) ? asNum : stringHash(id);
-  }
-
-  // 3. HSL по золотому сечению — равномерное распределение оттенков
-  const phi = 0.618033988749895;
-  const frac = (((seed * phi) % 1) + 1) % 1;   // на случай отрицательных seed
-  const hue = Math.round(frac * 360);
-  return `hsl(${hue}, 65%, 55%)`;
-}
-
-/**
- * Сколько знаков после запятой нужно, чтобы точно записать число.
- * Учитывает экспоненциальную запись ("5e-7" → 7 знаков).
- * Используется, чтобы избежать «мусорных» тиков вида 0.6000000000000001.
- */
 function getDecimalPlaces(num: number): number {
   if (!isFinite(num)) return 0;
   const s = num.toString();
@@ -252,10 +55,6 @@ function getDecimalPlaces(num: number): number {
   return dotIdx >= 0 ? s.length - dotIdx - 1 : 0;
 }
 
-/**
- * Округляет до N знаков после запятой и возвращает `number`
- * (без хвостовых нулей вроде "0.60").
- */
 function roundToDecimals(value: number, decimals: number): number {
   if (!isFinite(value)) return value;
   return Number(value.toFixed(decimals));
@@ -295,9 +94,6 @@ function groupData(data: HistogramDataItem[]): {
     }
   });
 
-  // Для серий без явного color — генерируем цвет по имени.
-  // getColorById сам решает: hex/rgb/hsl как есть, число → HSL,
-  // строка → хеш → HSL (работает для кириллицы).
   seriesSet.forEach((series) => {
     if (!colorMap.has(series)) {
       colorMap.set(series, getColorById(series));
@@ -312,7 +108,12 @@ function groupData(data: HistogramDataItem[]): {
   };
 }
 
-// ─── Основной компонент ──────────────────────────────────────
+/** Ключ, по которому ищется «репрезентативный» item для пары (label, series). */
+function dataKey(d: HistogramDataItem): string {
+  return `${d.label}::${d.series ?? d.id}`;
+}
+
+// ─── Компонент ────────────────────────────────────────────────
 
 export function Histogram({
   data,
@@ -336,7 +137,6 @@ export function Histogram({
   onBarClick,
   dismissOnOutsideTap = true,
 }: HistogramProps) {
-  // Активная серия — устанавливается hover'ом или тапом.
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
 
   const { isMobile } = useResponsive();
@@ -349,12 +149,27 @@ export function Histogram({
     ? Math.max(260, Math.min(effectiveWidth * 0.75, 380))
     : height;
 
-  const effectiveAxisFontSize = isMobile ? Math.max(9, axisLabelFontSize - 2) : axisLabelFontSize;
+  const effectiveAxisFontSize = isMobile
+    ? Math.max(9, axisLabelFontSize - 2)
+    : axisLabelFontSize;
   const effectiveValuesFontSize = isMobile
     ? Math.max(9, valuesFontSize - 2)
     : valuesFontSize;
 
-  const { labels, seriesSet, grouped, colorMap } = useMemo(() => groupData(data), [data]);
+  const { labels, seriesSet, grouped, colorMap } = useMemo(
+    () => groupData(data),
+    [data]
+  );
+
+  // O(1)-поиск «репрезентативного» item по (label, series)
+  const dataMap = useMemo(() => {
+    const m = new Map<string, HistogramDataItem>();
+    for (const d of data) {
+      const key = dataKey(d);
+      if (!m.has(key)) m.set(key, d);
+    }
+    return m;
+  }, [data]);
 
   const maxValue = useMemo(() => {
     let max = 0;
@@ -378,8 +193,8 @@ export function Histogram({
   const computedStepSize = useMemo(() => {
     if (stepSize && stepSize > 0) return stepSize;
     const targetTicks = isMobile ? 4 : 6;
-    let rawStep = maxValue / targetTicks;
-    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const rawStep = maxValue / targetTicks;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
     const normalized = rawStep / magnitude;
     let niceStep;
     if (normalized < 1.5) niceStep = 1;
@@ -390,13 +205,9 @@ export function Histogram({
     return niceStep || 1;
   }, [maxValue, stepSize, isMobile]);
 
-  // Сколько знаков после запятой нужно для шага шкалы.
-  // Например, для шага 0.2 — 1 знак; для 5e-6 — 6 знаков.
-  // Используется при округлении подписей тиков, чтобы не появлялись
-  // значения вида 0.6000000000000001 или 1.3999999999999999.
   const tickDecimals = useMemo(
     () => getDecimalPlaces(computedStepSize),
-    [computedStepSize],
+    [computedStepSize]
   );
 
   const leftMargin = useMemo(() => {
@@ -404,7 +215,7 @@ export function Histogram({
     if (!showYAxis) return base;
     const maxTick = roundToDecimals(
       Math.ceil(maxValue / computedStepSize) * computedStepSize,
-      tickDecimals,
+      tickDecimals
     );
     const maxStr = String(maxTick);
     const charWidth = effectiveAxisFontSize * 0.6;
@@ -421,98 +232,100 @@ export function Histogram({
     isMobile,
   ]);
 
+  const chartWidth = effectiveWidth - leftMargin - (isMobile ? 16 : 30);
+
+  // Авто-поворот X-меток: если самая длинная не влезает в колонку
+  const autoRotateXLabels = useMemo(() => {
+    if (!showXAxis || labels.length === 0) return false;
+    const groupWidth = chartWidth / Math.max(labels.length, 1);
+    const maxLabelLen = labels.reduce((m, l) => Math.max(m, l.length), 0);
+    return maxLabelLen * effectiveAxisFontSize * 0.6 > groupWidth * 0.9;
+  }, [showXAxis, labels, effectiveAxisFontSize, chartWidth]);
+
   const margin = {
     top: isMobile ? 44 : 60,
     right: isMobile ? 16 : 30,
-    bottom: isMobile ? 44 : 50,
+    bottom: (isMobile ? 44 : 50) + (autoRotateXLabels ? 24 : 0),
     left: leftMargin,
   };
 
-  const chartWidth = effectiveWidth - margin.left - margin.right;
   const chartHeight = effectiveHeight - margin.top - margin.bottom;
   const yMax = Math.max(maxValue, 1);
   const groupCount = labels.length;
   const groupWidth = chartWidth / Math.max(groupCount, 1);
   const effectiveGroupGap = Math.min(Math.max(groupGap, 0), 0.8);
-  const barTotalWidth =
-    barMode === 'grouped' ? groupWidth * (1 - effectiveGroupGap) : groupWidth * 0.7;
-  const barWidth =
-    barMode === 'grouped' ? barTotalWidth / Math.max(seriesSet.length, 1) : barTotalWidth;
+  const effectiveStep = effectiveGroupGap;
 
-  // ─── Общий обработчик ────────────────────────────────────
-  const setActive = (series: string | null, item: HistogramDataItem | null) => {
-    setActiveSeries(series);
-    if (onBarHover) onBarHover(item);
-  };
+  const setActive = useCallback(
+    (series: string | null, item: HistogramDataItem | null) => {
+      setActiveSeries(series);
+      onBarHover?.(item);
+    },
+    [onBarHover]
+  );
 
-  // ─── Тап вне интерактивных элементов снимает выделение ───
-  useEffect(() => {
-    if (!dismissOnOutsideTap) return;
-    const handler = (e: PointerEvent) => {
-      const target = e.target as Element | null;
-      if (!target) return;
-      if (target.closest('[data-histogram-interactive]')) return;
-      setActiveSeries(null);
-      if (onBarHover) onBarHover(null);
-    };
-    document.addEventListener('pointerdown', handler);
-    return () => document.removeEventListener('pointerdown', handler);
-  }, [dismissOnOutsideTap, onBarHover]);
+  useDismissOnOutsideTap(dismissOnOutsideTap, () => setActive(null, null), {
+    selector: '[data-histogram-interactive]',
+  });
 
-  // ─── Общие handlers для бара и для элемента легенды ─────
-  const interactiveHandlers = (series: string, item: HistogramDataItem | null) => ({
-    onPointerDown: (e: React.PointerEvent) => {
+  // ─── Единые handlers по data-* (не пересоздаются на каждый рендер) ────
+  const handleRectPointerDown = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
       if (e.pointerType === 'mouse') return;
       e.stopPropagation();
-      setActive(series, item);
+      const series = e.currentTarget.dataset.series;
+      const itemKey = e.currentTarget.dataset.itemKey;
+      if (!series) return;
+      setActive(series, itemKey ? dataMap.get(itemKey) ?? null : null);
     },
-    onPointerEnter: (e: React.PointerEvent) => {
+    [dataMap, setActive]
+  );
+
+  const handleRectPointerEnter = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
       if (e.pointerType === 'touch') return;
-      setActive(series, item);
+      const series = e.currentTarget.dataset.series;
+      const itemKey = e.currentTarget.dataset.itemKey;
+      if (!series) return;
+      setActive(series, itemKey ? dataMap.get(itemKey) ?? null : null);
     },
-    onPointerLeave: (e: React.PointerEvent) => {
+    [dataMap, setActive]
+  );
+
+  const handleRectPointerLeave = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
       if (e.pointerType === 'touch') return;
       setActive(null, null);
     },
-  });
+    [setActive]
+  );
 
-  const handleBarClick = (item: HistogramDataItem) => {
-    if (onBarClick) onBarClick(item);
-  };
+  const handleRectClick = useCallback(
+    (e: React.MouseEvent<SVGRectElement>) => {
+      if (!onBarClick) return;
+      const itemKey = e.currentTarget.dataset.itemKey;
+      onBarClick(itemKey ? dataMap.get(itemKey) ?? null : null);
+    },
+    [dataMap, onBarClick]
+  );
 
-  // ─── Значение внутри бара с автоповоротом ────────────────
-  /**
-   * Рисует подпись значения с автоматическим выбором угла наклона:
-   *   1) 0°  — если текст влезает по ширине и высоте бара;
-   *   2) 45° — если бар узкий, но не крошечный (частый случай: 14 баров,
-   *            значения вида «102.43»);
-   *   3) 90° — если бар совсем узкий, но достаточно высокий;
-   *   4) иначе — подпись не рисуется, чтобы не было визуального шума.
-   *
-   * Для наклонённых подписей добавляем обводку цветом фона:
-   * часть текста выходит за пределы цветного бара и иначе
-   * сливается с фоном карточки.
-   */
+  // ─── Рендер значения внутри бара ───────────────────────────
   const renderValueLabel = (
     value: number,
     barX: number,
     barY: number,
     barW: number,
     barH: number,
-    key: string,
+    key: string
   ): React.ReactNode => {
-    if (!showValues) return null;
-    if (barH <= 0 || barW <= 0) return null;
+    if (!showValues || barH <= 0 || barW <= 0) return null;
 
     const text = String(value);
     const fs = effectiveValuesFontSize;
-    // Грубая оценка ширины текста для текущего шрифта
     const approxTextWidth = text.length * fs * 0.6;
-
     const cx = barX + barW / 2;
     const cy = barY + barH / 2;
 
-    // 1) Горизонтально — текст влезает целиком
     if (barW >= approxTextWidth + 6 && barH >= fs + 4) {
       return (
         <text
@@ -532,7 +345,6 @@ export function Histogram({
       );
     }
 
-    // 2) 45° — узкий, но не крошечный
     if (barW >= 12 && barH >= 20) {
       return (
         <text
@@ -556,7 +368,6 @@ export function Histogram({
       );
     }
 
-    // 3) 90° — вертикально
     if (barW >= fs * 0.9 && barH >= approxTextWidth + 6) {
       return (
         <text
@@ -584,17 +395,13 @@ export function Histogram({
   };
 
   const renderBars = () => {
-    const bars: JSX.Element[] = [];
+    const bars: React.ReactNode[] = [];
 
     labels.forEach((label, labelIndex) => {
       const xGroup = margin.left + labelIndex * groupWidth;
       const map = grouped.get(label)!;
 
       if (barMode === 'stacked') {
-        // Определяем порядок серий для этой колонки.
-        // 'desc' — крупные сегменты у основания столбца (сортировка per-label),
-        // 'asc'  — мелкие у основания,
-        // 'none' — порядок как в seriesSet.
         const seriesForLabel =
           sortStackedSegments === 'none'
             ? seriesSet
@@ -609,18 +416,15 @@ export function Histogram({
           const value = map.get(series) || 0;
           if (value === 0) return;
           const barHeight = (value / yMax) * chartHeight;
-          const y = margin.top + chartHeight - ((yOffset + value) / yMax) * chartHeight;
+          const y =
+            margin.top + chartHeight - ((yOffset + value) / yMax) * chartHeight;
           const color = colorMap.get(series)!;
           const isActive = activeSeries === series;
           const opacity = activeSeries !== null ? (isActive ? 1 : dimOpacity) : 1;
 
           const x = xGroup + groupWidth * 0.15;
           const w = groupWidth * 0.7;
-
-          const dataItem =
-            data.find(
-              (d) => d.label === label && (d.series ?? String(d.id)) === series
-            ) || null;
+          const itemKey = `${label}::${series}`;
 
           bars.push(
             <rect
@@ -635,10 +439,12 @@ export function Histogram({
               strokeWidth={1}
               rx={2}
               data-histogram-interactive="true"
-              {...interactiveHandlers(series, dataItem)}
-              onClick={() => {
-                if (dataItem && onBarClick) handleBarClick(dataItem);
-              }}
+              data-series={series}
+              data-item-key={itemKey}
+              onPointerDown={handleRectPointerDown}
+              onPointerEnter={handleRectPointerEnter}
+              onPointerLeave={handleRectPointerLeave}
+              onClick={handleRectClick}
               style={{
                 transition: 'opacity 0.25s ease, filter 0.25s ease',
                 cursor: onBarClick ? 'pointer' : 'default',
@@ -651,15 +457,19 @@ export function Histogram({
           );
 
           const labelEl = renderValueLabel(
-            value, x, y, w, barHeight,
-            `${label}-${series}-val`,
+            value,
+            x,
+            y,
+            w,
+            barHeight,
+            `${label}-${series}-val`
           );
-          if (labelEl) bars.push(labelEl as JSX.Element);
+          if (labelEl) bars.push(labelEl);
 
           yOffset += value;
         });
       } else {
-        const totalBarArea = groupWidth * (1 - effectiveGroupGap);
+        const totalBarArea = groupWidth * (1 - effectiveStep);
         const innerBarWidth = totalBarArea / Math.max(seriesSet.length, 1);
         const offsetX = (groupWidth - totalBarArea) / 2;
 
@@ -672,11 +482,7 @@ export function Histogram({
           const color = colorMap.get(series)!;
           const isActive = activeSeries === series;
           const opacity = activeSeries !== null ? (isActive ? 1 : dimOpacity) : 1;
-
-          const dataItem =
-            data.find(
-              (d) => d.label === label && (d.series ?? String(d.id)) === series
-            ) || null;
+          const itemKey = `${label}::${series}`;
 
           bars.push(
             <rect
@@ -691,10 +497,12 @@ export function Histogram({
               strokeWidth={1}
               rx={2}
               data-histogram-interactive="true"
-              {...interactiveHandlers(series, dataItem)}
-              onClick={() => {
-                if (dataItem && onBarClick) handleBarClick(dataItem);
-              }}
+              data-series={series}
+              data-item-key={itemKey}
+              onPointerDown={handleRectPointerDown}
+              onPointerEnter={handleRectPointerEnter}
+              onPointerLeave={handleRectPointerLeave}
+              onClick={handleRectClick}
               style={{
                 transition: 'opacity 0.25s ease, filter 0.25s ease',
                 cursor: onBarClick ? 'pointer' : 'default',
@@ -707,10 +515,14 @@ export function Histogram({
           );
 
           const labelEl = renderValueLabel(
-            value, x, y, innerBarWidth, barHeight,
-            `${label}-${series}-val`,
+            value,
+            x,
+            y,
+            innerBarWidth,
+            barHeight,
+            `${label}-${series}-val`
           );
-          if (labelEl) bars.push(labelEl as JSX.Element);
+          if (labelEl) bars.push(labelEl);
         });
       }
     });
@@ -720,23 +532,48 @@ export function Histogram({
 
   const renderXAxis = () => {
     if (!showXAxis) return null;
-    const elements: JSX.Element[] = [];
+    const elements: React.ReactNode[] = [];
+    const offsetY = autoRotateXLabels
+      ? 4
+      : isMobile
+        ? 16
+        : 20;
 
     labels.forEach((label, index) => {
       const x = margin.left + index * groupWidth + groupWidth / 2;
-      elements.push(
-        <text
-          key={`x-${label}`}
-          x={x}
-          y={effectiveHeight - margin.bottom + (isMobile ? 16 : 20)}
-          textAnchor="middle"
-          fill={theme.textMuted}
-          fontSize={effectiveAxisFontSize}
-          style={{ userSelect: 'none' }}
-        >
-          {label}
-        </text>
-      );
+      const y = effectiveHeight - margin.bottom + offsetY;
+
+      if (autoRotateXLabels) {
+        elements.push(
+          <text
+            key={`x-${label}`}
+            x={x}
+            y={y}
+            textAnchor="end"
+            fill={theme.textMuted}
+            fontSize={effectiveAxisFontSize}
+            transform={`rotate(-45 ${x} ${y})`}
+            style={{ userSelect: 'none' }}
+          >
+            {label}
+          </text>
+        );
+      } else {
+        elements.push(
+          <text
+            key={`x-${label}`}
+            x={x}
+            y={y}
+            textAnchor="middle"
+            fill={theme.textMuted}
+            fontSize={effectiveAxisFontSize}
+            style={{ userSelect: 'none' }}
+          >
+            {label}
+          </text>
+        );
+      }
+
       elements.push(
         <line
           key={`xline-${label}`}
@@ -784,14 +621,12 @@ export function Histogram({
 
   const renderYAxis = () => {
     if (!showYAxis) return null;
-    const elements: JSX.Element[] = [];
+    const elements: React.ReactNode[] = [];
 
     const rawMaxTick = Math.ceil(yMax / computedStepSize) * computedStepSize;
     const tickCount = Math.max(0, Math.round(rawMaxTick / computedStepSize));
 
     for (let i = 0; i <= tickCount; i++) {
-      // Единственное умножение — никакого накопления ошибки.
-      // Округление убирает «мусорные» значения вида 0.6000000000000001.
       const val = roundToDecimals(i * computedStepSize, tickDecimals);
       const y = margin.top + chartHeight - (val / yMax) * chartHeight;
 
@@ -867,22 +702,36 @@ export function Histogram({
           borderRadius: 6,
           marginBottom: 8,
           border: `1px solid ${theme.border}`,
+          maxWidth: '100%',
+          overflow: 'hidden',
         }}
       >
         {seriesSet.map((series) => {
           const color = colorMap.get(series)!;
           const isActive = activeSeries === series;
           const opacity = activeSeries !== null ? (isActive ? 1 : 0.5) : 1;
-
-          // Ищем «репрезентативный» item для колбэка
           const sampleItem =
-            data.find((d) => (d.series ?? String(d.id)) === series) ?? null;
+            dataMap.get(series) ??
+            data.find((d) => (d.series ?? String(d.id)) === series) ??
+            null;
 
           return (
             <div
               key={series}
               data-histogram-interactive="true"
-              {...interactiveHandlers(series, sampleItem)}
+              onPointerDown={(e) => {
+                if (e.pointerType === 'mouse') return;
+                e.stopPropagation();
+                setActive(series, sampleItem);
+              }}
+              onPointerEnter={(e) => {
+                if (e.pointerType === 'touch') return;
+                setActive(series, sampleItem);
+              }}
+              onPointerLeave={(e) => {
+                if (e.pointerType === 'touch') return;
+                setActive(null, null);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -894,6 +743,8 @@ export function Histogram({
                 transition: 'background 0.2s, opacity 0.25s',
                 opacity,
                 touchAction: 'manipulation',
+                maxWidth: '100%',
+                minWidth: 0,
               }}
             >
               <span
@@ -906,7 +757,15 @@ export function Histogram({
                   flexShrink: 0,
                 }}
               />
-              <span style={{ fontSize: effectiveAxisFontSize, color: theme.text }}>
+              <span
+                style={{
+                  fontSize: effectiveAxisFontSize,
+                  color: theme.text,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {series}
               </span>
             </div>
@@ -927,10 +786,7 @@ export function Histogram({
   return (
     <div
       ref={containerRef}
-      style={{
-        width: '100%',
-        WebkitTapHighlightColor: 'transparent',
-      }}
+      style={{ width: '100%', WebkitTapHighlightColor: 'transparent' }}
     >
       {renderLegend()}
       <svg

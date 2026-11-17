@@ -1,27 +1,18 @@
 import { useState, useLayoutEffect, RefObject } from 'react';
 
 export interface UseDropdownPositionOptions {
-  /**
-   * Ref на сам дропдаун. Нужен, чтобы измерять его реальную высоту
-   * и разворачивать вверх, если снизу мало места.
-   */
   dropdownRef?: RefObject<HTMLElement | null>;
   /** Отступ между инпутом и дропдауном, px. @default 4 */
   offset?: number;
-  /** Минимальный отступ от краёв окна, px. @default 8 */
+  /** Минимальный отступ от краёв viewport, px. @default 8 */
   margin?: number;
   /** Резервная высота, если дропдаун ещё не отрисован. @default 240 */
   fallbackHeight?: number;
 }
 
 /**
- * Возвращает стили для dropdown'а с авто-позиционированием.
- *
- * Умеет:
- *  - ставить дропдаун под инпутом;
- *  - если снизу мало места — разворачивать над инпутом;
- *  - ограничивать maxHeight по доступному пространству;
- *  - скруглять углы со стороны инпута.
+ * Позиционирует дропдаун относительно инпута.
+ * Учитывает visualViewport (мобильная клавиатура / зум).
  */
 export function useDropdownPosition(
   open: boolean,
@@ -47,16 +38,19 @@ export function useDropdownPosition(
       if (!input) return;
 
       const rect = input.getBoundingClientRect();
-      const viewportH = window.innerHeight;
-      const viewportW = window.innerWidth;
+      const vv = window.visualViewport;
+      const viewportH = vv?.height ?? window.innerHeight;
+      const viewportW = vv?.width ?? window.innerWidth;
+      const vvOffsetTop = vv?.offsetTop ?? 0;
+      const vvOffsetLeft = vv?.offsetLeft ?? 0;
 
       const measuredHeight = dropdownRef?.current?.offsetHeight ?? 0;
       const dropdownHeight = measuredHeight || fallbackHeight;
 
-      const spaceBelow = viewportH - rect.bottom - margin - offset;
-      const spaceAbove = rect.top - margin - offset;
+      const spaceBelow =
+        vvOffsetTop + viewportH - rect.bottom - margin - offset;
+      const spaceAbove = rect.top - vvOffsetTop - margin - offset;
 
-      // Если снизу не хватает высоты и сверху больше места — переворачиваем
       const placeAbove =
         spaceBelow < Math.min(dropdownHeight, 200) && spaceAbove > spaceBelow;
 
@@ -64,12 +58,15 @@ export function useDropdownPosition(
       const maxHeight = Math.max(120, availableSpace);
 
       const top = placeAbove
-        ? Math.max(margin, rect.top - offset - Math.min(dropdownHeight, maxHeight))
+        ? Math.max(
+            vvOffsetTop + margin,
+            rect.top - offset - Math.min(dropdownHeight, maxHeight)
+          )
         : rect.bottom + offset;
 
       const left = Math.max(
-        margin,
-        Math.min(rect.left, viewportW - rect.width - margin)
+        vvOffsetLeft + margin,
+        Math.min(rect.left, vvOffsetLeft + viewportW - rect.width - margin)
       );
       const width = Math.min(rect.width, viewportW - margin * 2);
 
@@ -86,9 +83,7 @@ export function useDropdownPosition(
       });
     };
 
-    // Первый проход — сразу после commit
     updatePosition();
-    // Второй — после того, как дропдаун отрисуется (для измерения высоты)
     const raf = requestAnimationFrame(updatePosition);
 
     const handleResize = () => updatePosition();
@@ -97,6 +92,11 @@ export function useDropdownPosition(
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleScroll, true);
 
+    // visualViewport — важно для мобильных (клавиатура, зум, URL-bar)
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', handleResize);
+    vv?.addEventListener('scroll', handleScroll);
+
     const ro = new ResizeObserver(updatePosition);
     if (inputRef.current) ro.observe(inputRef.current);
 
@@ -104,6 +104,8 @@ export function useDropdownPosition(
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('scroll', handleScroll, true);
+      vv?.removeEventListener('resize', handleResize);
+      vv?.removeEventListener('scroll', handleScroll);
       ro.disconnect();
     };
   }, [open, inputRef, dropdownRef, offset, margin, fallbackHeight]);

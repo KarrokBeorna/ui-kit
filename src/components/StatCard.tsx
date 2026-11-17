@@ -25,6 +25,7 @@ export default function StatCard({ label, value, hint, theme: t }: StatCardProps
         {label}
       </div>
       <div
+        title={value}
         style={{
           fontSize: 22,
           fontWeight: 700,

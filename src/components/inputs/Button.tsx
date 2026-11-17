@@ -1,5 +1,5 @@
 import React from 'react';
-import {Theme} from '../../themes/theme';
+import { Theme } from '../../themes/theme';
 
 interface ButtonProps {
   icon?: React.ReactNode;
@@ -39,7 +39,7 @@ export default function Button({
             background: 'transparent',
             color: theme.danger,
             border: `1px solid ${theme.danger}`,
-            hoverBackground: `${theme.danger}15`,
+            hoverBackground: `color-mix(in srgb, ${theme.danger} 10%, transparent)`,
             hoverOpacity: 1,
           }
         : {
@@ -55,13 +55,13 @@ export default function Button({
       return outline
         ? {
             background: 'transparent',
-            color: `${theme.success}`,
+            color: theme.success,
             border: `1px solid ${theme.success}`,
-            hoverBackground: `${theme.success}15`,
+            hoverBackground: `color-mix(in srgb, ${theme.success} 10%, transparent)`,
             hoverOpacity: 1,
           }
         : {
-            background: `${theme.success}`,
+            background: theme.success,
             color: '#ffffff',
             border: 'none',
             hoverBackground: undefined,
@@ -74,7 +74,7 @@ export default function Button({
           background: 'transparent',
           color: theme.accent,
           border: `1px solid ${theme.accent}`,
-          hoverBackground: `${theme.accent}15`,
+          hoverBackground: `color-mix(in srgb, ${theme.accent} 10%, transparent)`,
           hoverOpacity: 1,
         }
       : {
@@ -88,9 +88,11 @@ export default function Button({
 
   const colors = getColors();
 
-  const sizeStyles = size === 'sm'
-    ? { padding: '4px 10px', fontSize: '12px', gap: '5px' }
-    : { padding: '8px 20px', fontSize: '13px', gap: '8px' };
+  // Размеры — как в оригинале, без minHeight
+  const sizeStyles =
+    size === 'sm'
+      ? { padding: '4px 10px', fontSize: '12px', gap: '5px' }
+      : { padding: '8px 20px', fontSize: '13px', gap: '8px' };
 
   const buttonStyle: React.CSSProperties = {
     display: 'inline-flex',
@@ -101,6 +103,7 @@ export default function Button({
     fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer',
     transition: 'background 0.15s, opacity 0.15s, box-shadow 0.15s',
+    touchAction: 'manipulation',
     ...sizeStyles,
     background: colors.background,
     color: colors.color,
@@ -110,8 +113,9 @@ export default function Button({
     ...style,
   };
 
-  const handleHover = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled) return;
+  // pointerType === 'mouse' — hover не залипает на тач после тапа
+  const handleHover = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled || e.pointerType !== 'mouse') return;
     if (outline) {
       e.currentTarget.style.background = colors.hoverBackground || 'transparent';
     } else {
@@ -119,13 +123,10 @@ export default function Button({
     }
   };
 
-  const handleLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled) return;
-    if (outline) {
-      e.currentTarget.style.background = 'transparent';
-    } else {
-      e.currentTarget.style.opacity = '1';
-    }
+  const handleLeave = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled || e.pointerType !== 'mouse') return;
+    if (outline) e.currentTarget.style.background = 'transparent';
+    else e.currentTarget.style.opacity = '1';
   };
 
   return (
@@ -135,11 +136,11 @@ export default function Button({
       disabled={disabled}
       className={className}
       style={buttonStyle}
-      onMouseEnter={handleHover}
-      onMouseLeave={handleLeave}
+      onPointerEnter={handleHover}
+      onPointerLeave={handleLeave}
     >
-      {icon && <span style={{ display: 'inline-flex', marginRight: children ? (size === 'sm' ? 4 : 6) : 0 }}>{icon}</span>}
+      {icon && <span style={{ display: 'inline-flex' }}>{icon}</span>}
       {children}
     </button>
   );
-};
+}
