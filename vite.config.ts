@@ -22,7 +22,7 @@ export default defineConfig({
     },
     rollupOptions: {
       // Исключаем React из бандла
-      external: ['react', 'react-dom'],
+      external: ['react', 'react-dom', 'react-router-dom'],
       output: {
         // Переименовываем выходной CSS-файл в dist/styles/global.css
         assetFileNames: (assetInfo) => {
