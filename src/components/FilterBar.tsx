@@ -1,4 +1,7 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useState, useRef, useEffect, useId, useInsertionEffect,
+  type CSSProperties, type ReactNode,
+} from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoFilter, IcoX, IcoChevronDown, ExportIcon } from './icons';
 import Button from './inputs/Button';
@@ -26,6 +29,28 @@ interface FilterBarProps {
   mobileBackdrop?: boolean;
 }
 
+const CSS_ID = 'kbs-filter-bar-css';
+const CSS = `
+.kbs-filter-toggle { -webkit-tap-highlight-color: transparent; }
+.kbs-filter-toggle:focus-visible {
+  outline: 2px solid var(--kbs-fb-accent);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .kbs-filter-toggle:hover { background: var(--kbs-fb-hover) !important; }
+}
+`;
+
+function useStyleTag(id: string, css: string) {
+  useInsertionEffect(() => {
+    if (typeof document === 'undefined' || document.getElementById(id)) return;
+    const el = document.createElement('style');
+    el.id = id;
+    el.textContent = css;
+    document.head.appendChild(el);
+  }, [id, css]);
+}
+
 /**
  * Панель фильтров.
  *
@@ -33,8 +58,9 @@ interface FilterBarProps {
  * на стороне потребителя: `useFetch(url, params, { debounceMs: 300 })` для
  * серверных фильтров или `useDeferredValue(filters)` для локальных.
  *
- * Чипсы активных фильтров показываются только в свёрнутом виде и только
- * не на мобильном: там их заменяет счётчик `activeCount`.
+ * Шапка — одна строка: «Фильтры {activeCount}» · чипсы · «Сбросить» · шеврон.
+ * Кликабельна вся строка целиком. На мобильном чипсы не рендерятся —
+ * их заменяет счётчик активных фильтров.
  */
 export function FilterBar({
   theme: t,
@@ -51,6 +77,7 @@ export function FilterBar({
   scrollable = true,
   mobileBackdrop = false,
 }: FilterBarProps) {
+  useStyleTag(CSS_ID, CSS);
   const { isMobile } = useResponsive();
   const effectiveCols = isMobile ? 1 : gridCols;
 
@@ -146,122 +173,160 @@ export function FilterBar({
           marginBottom: 16,
           overflow: 'hidden',
           zIndex: isMobile && mobileBackdrop && open ? 10 : 'auto',
-        }}
+          '--kbs-fb-accent': t.accent,
+          '--kbs-fb-hover': t.navHoverBg,
+        } as CSSProperties}
       >
-        {/* Header */}
+        {/* ── Header: одна строка, кликабельна целиком ── */}
         <div
           style={{
+            position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
+            justifyContent: 'space-between',
             padding: '12px 18px',
+            gap: 12,
+            userSelect: 'none',
           }}
         >
-          {/* Вся шапка — одна настоящая кнопка: Enter/Space, aria-expanded.
-              Чипсы живут внутри неё отдельной строкой и переносятся свободно. */}
+          {/* Подложка-кнопка: ловит клик по всей строке, даёт Enter/Space
+              и aria-expanded. Контент лежит выше неё. */}
           <button
             type="button"
+            className="kbs-filter-toggle"
             onClick={() => setOpen(!open)}
             aria-expanded={open}
             aria-controls={bodyId}
+            aria-label={open ? 'Свернуть фильтры' : 'Развернуть фильтры'}
             style={{
-              flex: 1,
-              minWidth: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'stretch',
-              gap: 8,
-              background: 'transparent',
-              border: 'none',
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
               padding: 0,
               margin: 0,
-              font: 'inherit',
-              color: 'inherit',
-              textAlign: 'left',
+              border: 'none',
+              background: 'transparent',
               cursor: 'pointer',
-              userSelect: 'none',
+              zIndex: 0,
               touchAction: 'manipulation',
             }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <span style={{ color: t.accent, display: 'flex', flexShrink: 0 }}>
-                <IcoFilter />
-              </span>
-              <span
-                style={{
-                  fontFamily: 'system-ui',
-                  fontWeight: 600,
-                  fontSize: 14,
-                  color: t.text,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Фильтры
-              </span>
-              {activeCount > 0 && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: 20,
-                    height: 20,
-                    padding: '0 6px',
-                    borderRadius: 20,
-                    background: t.accent,
-                    color: t.accentText,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    fontFamily: 'system-ui',
-                    boxShadow: `0 0 10px ${t.accentGlow}`,
-                    flexShrink: 0,
-                  }}
-                >
-                  {activeCount}
-                </span>
-              )}
-              <span
-                aria-hidden
-                style={{
-                  marginLeft: 'auto',
-                  color: t.textMuted,
-                  display: 'flex',
-                  flexShrink: 0,
-                }}
-              >
-                <IcoChevronDown open={open} />
-              </span>
-            </span>
+          />
 
+          {/* Слева: иконка + заголовок + счётчик */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 1,
+              pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ color: t.accent, display: 'flex' }}>
+              <IcoFilter />
+            </span>
+            <span
+              style={{
+                fontFamily: 'system-ui',
+                fontWeight: 600,
+                fontSize: 14,
+                color: t.text,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Фильтры
+            </span>
+            {activeCount > 0 && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 20,
+                  height: 20,
+                  padding: '0 6px',
+                  borderRadius: 20,
+                  background: t.accent,
+                  color: t.accentText,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontFamily: 'system-ui',
+                  boxShadow: `0 0 10px ${t.accentGlow}`,
+                }}
+              >
+                {activeCount}
+              </span>
+            )}
+          </div>
+
+          {/* Справа: чипсы → «Сбросить» → шеврон */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 10,
+              flex: '0 1 auto',
+              minWidth: 0,
+            }}
+          >
             {showChips && (
-              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
+                  gap: 6,
+                  minWidth: 0,
+                  pointerEvents: 'none',
+                }}
+              >
                 {chips.map((chip, i) => (
                   <span key={i} title={chip} style={chipStyle}>
                     {chip}
                   </span>
                 ))}
-              </span>
+              </div>
             )}
-          </button>
 
-          {activeCount > 0 && onReset && (
-            <Button
-              icon={<IcoX s={10} />}
-              variant="danger"
-              outline
-              size="sm"
-              onClick={(e: any) => {
-                e.stopPropagation();
-                onReset();
+            {activeCount > 0 && onReset && (
+              <div style={{ pointerEvents: 'auto', flexShrink: 0, display: 'flex' }}>
+                <Button
+                  icon={<IcoX s={10} />}
+                  variant="danger"
+                  outline
+                  size="sm"
+                  onClick={(e: any) => {
+                    e.stopPropagation();
+                    onReset();
+                  }}
+                  theme={t}
+                >
+                  Сбросить
+                </Button>
+              </div>
+            )}
+
+            <span
+              aria-hidden
+              style={{
+                color: t.textMuted,
+                display: 'flex',
+                flexShrink: 0,
+                pointerEvents: 'none',
               }}
-              theme={t}
             >
-              Сбросить
-            </Button>
-          )}
+              <IcoChevronDown open={open} />
+            </span>
+          </div>
         </div>
 
-        {/* Body */}
+        {/* ── Body ── */}
         <div
           ref={bodyRef}
           id={bodyId}
