@@ -4,6 +4,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import type { Theme } from '../../themes/theme';
 import Modal from '../Modal';
+import Checkbox from '../inputs/Checkbox';
 import { IcoChevronUp, IcoChevronDown } from '../icons';
 import { useResponsive } from '../../context/ResponsiveContext';
 import { MobileCardList, type MobileCardField } from './MobileCardList';
@@ -287,7 +288,7 @@ export default function Table<T extends Record<string, any>>({
   );
 
   /**
-   * Компактный список: одна строка = 25.6px, gap 12px.
+   * Компактный список: строка 25.6px (Checkbox size="sm"), gap 12px.
    * Рендерится одним полем Modal (rows=1), чтобы сетка модалки
    * не навязывала свои 44px на каждую колонку.
    */
@@ -313,7 +314,6 @@ export default function Table<T extends Record<string, any>>({
               !isSticky &&
               index < settingsOrder.length - 1 &&
               !stickyRightSet.has(settingsOrder[index + 1]);
-            const checked = settingsVisible.has(key);
             return (
               <div
                 key={key}
@@ -322,26 +322,15 @@ export default function Table<T extends Record<string, any>>({
                   justifyContent: 'space-between', gap: 8, minHeight: 25.6,
                 }}
               >
-                <label
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    flex: 1, minWidth: 0, cursor: 'pointer',
-                    fontSize: 14, lineHeight: '16px', color: t.text,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleVisible(key)}
-                    style={{
-                      width: 16, height: 16, margin: 0, flexShrink: 0,
-                      accentColor: t.accent, cursor: 'pointer',
-                    }}
-                  />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {String(col.header)}
-                  </span>
-                </label>
+                <Checkbox
+                  theme={t}
+                  size="sm"
+                  truncate
+                  checked={settingsVisible.has(key)}
+                  onChange={() => toggleVisible(key)}
+                  label={String(col.header)}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                   <button
                     type="button"
