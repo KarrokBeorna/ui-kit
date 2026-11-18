@@ -59,8 +59,11 @@ function useStyleTag(id: string, css: string) {
  * серверных фильтров или `useDeferredValue(filters)` для локальных.
  *
  * Шапка — одна строка: «Фильтры {activeCount}» · чипсы · «Сбросить» · шеврон.
- * Кликабельна вся строка целиком. На мобильном чипсы не рендерятся —
- * их заменяет счётчик активных фильтров.
+ * Кликабельна ВСЯ строка (включая padding и зазоры), кроме «Сбросить».
+ * Инвариант: контент шапки — `pointerEvents: none`, единственное исключение
+ * с `auto` — обёртка кнопки «Сбросить». Клик ловит подложка-кнопка.
+ *
+ * На мобильном чипсы не рендерятся — их заменяет счётчик активных фильтров.
  */
 export function FilterBar({
   theme: t,
@@ -189,8 +192,8 @@ export function FilterBar({
             userSelect: 'none',
           }}
         >
-          {/* Подложка-кнопка: ловит клик по всей строке, даёт Enter/Space
-              и aria-expanded. Контент лежит выше неё. */}
+          {/* Подложка-кнопка: покрывает всю строку вместе с padding,
+              ловит клик в любой точке, даёт Enter/Space и aria-expanded. */}
           <button
             type="button"
             className="kbs-filter-toggle"
@@ -201,8 +204,6 @@ export function FilterBar({
             style={{
               position: 'absolute',
               inset: 0,
-              width: '100%',
-              height: '100%',
               padding: 0,
               margin: 0,
               border: 'none',
@@ -262,11 +263,15 @@ export function FilterBar({
             )}
           </div>
 
-          {/* Справа: чипсы → «Сбросить» → шеврон */}
+          {/* Справа: чипсы → «Сбросить» → шеврон.
+              pointerEvents: none на самом контейнере обязателен — иначе его
+              собственная коробка (зазоры gap и полосы над/под кнопкой при
+              переносе чипсов) перехватывает клик и образует мёртвые зоны. */}
           <div
             style={{
               position: 'relative',
               zIndex: 1,
+              pointerEvents: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
@@ -283,7 +288,6 @@ export function FilterBar({
                   justifyContent: 'flex-end',
                   gap: 6,
                   minWidth: 0,
-                  pointerEvents: 'none',
                 }}
               >
                 {chips.map((chip, i) => (
@@ -318,7 +322,6 @@ export function FilterBar({
                 color: t.textMuted,
                 display: 'flex',
                 flexShrink: 0,
-                pointerEvents: 'none',
               }}
             >
               <IcoChevronDown open={open} />
