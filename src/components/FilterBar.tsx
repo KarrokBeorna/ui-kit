@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoFilter, IcoX, IcoChevronDown, ExportIcon } from './icons';
 import Button from './inputs/Button';
 import { useResponsive } from '../context/ResponsiveContext';
 
 interface FilterItem {
-  component: React.ReactNode;
+  component: ReactNode;
   row: number;
   cols?: number;
 }
@@ -32,6 +32,9 @@ interface FilterBarProps {
  * ⚠️ Никакого `onApply` — фильтры применяются по мере изменения. Дебаунс —
  * на стороне потребителя: `useFetch(url, params, { debounceMs: 300 })` для
  * серверных фильтров или `useDeferredValue(filters)` для локальных.
+ *
+ * Чипсы активных фильтров показываются только в свёрнутом виде и только
+ * не на мобильном: там их заменяет счётчик `activeCount`.
  */
 export function FilterBar({
   theme: t,
@@ -58,6 +61,7 @@ export function FilterBar({
     onOpenChange?.(v);
   };
 
+  const bodyId = useId();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [bodyH, setBodyH] = useState(0);
 
@@ -65,7 +69,29 @@ export function FilterBar({
     if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight);
   }, [filters, open, effectiveCols]);
 
-  const rows: Record<number, Array<{ component: React.ReactNode; cols: number }>> = {};
+  /* Высота контента меняется не только от списка фильтров: текст ошибки
+     под полем, перенос метки, смена колонки. Без наблюдения за размерами
+     тело обрезало бы нижние поля. */
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setBodyH(el.scrollHeight);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, []);
+
+  /* Свёрнутое тело: maxHeight:0 + overflow:hidden НЕ убирает поля из
+     tab-порядка. inert снимает фокус и скрывает поддерево от AT. */
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    if (open) el.removeAttribute('inert');
+    else el.setAttribute('inert', '');
+  }, [open]);
+
+  const rows: Record<number, Array<{ component: ReactNode; cols: number }>> = {};
   filters.forEach(({ component, row, cols = effectiveCols }) => {
     if (!rows[row]) rows[row] = [];
     rows[row].push({ component, cols });
@@ -79,10 +105,28 @@ export function FilterBar({
       : `${bodyH || 600}px`
     : 0;
 
+  const showChips = !open && !isMobile && chips.length > 0;
+
+  const chipStyle: CSSProperties = {
+    padding: '2px 9px',
+    borderRadius: 20,
+    fontSize: 11,
+    fontFamily: 'system-ui',
+    fontWeight: 500,
+    color: t.accent,
+    background: t.navHoverBg,
+    border: `1px solid ${t.border}`,
+    whiteSpace: 'nowrap',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  };
+
   return (
     <>
       {isMobile && mobileBackdrop && open && (
         <div
+          role="presentation"
           onClick={() => setOpen(false)}
           style={{
             position: 'fixed',
@@ -92,6 +136,7 @@ export function FilterBar({
           }}
         />
       )}
+
       <div
         style={{
           position: 'relative',
@@ -108,104 +153,118 @@ export function FilterBar({
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 18px',
-            cursor: 'pointer',
-            userSelect: 'none',
             gap: 12,
+            padding: '12px 18px',
           }}
-          onClick={() => setOpen(!open)}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ color: t.accent, display: 'flex' }}>
-              <IcoFilter />
-            </span>
-            <span style={{ fontFamily: 'system-ui', fontWeight: 600, fontSize: 14, color: t.text }}>
-              Фильтры
-            </span>
-            {activeCount > 0 && (
+          {/* Вся шапка — одна настоящая кнопка: Enter/Space, aria-expanded.
+              Чипсы живут внутри неё отдельной строкой и переносятся свободно. */}
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-controls={bodyId}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              gap: 8,
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              font: 'inherit',
+              color: 'inherit',
+              textAlign: 'left',
+              cursor: 'pointer',
+              userSelect: 'none',
+              touchAction: 'manipulation',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <span style={{ color: t.accent, display: 'flex', flexShrink: 0 }}>
+                <IcoFilter />
+              </span>
               <span
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 20,
-                  height: 20,
-                  padding: '0 6px',
-                  borderRadius: 20,
-                  background: t.accent,
-                  color: t.accentText,
-                  fontSize: 11,
-                  fontWeight: 700,
                   fontFamily: 'system-ui',
-                  boxShadow: `0 0 10px ${t.accentGlow}`,
+                  fontWeight: 600,
+                  fontSize: 14,
+                  color: t.text,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {activeCount}
+                Фильтры
               </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            {!open && chips.length > 0 && (
-              <div
+              {activeCount > 0 && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 20,
+                    height: 20,
+                    padding: '0 6px',
+                    borderRadius: 20,
+                    background: t.accent,
+                    color: t.accentText,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    fontFamily: 'system-ui',
+                    boxShadow: `0 0 10px ${t.accentGlow}`,
+                    flexShrink: 0,
+                  }}
+                >
+                  {activeCount}
+                </span>
+              )}
+              <span
+                aria-hidden
                 style={{
+                  marginLeft: 'auto',
+                  color: t.textMuted,
                   display: 'flex',
-                  gap: 6,
-                  overflowX: 'auto',
-                  WebkitOverflowScrolling: 'touch',
-                  maxWidth: isMobile ? 200 : 'none',
-                  scrollbarWidth: 'none',
-                  flex: '0 1 auto',
-                  minWidth: 0,
+                  flexShrink: 0,
                 }}
               >
+                <IcoChevronDown open={open} />
+              </span>
+            </span>
+
+            {showChips && (
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {chips.map((chip, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      padding: '2px 9px',
-                      borderRadius: 20,
-                      fontSize: 11,
-                      fontFamily: 'system-ui',
-                      fontWeight: 500,
-                      color: t.accent,
-                      background: t.navHoverBg,
-                      border: `1px solid ${t.border}`,
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >
+                  <span key={i} title={chip} style={chipStyle}>
                     {chip}
                   </span>
                 ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              {activeCount > 0 && onReset && (
-                <Button
-                  icon={<IcoX s={10} />}
-                  variant="danger"
-                  outline
-                  size="sm"
-                  onClick={(e: any) => {
-                    e.stopPropagation();
-                    onReset();
-                  }}
-                  theme={t}
-                >
-                  Сбросить
-                </Button>
-              )}
-              <span style={{ color: t.textMuted, display: 'flex' }}>
-                <IcoChevronDown open={open} />
               </span>
-            </div>
-          </div>
+            )}
+          </button>
+
+          {activeCount > 0 && onReset && (
+            <Button
+              icon={<IcoX s={10} />}
+              variant="danger"
+              outline
+              size="sm"
+              onClick={(e: any) => {
+                e.stopPropagation();
+                onReset();
+              }}
+              theme={t}
+            >
+              Сбросить
+            </Button>
+          )}
         </div>
 
         {/* Body */}
         <div
           ref={bodyRef}
+          id={bodyId}
           style={{
             maxHeight: maxBodyHeight,
             overflow: open ? (isScrollable ? 'auto' : 'hidden') : 'hidden',
