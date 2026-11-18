@@ -1,6 +1,7 @@
 import {
   memo, useCallback, useEffect, useId, useMemo, useRef, useState,
-  type CSSProperties, type ReactNode, type RefObject,
+  type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent,
+  type ReactNode, type RefObject, type SetStateAction,
 } from 'react';
 import type { Theme, ThemeName } from '../../themes/theme';
 import { IcoLogIn, IcoLogOut, IcoChevronLeft, IcoChevronRight } from '../icons';
@@ -161,9 +162,9 @@ function resolveMainTarget(tab: NavTab, children: NavTabChild[], targetChildId?:
 
 interface PersistedNavState {
   lastSelectedChild: Record<string, string>;
-  setLastSelectedChild: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setLastSelectedChild: Dispatch<SetStateAction<Record<string, string>>>;
   expandedIds: Set<string>;
-  setExpandedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  setExpandedIds: Dispatch<SetStateAction<Set<string>>>;
 }
 
 function usePersistedNavState(storageKey: string, activeTab: string, navTabs: NavTab[]): PersistedNavState {
@@ -268,6 +269,10 @@ function useMenuBehavior(
 /**
  * Меню в fixed-позиции от якоря — не обрезается скроллящимися
  * контейнерами навигации. Закрывается при скролле/resize страницы.
+ *
+ * Закрытое состояние = `inert` + отложенный `visibility: hidden`.
+ * `aria-hidden` намеренно НЕ используется: он применяется мгновенно,
+ * а фокус ещё может быть внутри → Chrome блокирует его с предупреждением.
  */
 function AnchoredMenu({
   t, open, anchorRef, align = 'left', width = 190, id, onClose, children,
@@ -296,6 +301,14 @@ function AnchoredMenu({
     setPos({ left, top });
   }, [open, align, width, anchorRef]);
 
+  /* inert снимает фокус сам и убирает поддерево из AT — без конфликтов. */
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (open) el.removeAttribute('inert');
+    else el.setAttribute('inert', '');
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onScroll = (e: Event) => {
@@ -316,7 +329,6 @@ function AnchoredMenu({
       ref={ref}
       id={id}
       role="menu"
-      aria-hidden={!open}
       className="kbs-menu kbs-scroll-y"
       style={{
         position: 'fixed', left: pos.left, top: pos.top,
@@ -512,7 +524,15 @@ function UserBlock({
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
-  const close = useCallback(() => setOpen(false), []);
+
+  /* Фокус уводим на триггер ДО закрытия — иначе он останется
+     в поддереве, которое становится inert/hidden. */
+  const close = useCallback(() => {
+    const wrap = wrapRef.current;
+    if (wrap && wrap.contains(document.activeElement)) btnRef.current?.focus();
+    setOpen(false);
+  }, []);
+
   useMenuBehavior(open, wrapRef, btnRef, close);
 
   if (!isLoggedIn) {
@@ -673,7 +693,13 @@ function HorizontalNavEntry({
   const wrapRef = useRef<HTMLDivElement>(null);
   const chevRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
-  const close = useCallback(() => setOpen(false), [setOpen]);
+
+  const close = useCallback(() => {
+    const wrap = wrapRef.current;
+    if (wrap && wrap.contains(document.activeElement)) chevRef.current?.focus();
+    setOpen(false);
+  }, [setOpen]);
+
   useMenuBehavior(open, wrapRef, chevRef, close);
 
   const navigate = () => {

@@ -124,13 +124,20 @@ export function MobileHeader({
     if (openChangeRef.current) openChangeRef.current(v);
     else setInternalOpen(v);
   }, []);
-  const close = useCallback(() => setOpen(false), [setOpen]);
-
-  useBodyScrollLock(open);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const drawerId = useId();
+
+  /* Фокус уводим на бургер ДО закрытия — иначе он останется в inert-поддереве. */
+  const close = useCallback(() => {
+    const drawer = drawerRef.current;
+    if (drawer && drawer.contains(document.activeElement)) triggerRef.current?.focus();
+    setOpen(false);
+  }, [setOpen]);
+
+  useBodyScrollLock(open);
+
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
   const visibleTabs = useMemo(
@@ -159,6 +166,14 @@ export function MobileHeader({
     });
   }, [activeTab, visibleTabs]);
 
+  /* Закрытый drawer: inert вместо aria-hidden (не конфликтует с фокусом). */
+  useEffect(() => {
+    const el = drawerRef.current;
+    if (!el) return;
+    if (open) el.removeAttribute('inert');
+    else el.setAttribute('inert', '');
+  }, [open]);
+
   /* Фокус-ловушка: список пересчитывается на каждое нажатие (аккордеон меняет DOM). */
   useEffect(() => {
     if (!open) return;
@@ -180,13 +195,6 @@ export function MobileHeader({
     const raf = requestAnimationFrame(() => list()[0]?.focus());
     return () => { document.removeEventListener('keydown', onKey); cancelAnimationFrame(raf); };
   }, [open, close]);
-
-  /* Возврат фокуса на бургер после закрытия. */
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (wasOpen.current && !open) triggerRef.current?.focus();
-    wasOpen.current = open;
-  }, [open]);
 
   /* Свайп влево закрывает drawer; вертикальный скролл не перехватывается. */
   useEffect(() => {
@@ -212,7 +220,7 @@ export function MobileHeader({
     };
   }, [open, close]);
 
-  const go = (id: string) => { onTabChange(id); close(); };
+  const go = (id: string) => { close(); onTabChange(id); };
   const toggleExpanded = (id: string) =>
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -382,7 +390,6 @@ export function MobileHeader({
         className="kbs-m-scrim"
         onClick={close}
         role="presentation"
-        aria-hidden={!open}
         style={{
           position: 'fixed', inset: 0, background: 'rgba(6, 8, 14, 0.55)',
           backdropFilter: open ? 'blur(2px)' : 'none',
