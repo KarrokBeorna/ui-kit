@@ -291,6 +291,9 @@ export default function Table<T extends Record<string, any>>({
    * Компактный список: строка 25.6px (Checkbox size="sm"), gap 12px.
    * Рендерится одним полем Modal (rows=1), чтобы сетка модалки
    * не навязывала свои 44px на каждую колонку.
+   *
+   * padding по краям обязателен: overflowY:auto клипает и по горизонтали,
+   * а кольцо чекбокса (0 0 0 3px) выступает за пределы его бокса.
    */
   const settingsField = useMemo(
     () => ({
@@ -301,7 +304,8 @@ export default function Table<T extends Record<string, any>>({
           style={{
             display: 'flex', flexDirection: 'column', gap: 12,
             maxHeight: 'min(56vh, 460px)', overflowY: 'auto',
-            paddingRight: 4, overscrollBehavior: 'contain',
+            padding: '6px 6px', boxSizing: 'border-box',
+            overscrollBehavior: 'contain',
           }}
         >
           {settingsOrder.map((key, index) => {
