@@ -1,11 +1,14 @@
+// Nav.ts — типы навигации и чистые хелперы (используются PageLayout и AppContext).
 import type { ReactNode } from 'react';
 
+/** Минимальный пользователь для фильтрации навигации. */
 export interface NavUser {
   isAdmin?: boolean;
   webAdmin?: boolean;
   allowedTabs?: string[] | null;
 }
 
+/** Пункт/подпункт навигации с правилами видимости. */
 export interface NavTabChild<TUser extends NavUser = NavUser> {
   id: string;
   label: string;
@@ -15,6 +18,7 @@ export interface NavTabChild<TUser extends NavUser = NavUser> {
   visible?: (user: TUser | null) => boolean;
 }
 
+/** Пункт навигации верхнего уровня. */
 export interface NavTab<TUser extends NavUser = NavUser> extends NavTabChild<TUser> {
   icon: ReactNode;
   children?: NavTabChild<TUser>[];
@@ -27,7 +31,9 @@ export type VisibleNavTab = Omit<NavTab, 'adminOnly' | 'webAdminOnly' | 'visible
 };
 
 export interface FilterNavTabsOptions<TUser extends NavUser> {
+  /** Показывать ли навигацию гостям. */
   guestTabs?: boolean;
+  /** Кастомная проверка доступа к пункту. */
   canSeeBase?: (id: string, user: TUser) => boolean;
 }
 
@@ -37,6 +43,7 @@ const defaultCanSeeBase = (id: string, user: NavUser): boolean => {
   return user.allowedTabs.includes(id);
 };
 
+/** Фильтрует навигацию по правам пользователя и убирает служебные поля. */
 export function filterNavTabs<TUser extends NavUser>(
   tabs: readonly NavTab<TUser>[],
   user: TUser | null,
@@ -44,7 +51,6 @@ export function filterNavTabs<TUser extends NavUser>(
 ): VisibleNavTab[] {
   const { guestTabs = false, canSeeBase = defaultCanSeeBase } = options;
   if (!user && !guestTabs) return [];
-
   const canSee = (node: NavTabChild<TUser>): boolean => {
     if (node.webAdminOnly && !user?.webAdmin) return false;
     if (node.adminOnly && !user?.isAdmin) return false;
@@ -52,12 +58,10 @@ export function filterNavTabs<TUser extends NavUser>(
     if (node.visible && !node.visible(user)) return false;
     return true;
   };
-
   const clean = <T extends NavTabChild<TUser>>(node: T) => {
     const { adminOnly: _a, webAdminOnly: _w, visible: _v, ...rest } = node;
     return rest;
   };
-
   return tabs
     .map((tab): VisibleNavTab | null => {
       if (!canSee(tab)) return null;
@@ -76,16 +80,14 @@ const matches = (pathname: string, id: string): boolean => {
   return pathname === id || pathname.startsWith(`${id}/`);
 };
 
-/** Самое длинное совпадение выигрывает; при равной длине дети приоритетнее. */
+/** Определяет активный таб по pathname: самое длинное совпадение, дети приоритетнее. */
 export function matchActiveTab(
   pathname: string,
   tabs: readonly { id: string; children?: readonly { id: string }[] }[],
 ): string {
   const candidates: { id: string; child: boolean }[] = [];
   for (const tab of tabs) {
-    for (const c of tab.children ?? []) {
-      if (matches(pathname, c.id)) candidates.push({ id: c.id, child: true });
-    }
+    for (const c of tab.children ?? []) if (matches(pathname, c.id)) candidates.push({ id: c.id, child: true });
     if (matches(pathname, tab.id)) candidates.push({ id: tab.id, child: false });
   }
   candidates.sort((a, b) => b.id.length - a.id.length || Number(b.child) - Number(a.child));

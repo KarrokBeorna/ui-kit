@@ -1,88 +1,91 @@
-export { default as Checkbox } from './components/inputs/Checkbox';
-export { default as DateTimePicker } from './components/inputs/DateTimePicker';
-export { default as FileSelector } from './components/inputs/FileSelector';
-export { default as MultiSelect } from './components/inputs/MultiSelect';
-export { default as NumberInput } from './components/inputs/NumberInput';
-export { default as PasswordInput } from './components/inputs/PasswordInput';
-export { default as RadioGroup } from './components/inputs/RadioGroup';
-export { default as RangeSlider } from './components/inputs/RangeSlider';
-export { default as SearchableSelect } from './components/inputs/SearchableSelect';
-export { default as Textarea } from './components/inputs/Textarea';
-export { default as TextInput } from './components/inputs/TextInput';
-export { default as Table } from './components/table/Table';
-export type { Column } from './components/table/Table';
-export { default as Modal } from './components/Modal';
-export { default as Badge } from './components/inputs/Badge';
-export { default as Button } from './components/inputs/Button';
-export { default as StatCard } from './components/StatCard';
-export { default as LoadingOverlay } from './components/LoadingOverlay';
+// index.ts — публичный API UI Kit.
 
-export { AuthPage } from './components/AuthPage';
-export { ThemeSwitcher } from './components/header/ThemeSwitcher';
-export { ActionsColumn } from './components/table/ActionsColumn';
-export { FilterBar } from './components/FilterBar';
-export { Pagination } from './components/pagination/Pagination';
-export { HorizontalHeader, VerticalHeader } from './components/header/Header';
-export { PieChart } from './components/charts/PieChart';
-export type { PieDataItem } from './components/charts/PieChart';
-export { Histogram } from './components/charts/Histogram';
-export type { HistogramDataItem } from './components/charts/Histogram';
-export { LayoutToggle } from './components/header/LayoutToggle';
-export type { LayoutMode } from './components/header/LayoutToggle';
-export { Menu } from './components/Menu';
-export type { MenuTab } from './components/Menu';
+/* Поля */
+export { default as CustomInput } from './components/CustomInput';
+export type { CustomInputProps, CustomInputType } from './components/CustomInput';
+export { default as CustomSelect } from './components/CustomSelect';
+export type { CustomSelectProps, SelectOption } from './components/CustomSelect';
+export { default as CustomSuggest } from './components/CustomSuggest';
+export type { CustomSuggestProps } from './components/CustomSuggest';
+export { default as Checkbox } from './components/Checkbox';
+export type { CheckboxProps } from './components/Checkbox';
+export { default as RadioGroup } from './components/RadioGroup';
+export type { RadioGroupProps, RadioOption } from './components/RadioGroup';
+export { default as RangeSlider } from './components/RangeSlider';
+export type { RangeSliderProps } from './components/RangeSlider';
+export { default as FileSelector } from './components/FileSelector';
+export type { FileSelectorProps } from './components/FileSelector';
+export { default as Button } from './components/Button';
+export type { ButtonProps } from './components/Button';
+export { default as Badge } from './components/Badge';
+export type { BadgeProps } from './components/Badge';
+
+/* Данные */
+export { default as Table, MobileCardList, ActionsColumn, useSort } from './components/Table';
+export type { Column, TableProps, MobileCardListProps, MobileCardField, ActionsColumnOptions, SortState, SortDirection } from './components/Table';
+export { default as DataTable, usePagedData } from './components/DataTable';
+export type { DataTableProps } from './components/DataTable';
+export { Pagination } from './components/Pagination';
+export type { PaginationProps } from './components/Pagination';
+export { default as DirectoryTree } from './components/DirectoryTree';
+export type { DirectoryTreeProps, DirectoryApi, DirectoryItem } from './components/DirectoryTree';
 export { default as Calendar } from './components/Calendar';
-export type { TemplateOption, ShiftOption, CalendarAssignment } from './components/Calendar';
-export { default as DirectoryTree } from './components/directory/DirectoryTree';
-export type { DirectoryApi, DirectoryItem } from './components/directory/DirectoryTree';
+export type { CalendarProps, TemplateOption, ShiftOption, CalendarAssignment } from './components/Calendar';
+export { FilterBar } from './components/FilterBar';
+export type { FilterBarProps, FilterItem } from './components/FilterBar';
 
+/* Каркас */
+export { Header, ThemeSwitcher, LayoutToggle } from './components/Header';
+export type { HeaderProps, HeaderNavTab, HeaderNavTabChild, ThemeSwitcherProps, LayoutToggleProps, LayoutMode } from './components/Header';
+export { PageLayout } from './components/PageLayout';
+export type { PageLayoutProps, FooterConfig } from './components/PageLayout';
 export * from './components/Nav';
-export { PageLayout, type PageLayoutProps, type FooterConfig } from './components/PageLayout';
+export { Menu } from './components/Menu';
+export type { MenuProps, MenuTab } from './components/Menu';
+export { default as Modal } from './components/Modal';
+export type { ModalProps, ModalField } from './components/Modal';
+export { AuthPage } from './components/AuthPage';
+export type { AuthPageProps } from './components/AuthPage';
+export { default as StatCard } from './components/StatCard';
+export type { StatCardProps } from './components/StatCard';
+export { default as LoadingOverlay } from './components/LoadingOverlay';
+export type { LoadingOverlayProps } from './components/LoadingOverlay';
+export { FeedbackProvider, useToast, useConfirm } from './components/Feedback';
+export type { ToastApi, ToastOptions, ConfirmOptions } from './components/Feedback';
+
+/* Диаграммы */
+export { PieChart } from './components/charts/PieChart';
+export type { PieChartProps, PieDataItem, PieChartMargin } from './components/charts/PieChart';
+export { Histogram } from './components/charts/Histogram';
+export type { HistogramProps, HistogramDataItem } from './components/charts/Histogram';
+
+/* Контекст приложения */
 export {
-  createAppModule, setting, oneOf, usePersistentState,
-  type BaseUser, type AuthEndpoints, type AppContextType,
-  type AppModuleOptions, type AppProviderProps, type ProfileModalProps,
-} from './components/AppProvider';
+  AppProvider, useResponsive, useMediaQuery, usePersistentState,
+  createAppModule, setting, oneOf,
+} from './context/AppContext';
+export type {
+  AppProviderProps, ResponsiveConfig, ResponsiveValue,
+  BaseUser, AuthEndpoints, AuthContextType, BaseUIState,
+  AppContextType, AppModuleOptions, ModuleProviderProps, ProfileModalProps,
+  SettingDef, SettingsSchema, SettingValues, SettingSetters,
+  UsePersistentStateOptions, BoundPageLayoutProps,
+} from './context/AppContext';
 
-export { ResponsiveProvider, useResponsive } from './context/ResponsiveContext';
-export type { ResponsiveConfig, ResponsiveValue } from './context/ResponsiveContext';
+/* Хуки */
+export {
+  useFetch, useModalForm, useAutoRefresh, isOverlayOpen, useAutofocus,
+  useDebouncedValue, useResizeObserver, useBodyScrollLock, useStyleTag, useIsoLayoutEffect, watchLayout,
+} from './hooks';
+export type { UseFetchOptions, UseFetchResult, UseAutoRefreshOptions, UseAutofocusOptions } from './hooks';
 
-export { MobileHeader } from './components/header/MobileHeader';
-export type { MobileHeaderProps, MobileNavTab } from './components/header/MobileHeader';
+/* Утилиты и поиск */
+export * from './utils';
+export * from './highlight';
 
-export { MobileCardList } from './components/table/MobileCardList';
-export type { MobileCardListProps, MobileCardField } from './components/table/MobileCardList';
-
-export { MobilePagination } from './components/pagination/MobilePagination';
-export type { MobilePaginationProps } from './components/pagination/MobilePagination';
-
-export { default as MobileDirectoryTree } from './components/directory/MobileDirectoryTree';
-export type { MobileDirectoryTreeProps } from './components/directory/MobileDirectoryTree';
-
-export { useMediaQuery } from './context/useMediaQuery';
-export { useBodyScrollLock } from './hooks/useBodyScrollLock';
-export { useResizeObserver } from './components/charts/_shared/useResizeObserver';
-
-export { useDebouncedValue } from './components/table/useDebouncedValue';
-export { useModalForm } from './hooks/useModalForm';
-export { useAutofocus } from './hooks/useAutofocus';
-export { useAutoRefresh, isOverlayOpen } from './components/table/useAutoRefresh';
-export { useFetch } from './hooks/useFetch';
-
-export { useSort } from './components/table/useSort';
-export type { SortState, SortDirection } from './components/table/useSort';
-
-export { usePersistedTableColumns } from './components/table/usePersistedTableColumns';
-export type { UsePersistedTableColumnsOptions } from './components/table/usePersistedTableColumns';
-
-export { useTabNavigation } from './hooks/useTabNavigation';
-
-export { useAuthActions } from './hooks/useAuthActions';
-export type { UseAuthActionsOptions } from './hooks/useAuthActions';
-
+/* Иконки и темы */
 export * from './components/icons';
-
-export { themes } from './themes/theme';
+export { themes, colorScheme, readableOn } from './themes/theme';
 export type { Theme, ThemeName } from './themes/theme';
 
 import './styles/global.css';
