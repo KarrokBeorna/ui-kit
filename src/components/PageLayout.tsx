@@ -1,4 +1,9 @@
+// PageLayout.tsx - UI Kit
 // PageLayout.tsx — каркас страницы: Header + заголовок + контент + футер.
+//
+// ИЗМЕНЕНИЕ: hideHeader / hideFooter скрывают шапку и футер на конкретной
+// странице, не отказываясь от PageLayout (например, главная с изображением
+// на весь экран). hideFooter перекрывает footer.
 import React, { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Header, type HeaderProps, type LayoutMode } from './Header';
@@ -53,6 +58,10 @@ export interface PageLayoutProps<TUser extends NavUser = NavUser> {
   headerProps?: Partial<HeaderProps>;
   /** Футер: конфиг или false. */
   footer?: FooterConfig | false;
+  /** Скрыть шапку на этой странице. @default false */
+  hideHeader?: boolean;
+  /** Скрыть футер на этой странице (перекрывает footer). @default false */
+  hideFooter?: boolean;
   /** Содержимое страницы. */
   children: React.ReactNode;
 }
@@ -60,11 +69,11 @@ export interface PageLayoutProps<TUser extends NavUser = NavUser> {
 const FOOTER_CSS = `
 .kbs-footer-link { transition: color .15s ease, border-bottom-color .15s ease; }
 @media (hover: hover) {
-  .kbs-footer:hover { opacity: 1; }
-  .kbs-footer-link:hover { color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); }
+.kbs-footer:hover { opacity: 1; }
+.kbs-footer-link:hover { color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); }
 }
 .kbs-footer-link:focus-visible, .kbs-footer-link:active {
-  color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); outline: none;
+color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); outline: none;
 }
 @media (prefers-reduced-motion: reduce) { .kbs-footer, .kbs-footer-link { transition: none !important; } }
 `;
@@ -102,40 +111,40 @@ export function PageLayout<TUser extends NavUser = NavUser>({
   siteName, logo, user, tabs, guestTabs = false, onSignOut,
   theme, onThemeChange, layout, onLayoutChange,
   title, actions, padding, paddingBottom,
-  scrollMode = 'content', onProfileClick, headerProps, footer, children,
+  scrollMode = 'content', onProfileClick, headerProps, footer,
+  hideHeader = false, hideFooter = false, children,
 }: PageLayoutProps<TUser>) {
   useStyleTag('kbs-page-layout-css', FOOTER_CSS);
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile } = useResponsive();
-
   const handleSignIn = useCallback(() => navigate('/login'), [navigate]);
   const handleSignOut = useCallback(async () => { await onSignOut(); navigate('/login'); }, [onSignOut, navigate]);
-
   const effectiveLayout: LayoutMode = isMobile ? 'horizontal' : layout;
   const t = themes[theme];
   const navTabs = useMemo(() => filterNavTabs(tabs, user, { guestTabs }), [tabs, user, guestTabs]);
   const activeTab = matchActiveTab(location.pathname, navTabs);
   const showHeaderBlock = Boolean(title) || Boolean(actions);
-
   return (
     <div className="kbs-shell" style={{
       height: '100dvh', overflow: 'hidden', display: 'flex',
       flexDirection: effectiveLayout === 'vertical' ? 'row' : 'column',
       background: t.bg, color: t.text, colorScheme: colorScheme(t.bg),
     }}>
-      <Header
-        t={t} layout={effectiveLayout}
-        activeTab={activeTab} onTabChange={navigate}
-        isLoggedIn={!!user} onSignIn={handleSignIn} onSignOut={handleSignOut}
-        userName={user?.name} navTabs={navTabs}
-        siteName={siteName} logoSvg={logo}
-        onProfileClick={onProfileClick} showSettings={false}
-        showMoscowTime showLayoutToggle={!isMobile} showThemeSwitcher
-        onLayoutChange={onLayoutChange}
-        currentTheme={theme} onThemeChange={onThemeChange}
-        {...headerProps}
-      />
+      {!hideHeader && (
+        <Header
+          t={t} layout={effectiveLayout}
+          activeTab={activeTab} onTabChange={navigate}
+          isLoggedIn={!!user} onSignIn={handleSignIn} onSignOut={handleSignOut}
+          userName={user?.name} navTabs={navTabs}
+          siteName={siteName} logoSvg={logo}
+          onProfileClick={onProfileClick} showSettings={false}
+          showMoscowTime showLayoutToggle={!isMobile} showThemeSwitcher
+          onLayoutChange={onLayoutChange}
+          currentTheme={theme} onThemeChange={onThemeChange}
+          {...headerProps}
+        />
+      )}
       <div className="kbs-content" style={{
         flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, boxSizing: 'border-box',
         padding: padding ?? 'clamp(12px, 3vw, 24px)',
@@ -158,7 +167,7 @@ export function PageLayout<TUser extends NavUser = NavUser>({
         }}>
           {children}
         </div>
-        {footer !== false && <CreatorFooter siteName={siteName} theme={t} config={footer ?? {}} />}
+        {!hideFooter && footer !== false && <CreatorFooter siteName={siteName} theme={t} config={footer ?? {}} />}
       </div>
     </div>
   );
