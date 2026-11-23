@@ -200,7 +200,7 @@ export default function RangeSlider(props: RangeSliderProps) {
           {label}
         </span>
         {isRange && (
-          <button type="button" disabled={disabled} title="Очистить оба значения"
+          <button type="button" disabled={disabled}
             onClick={() => { if (!disabled) (props as RangeProps).onChange([null, null]); }}
             style={{
               background: 'none', border: 'none', color: t.placeholder, fontSize: 11,

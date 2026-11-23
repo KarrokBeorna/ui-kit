@@ -68,7 +68,7 @@ export default function Checkbox({
         }} />
       </span>
       <span style={{ minWidth: 0, flex: truncate ? 1 : undefined }}>
-        <span title={truncate ? label : undefined} style={{
+        <span style={{
           display: 'block', fontSize: 14, color: t.text, lineHeight: 1.4,
           ...(truncate ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : null),
         }}>

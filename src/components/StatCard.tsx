@@ -20,7 +20,7 @@ export default function StatCard({ label, value, hint, theme: t }: StatCardProps
       padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0,
     }}>
       <div style={{ fontSize: 12, color: t.textMuted, fontFamily: 'system-ui' }}>{label}</div>
-      <div title={value} style={{
+      <div style={{
         fontSize: 22, fontWeight: 700, color: t.text, fontFamily: 'system-ui',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{value}</div>
