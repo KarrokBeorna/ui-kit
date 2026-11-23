@@ -1,13 +1,15 @@
 // global.ts — базовые стили UI Kit.
 //
-// ПОЧЕМУ НЕ .css: импорт `import './styles/global.css'` из index.ts вырезается
-// бандлером/сборкой пакета (sideEffects:false, external CSS, lib-режим) — в проектах
-// не применялись ни reset (body margin:8px → лишняя прокрутка), ни box-sizing
-// (таблицы ширились на 2px边框 → скролл по X и Y), ни шрифты.
-// Теперь стили инжектятся в рантайме через useStyleTag — как и все остальные
-// стили библиотеки — и применяются всегда, независимо от сборки потребителя.
+// Инжектятся в рантайме через useStyleTag (CSS-импорт из index.ts вырезается
+// бандлером при sideEffects:false / lib-режиме), поэтому применяются всегда.
+//
+// ВАЖНО: reset намеренно минимальный — только box-sizing, обнуление полей,
+// шрифт и сглаживание. Никаких body { font-size / line-height }: они наследуются
+// всеми компонентами и меняют метрики (футер вырастал на 2.1px). Типографика
+// задаётся самими компонентами.
 
-import { useStyleTag } from '../hooks';
+import { colorScheme, type Theme } from '../themes/theme';
+import { useIsoLayoutEffect, useStyleTag } from '../hooks';
 
 export const GLOBAL_STYLE_ID = 'kbs-global-css';
 
@@ -20,18 +22,14 @@ html, body { overscroll-behavior-y: none; }
 
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd { margin: 0; }
-button, input, optgroup, select, textarea {
-  font-family: inherit; font-size: 100%; line-height: 1.15; margin: 0;
-}
+button, input, optgroup, select, textarea { font-family: inherit; margin: 0; }
 
-/* Скроллбары в палитре темы: переменные выставляет PageLayout на <html>. */
+/* Скроллбары в палитре темы: переменные выставляет useGlobalStyles(theme). */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--kbs-sb-thumb, rgba(127,127,127,.45)) var(--kbs-sb-track, transparent);
@@ -61,10 +59,22 @@ button, input, optgroup, select, textarea {
 `;
 
 /**
- * Инжектит базовые стили библиотеки (reset, шрифты, скроллбары, keyframes).
- * Идемпотентно по id. AppProvider / PageLayout вызывают автоматически —
- * вручную нужен только при использовании компонентов совсем без провайдера.
+ * Инжектит базовые стили библиотеки (reset, шрифт, скроллбары, keyframes).
+ * Идемпотентно по id; AppProvider вызывает автоматически.
+ *
+ * @param theme если передана — дополнительно выставляет на <html> переменные
+ *              скроллбаров и color-scheme. Нужно на страницах без PageLayout
+ *              (например, полноэкранная схема), чтобы порталы и нативные
+ *              контролы тоже были в палитре темы.
  */
-export function useGlobalStyles(): void {
+export function useGlobalStyles(theme?: Theme): void {
   useStyleTag(GLOBAL_STYLE_ID, GLOBAL_CSS);
+  useIsoLayoutEffect(() => {
+    if (!theme || typeof document === 'undefined') return;
+    const r = document.documentElement;
+    r.style.setProperty('--kbs-sb-thumb', theme.scrollbarThumb);
+    r.style.setProperty('--kbs-sb-track', 'transparent');
+    r.style.setProperty('--kbs-sb-accent', theme.accent);
+    r.style.setProperty('color-scheme', colorScheme(theme.bg));
+  }, [theme]);
 }

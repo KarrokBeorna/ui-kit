@@ -1,18 +1,17 @@
 // PageLayout.tsx — каркас страницы: Header + заголовок + контент + футер.
 //
 // ИЗМЕНЕНИЯ:
-//  • Инжектит базовые стили библиотеки (reset/шрифты/скроллбары) — работает даже
-//    при использовании PageLayout без AppProvider.
-//  • Выставляет на <html> переменные скроллбаров и color-scheme из темы.
-//  • showNavigation=false — навигация полностью скрыта, раскладка принудительно
-//    горизонтальная (вертикальная без меню бессмысленна).
+//  • Переменные скроллбаров/color-scheme выставляет useGlobalStyles(theme) —
+//    одна реализация на библиотеку, работает и на страницах без PageLayout.
+//  • Футер: line-height зафиксирован как 'normal' — его высота больше не
+//    зависит от наследуемой типографики.
 
 import React, { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Header, type HeaderProps, type LayoutMode } from './Header';
 import { colorScheme, themes, type Theme, type ThemeName } from '../themes/theme';
 import { useResponsive } from '../context/AppContext';
-import { useIsoLayoutEffect, useStyleTag } from '../hooks';
+import { useStyleTag } from '../hooks';
 import { useGlobalStyles } from '../styles/global';
 import { filterNavTabs, matchActiveTab, type NavTab, type NavUser } from './Nav';
 
@@ -90,7 +89,7 @@ const CreatorFooter = ({ siteName, theme, config }: { siteName: string; theme: T
   return (
     <footer className="kbs-footer" style={{
       flexShrink: 0, paddingTop: 4, borderTop: `1px solid ${theme.borderSubtle}`,
-      textAlign: 'center', fontSize: 11, letterSpacing: '0.02em',
+      textAlign: 'center', fontSize: 11, lineHeight: 'normal', letterSpacing: '0.02em',
       color: theme.textMuted, opacity: 0.6, fontFamily: 'system-ui, -apple-system, sans-serif',
       userSelect: 'text', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       transition: 'opacity .15s ease', '--kbs-footer-accent': theme.accent,
@@ -115,22 +114,12 @@ export function PageLayout<TUser extends NavUser = NavUser>({
   title, actions, padding, paddingBottom,
   scrollMode = 'content', onProfileClick, headerProps, footer, children,
 }: PageLayoutProps<TUser>) {
-  useGlobalStyles();
+  const t = themes[theme];
+  useGlobalStyles(t);
   useStyleTag('kbs-page-layout-css', FOOTER_CSS);
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile } = useResponsive();
-  const t = themes[theme];
-
-  // Скроллбары и нативные контролы в палитре темы (порталы наследуют от <html>).
-  useIsoLayoutEffect(() => {
-    if (typeof document === 'undefined') return;
-    const r = document.documentElement;
-    r.style.setProperty('--kbs-sb-thumb', t.scrollbarThumb);
-    r.style.setProperty('--kbs-sb-track', 'transparent');
-    r.style.setProperty('--kbs-sb-accent', t.accent);
-    r.style.setProperty('color-scheme', colorScheme(t.bg));
-  }, [t]);
 
   const handleSignIn = useCallback(() => navigate('/login'), [navigate]);
   const handleSignOut = useCallback(async () => { await onSignOut(); navigate('/login'); }, [onSignOut, navigate]);
