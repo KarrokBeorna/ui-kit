@@ -1,12 +1,23 @@
 // AppContext.tsx — единый контекст приложения: адаптивность + персистентные
 // настройки + авторизация + HTTP-клиент для useFetch + базовые стили.
 //
-// ИЗМЕНЕНИЯ:
-//  • AppProvider (и лёгкий, и созданный createAppModule) инжектит базовые стили
-//    библиотеки — reset/шрифты применяются в любом проекте без импорта CSS.
-//  • AppModuleOptions.showNavigation — предикат видимости навигации. Позволяет
-//    намеренно запереть пользователя на странице: шапка остаётся (тема, время,
-//    профиль), но ни пунктов меню, ни бургера, ни drawer не渲染ится.
+// ИЗМЕНЕНИЕ: смена пароля включена по умолчанию.
+// BoundPageLayout прокидывает в Header onPasswordChange = changePassword из
+// useApp() — тот же клиент/эндпоинт, что и у авторизации, и человекочитаемая
+// ошибка сервера («Старый пароль неверен») прямо в модалке. После успеха
+// тихо обновляется пользователь: если бэкенд инвалидирует сессию при смене
+// пароля, guards корректно уведут на страницу входа.
+//
+// Управление:
+//   • выключить:  createAppModule<User>()({ ..., allowPasswordChange: false })
+//   • переопределить (свой эндпоинт / тост / логаут):
+//       headerProps: {
+//         onPasswordChange: async (oldPassword, newPassword) => {
+//           await axios.post('/api/auth/change-password', { oldPassword, newPassword });
+//           toast.success('Пароль изменён');
+//         },
+//       }
+//   • гостям пункт не показывается — меню пользователя есть только у вошедших.
 //
 // NOTE: цикл импорта AppContext ↔ PageLayout безопасен: с обеих сторон
 // используются только function declarations, вызываемые в render-time.
@@ -230,6 +241,12 @@ export interface AppModuleOptions<TUser extends BaseUser, S extends SettingsSche
    * на другую страницу из интерфейса нельзя. @default () => true
    */
   showNavigation?: (user: TUser | null) => boolean;
+  /**
+   * Пункт «Сменить пароль» в меню пользователя. Использует changePassword
+   * модуля (эндпоинт endpoints.changePassword) и встроенную модалку Header.
+   * Переопределяется через headerProps.onPasswordChange. @default true
+   */
+  allowPasswordChange?: boolean;
   /** HTTP-клиент модуля: auth И useFetch внутри AppProvider. @default axios */
   axiosInstance?: AxiosInstance;
   endpoints?: Partial<AuthEndpoints>;
@@ -282,7 +299,7 @@ const DEFAULT_MESSAGES = {
 /**
  * Создаёт модуль приложения: AppProvider (auth + UI + настройки + адаптивность +
  * HTTP-клиент + базовые стили), хуки useApp/useAuth/useUI, привязанный PageLayout
- * и route-guards.
+ * (с профилем и сменой пароля) и route-guards.
  *
  *   createAppModule<User>()({ siteName, tabs, axiosInstance, settings: {...} })
  */
@@ -290,7 +307,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
   return function buildAppModule<S extends SettingsSchema = {}>(options: AppModuleOptions<TUser, S>) {
     const {
       siteName, logo, tabs, guestTabs, scrollMode, footer, headerProps, profile,
-      showNavigation: showNavigationFor,
+      showNavigation: showNavigationFor, allowPasswordChange = true,
       axiosInstance: defaultAxios = axios, endpoints: defaultEndpoints, refreshOn = [], messages,
       settings, storagePrefix: defaultPrefix = 'app',
       defaultTheme: defTheme = 'light', defaultLayout: defLayout = 'horizontal',
@@ -483,16 +500,31 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
 
     /* ── Привязанный PageLayout ── */
     const BoundPageLayout = ({ title, actions, children, padding, paddingBottom }: BoundPageLayoutProps) => {
-      const { user, logout, theme, layout, setTheme, setLayout } = useApp();
+      const { user, logout, changePassword, refreshUser, theme, layout, setTheme, setLayout } = useApp();
       const [profileOpen, setProfileOpen] = useState(false);
       const canSeeProfile = !!profile && (profile.canSee?.(user) ?? (!!user && !user.webAdmin));
       const ProfileModal = profile?.Modal;
       const showNavigation = showNavigationFor?.(user) ?? true;
+
+      // Смена пароля: клиент, эндпоинт и текст ошибки — из auth-слоя модуля.
+      // После успеха тихо сверяем сессию: если бэкенд её сбросил при смене
+      // пароля, interceptor обнулит user и guards уведут на страницу входа.
+      // headerProps идёт последним — потребитель может переопределить обработчик.
+      const mergedHeaderProps = useMemo(() => ({
+        onPasswordChange: allowPasswordChange
+          ? async (oldPassword: string, newPassword: string) => {
+              await changePassword(oldPassword, newPassword);
+              await refreshUser();
+            }
+          : undefined,
+        ...(headerProps ?? {}),
+      }), [allowPasswordChange, changePassword, refreshUser]);
+
       return (
         <>
           <PageLayout
             siteName={siteName} logo={logo} tabs={tabs} guestTabs={guestTabs}
-            scrollMode={scrollMode} footer={footer} headerProps={headerProps}
+            scrollMode={scrollMode} footer={footer} headerProps={mergedHeaderProps}
             user={user} onSignOut={logout}
             theme={theme} onThemeChange={setTheme}
             layout={layout} onLayoutChange={setLayout}
