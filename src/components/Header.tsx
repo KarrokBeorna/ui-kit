@@ -1,13 +1,8 @@
 // Header.tsx — единая шапка (horizontal / vertical / mobile drawer) + ThemeSwitcher + LayoutToggle.
 //
-// ИЗМЕНЕНИЯ:
-//  • Все выпадающие меню (подменю навигации, меню пользователя, компактный
-//    переключатель темы) рендерятся в portal в document.body с position:fixed.
-//    Раньше они жили внутри <nav> с mask-image (создаёт containing block для fixed)
-//    и overflow:auto / внутри <aside overflow:hidden> — список обрезался, была
-//    видна только тень. zIndex поднят до 900 (выше шестерёнки таблицы, ниже модалок).
-//  • Клик по пункту меню больше не считается «кликом вне» (меню вне контейнера
-//    из-за портала), фокус корректно возвращается на триггер.
+// ИЗМЕНЕНИЕ: проп showNavigation. При false не рендерятся ни пункты меню,
+// ни бургер, ни мобильный drawer — остаётся только логотип, название, контролы,
+// время и меню пользователя. Перейти на другую страницу из шапки нельзя.
 
 import React, {
   memo, useCallback, useEffect, useId, useMemo, useRef, useState,
@@ -65,6 +60,8 @@ export interface HeaderProps {
   userName?: string;
   /** Пункты навигации (уже отфильтрованные по правам). */
   navTabs: HeaderNavTab[];
+  /** Показывать навигацию: пункты, бургер и мобильный drawer. @default true */
+  showNavigation?: boolean;
   /** Название сайта. @default 'Nexus' */
   siteName?: string;
   /** Логотип. @default '◈' */
@@ -299,7 +296,7 @@ export const ThemeSwitcher = memo(function ThemeSwitcher({
   );
 });
 
-/** Компактный переключатель темы: кнопка-точка + поповер в портале (не обрезается aside). */
+/** Компактный переключатель темы: кнопка-точка + поповер в портале. */
 const CompactThemeSwitcher = memo(function CompactThemeSwitcher({
   theme, onChange, t, size = 24,
 }: ThemeSwitcherProps & { size?: number }) {
@@ -972,7 +969,8 @@ function DesktopHorizontalHeader(p: HeaderProps & { onPasswordChangeRequest?: ()
   const { isTablet } = useResponsive();
   const {
     t, activeTab, onTabChange, isLoggedIn, onSignIn, onSignOut, userName, navTabs,
-    siteName = 'Nexus', logoSvg = '◈', onProfileClick, showSettings = false, onSettingsClick,
+    showNavigation = true, siteName = 'Nexus', logoSvg = '◈',
+    onProfileClick, showSettings = false, onSettingsClick,
     showLayoutToggle = false, showThemeSwitcher = false, layout = 'horizontal', onLayoutChange,
     currentTheme, onThemeChange, showMoscowTime = false,
     navStateKey = 'kbs-ui-nav', compactControls = false, onPasswordChangeRequest,
@@ -980,7 +978,9 @@ function DesktopHorizontalHeader(p: HeaderProps & { onPasswordChangeRequest?: ()
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const { lastSelectedChild, setLastSelectedChild } = usePersistedNavState(navStateKey, activeTab, navTabs);
   useEffect(() => { setOpenMenuId(null); }, [activeTab]);
-  const visibleTabs = useMemo(() => navTabs.filter((tab) => (tab.visible ? tab.visible(isLoggedIn) : true)), [navTabs, isLoggedIn]);
+  const visibleTabs = useMemo(
+    () => (showNavigation ? navTabs.filter((tab) => (tab.visible ? tab.visible(isLoggedIn) : true)) : []),
+    [navTabs, isLoggedIn, showNavigation]);
   const pick = useCallback((parentId: string, childId: string) =>
     setLastSelectedChild((prev) => ({ ...prev, [parentId]: childId })), [setLastSelectedChild]);
   const compact = compactControls || isTablet;
@@ -988,7 +988,7 @@ function DesktopHorizontalHeader(p: HeaderProps & { onPasswordChangeRequest?: ()
   return (
     <header style={{
       ...headerVars(t), display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: isTablet ? '0 12px' : '0 24px', height: 56,
+      padding: isTablet ? '0 12px' : '0 24px', height: 56, boxSizing: 'border-box',
       background: t.bgSurface, borderBottom: `1px solid ${t.border}`,
       boxShadow: t.shadow, position: 'sticky', top: 0, zIndex: 100, gap: 12,
     }}>
@@ -1005,25 +1005,27 @@ function DesktopHorizontalHeader(p: HeaderProps & { onPasswordChangeRequest?: ()
           </span>
         )}
       </div>
-      <nav className="kbs-nav-scroll" aria-label="Основная навигация" style={{
-        flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'visible',
-        maskImage: 'linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%)',
-      }}>
-        <div style={{ display: 'flex', gap: 2, width: 'max-content', margin: '0 auto', padding: '2px 14px' }}>
-          {visibleTabs.map((tab) => (
-            <HorizontalNavEntry key={tab.id} t={t} tab={tab} activeTab={activeTab} isLoggedIn={isLoggedIn}
-              lastChildId={lastSelectedChild[tab.id]}
-              open={openMenuId === tab.id} setOpen={(v) => setOpenMenuId(v ? tab.id : null)}
-              onNavigate={onTabChange} onPick={pick} />
-          ))}
-        </div>
-      </nav>
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+      {showNavigation && (
+        <nav className="kbs-nav-scroll" aria-label="Основная навигация" style={{
+          flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'visible',
+          maskImage: 'linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%)',
+        }}>
+          <div style={{ display: 'flex', gap: 2, width: 'max-content', margin: '0 auto', padding: '2px 14px' }}>
+            {visibleTabs.map((tab) => (
+              <HorizontalNavEntry key={tab.id} t={t} tab={tab} activeTab={activeTab} isLoggedIn={isLoggedIn}
+                lastChildId={lastSelectedChild[tab.id]}
+                open={openMenuId === tab.id} setOpen={(v) => setOpenMenuId(v ? tab.id : null)}
+                onNavigate={onTabChange} onPick={pick} />
+            ))}
+          </div>
+        </nav>
+      )}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, marginLeft: showNavigation ? 0 : 'auto' }}>
         <Controls t={t} compact={compact} direction={compactControls ? 'column' : 'row'}
           layout={layout} onLayoutChange={onLayoutChange}
           currentTheme={currentTheme} onThemeChange={onThemeChange}
-          showLayoutToggle={showLayoutToggle} showThemeSwitcher={showThemeSwitcher} />
+          showLayoutToggle={showNavigation && showLayoutToggle} showThemeSwitcher={showThemeSwitcher} />
         {showMoscowTime && <MoscowTimeWidget t={t} size={isTablet ? 26 : 46} />}
         <UserBlock t={t} userName={userName} isLoggedIn={isLoggedIn}
           onSignIn={onSignIn} onSignOut={onSignOut} onProfileClick={onProfileClick}
@@ -1042,7 +1044,8 @@ const VERTICAL_COLLAPSED_WIDTH = 64;
 function DesktopVerticalHeader(p: HeaderProps & { onPasswordChangeRequest?: () => void }) {
   const {
     t, activeTab, onTabChange, isLoggedIn, onSignIn, onSignOut, userName, navTabs,
-    siteName = 'Nexus', logoSvg = '◈', onProfileClick, showSettings = false, onSettingsClick,
+    showNavigation = true, siteName = 'Nexus', logoSvg = '◈',
+    onProfileClick, showSettings = false, onSettingsClick,
     showLayoutToggle = false, showThemeSwitcher = false, layout = 'vertical', onLayoutChange,
     currentTheme, onThemeChange, showMoscowTime = false,
     navStateKey = 'kbs-ui-nav', compactControls = false, onPasswordChangeRequest,
@@ -1057,7 +1060,9 @@ function DesktopVerticalHeader(p: HeaderProps & { onPasswordChangeRequest?: () =
 
   const { lastSelectedChild, setLastSelectedChild, expandedIds, setExpandedIds } =
     usePersistedNavState(navStateKey, activeTab, navTabs);
-  const visibleTabs = useMemo(() => navTabs.filter((tab) => (tab.visible ? tab.visible(isLoggedIn) : true)), [navTabs, isLoggedIn]);
+  const visibleTabs = useMemo(
+    () => (showNavigation ? navTabs.filter((tab) => (tab.visible ? tab.visible(isLoggedIn) : true)) : []),
+    [navTabs, isLoggedIn, showNavigation]);
 
   const userClosedRef = useRef<Set<string>>(new Set());
   useEffect(() => { userClosedRef.current = new Set(); }, [activeTab]);
@@ -1086,7 +1091,7 @@ function DesktopVerticalHeader(p: HeaderProps & { onPasswordChangeRequest?: () =
   const w = collapsed ? VERTICAL_COLLAPSED_WIDTH : VERTICAL_EXPANDED_WIDTH;
   return (
     <aside className="kbs-aside" style={{
-      ...headerVars(t), width: w, height: '100%', background: t.bgSurface,
+      ...headerVars(t), width: w, height: '100%', background: t.bgSurface, boxSizing: 'border-box',
       borderRight: `1px solid ${t.border}`, boxShadow: t.shadow,
       display: 'flex', flexDirection: 'column',
       transition: 'width .32s cubic-bezier(.4,0,.2,1)', overflow: 'hidden', flexShrink: 0,
@@ -1123,7 +1128,7 @@ function DesktopVerticalHeader(p: HeaderProps & { onPasswordChangeRequest?: () =
         flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
         padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 2,
       }}>
-        {collapsed && (
+        {collapsed && showNavigation && (
           <button type="button" className="kbs-icon-btn" onClick={() => setCollapsed(false)}
             aria-label="Развернуть меню" title="Развернуть меню"
             style={{
@@ -1205,12 +1210,12 @@ function DesktopVerticalHeader(p: HeaderProps & { onPasswordChangeRequest?: () =
         })}
       </nav>
 
-      {(showLayoutToggle || showThemeSwitcher) && (
+      {((showNavigation && showLayoutToggle) || showThemeSwitcher) && (
         <div style={{ padding: 8, borderTop: `1px solid ${t.borderSubtle}`, display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
           <Controls t={t} compact={compactControls || collapsed} direction={collapsed ? 'column' : 'row'}
             layout={layout} onLayoutChange={onLayoutChange}
             currentTheme={currentTheme} onThemeChange={onThemeChange}
-            showLayoutToggle={showLayoutToggle} showThemeSwitcher={showThemeSwitcher} />
+            showLayoutToggle={showNavigation && showLayoutToggle} showThemeSwitcher={showThemeSwitcher} />
         </div>
       )}
       <div style={{
@@ -1240,7 +1245,7 @@ function MIco({ size, children }: { size: number; children?: ReactNode }) {
 function MobileDrawerHeader(p: HeaderProps & { onPasswordChangeRequest?: () => void }) {
   const {
     t, activeTab, onTabChange, isLoggedIn, onSignIn, onSignOut, userName, navTabs,
-    siteName = 'Nexus', logoSvg = '◈', currentTheme, onThemeChange,
+    showNavigation = true, siteName = 'Nexus', logoSvg = '◈', currentTheme, onThemeChange,
     showThemeSwitcher = false, showMoscowTime = false,
     onProfileClick, onPasswordChangeRequest, onSettingsClick, showSettings = false,
   } = p;
@@ -1255,17 +1260,17 @@ function MobileDrawerHeader(p: HeaderProps & { onPasswordChangeRequest?: () => v
     if (drawer && drawer.contains(document.activeElement)) triggerRef.current?.focus();
     setOpen(false);
   }, []);
-  useBodyScrollLock(open);
+  useBodyScrollLock(open && showNavigation);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const visibleTabs = useMemo(() =>
-    navTabs
+    (showNavigation ? navTabs : [])
       .filter((tab) => (tab.visible ? tab.visible(isLoggedIn) : true))
       .map((tab) => tab.children
         ? { ...tab, children: tab.children.filter((c) => (c.visible ? c.visible(isLoggedIn) : true)) }
         : tab)
       .filter((tab) => !tab.children || tab.children.length > 0),
-    [navTabs, isLoggedIn]);
+    [navTabs, isLoggedIn, showNavigation]);
 
   useEffect(() => {
     const parents = visibleTabs.filter((tab) => tab.children?.some((c) => c.id === activeTab)).map((tab) => tab.id);
@@ -1412,20 +1417,22 @@ function MobileDrawerHeader(p: HeaderProps & { onPasswordChangeRequest?: () => v
   return (
     <>
       <header style={{
-        ...vars, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+        ...vars, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', boxSizing: 'border-box',
         paddingTop: 'calc(10px + env(safe-area-inset-top, 0px))',
         paddingLeft: 'calc(14px + env(safe-area-inset-left, 0px))',
         paddingRight: 'calc(14px + env(safe-area-inset-right, 0px))',
         background: t.bgSurface, borderBottom: `1px solid ${t.border}`,
         color: t.text, position: 'sticky', top: 0, zIndex: 100, minHeight: 56,
       }}>
-        <button ref={triggerRef} type="button" className="kbs-m-btn"
-          aria-label="Открыть меню" aria-expanded={open} aria-controls={drawerId}
-          onClick={() => setOpen(true)}
-          style={{
-            fontSize: 22, lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            minWidth: 44, minHeight: 44, borderRadius: 8, color: t.text,
-          }}>☰</button>
+        {showNavigation && (
+          <button ref={triggerRef} type="button" className="kbs-m-btn"
+            aria-label="Открыть меню" aria-expanded={open} aria-controls={drawerId}
+            onClick={() => setOpen(true)}
+            style={{
+              fontSize: 22, lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              minWidth: 44, minHeight: 44, borderRadius: 8, color: t.text,
+            }}>☰</button>
+        )}
         <div style={{
           width: 30, height: 30, background: t.accent, borderRadius: 9,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1442,93 +1449,95 @@ function MobileDrawerHeader(p: HeaderProps & { onPasswordChangeRequest?: () => v
         )}
       </header>
 
-      <div className="kbs-m-scrim" onClick={close} role="presentation" style={{
-        position: 'fixed', inset: 0, background: 'rgba(6, 8, 14, 0.55)',
-        backdropFilter: open ? 'blur(2px)' : 'none', zIndex: 1000,
-        opacity: open ? 1 : 0, visibility: open ? 'visible' : 'hidden',
-        pointerEvents: open ? 'auto' : 'none',
-        transition: prefersReducedMotion ? 'none' : `opacity .2s ease, visibility 0s linear ${open ? '0s' : '.2s'}`,
-      }}>
-        <aside ref={drawerRef} id={drawerId} onClick={(e) => e.stopPropagation()}
-          role="dialog" aria-modal="true" aria-label="Главное меню" className="kbs-m-drawer"
-          style={{
-            ...vars, position: 'absolute', top: 0, left: 0, bottom: 0, width: '82%', maxWidth: 340,
-            background: t.bgSurface, color: t.text, display: 'flex', flexDirection: 'column',
-            paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-            paddingLeft: 'env(safe-area-inset-left, 0px)', boxShadow: t.shadowLg,
-            transform: open ? 'translateX(0)' : 'translateX(-100%)',
-            visibility: open ? 'visible' : 'hidden',
-            transition: prefersReducedMotion ? 'none'
-              : `transform .25s cubic-bezier(.4,0,.2,1), visibility 0s linear ${open ? '0s' : '.25s'}`,
-            willChange: 'transform',
-          }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 16px', borderBottom: `1px solid ${t.border}`, flexShrink: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <div style={{
-                width: 30, height: 30, background: t.accent, borderRadius: 9,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, color: t.accentText, fontWeight: 700, flexShrink: 0,
-              }}>{logoSvg}</div>
-              <span style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{siteName}</span>
+      {showNavigation && (
+        <div className="kbs-m-scrim" onClick={close} role="presentation" style={{
+          position: 'fixed', inset: 0, background: 'rgba(6, 8, 14, 0.55)',
+          backdropFilter: open ? 'blur(2px)' : 'none', zIndex: 1000,
+          opacity: open ? 1 : 0, visibility: open ? 'visible' : 'hidden',
+          pointerEvents: open ? 'auto' : 'none',
+          transition: prefersReducedMotion ? 'none' : `opacity .2s ease, visibility 0s linear ${open ? '0s' : '.2s'}`,
+        }}>
+          <aside ref={drawerRef} id={drawerId} onClick={(e) => e.stopPropagation()}
+            role="dialog" aria-modal="true" aria-label="Главное меню" className="kbs-m-drawer"
+            style={{
+              ...vars, position: 'absolute', top: 0, left: 0, bottom: 0, width: '82%', maxWidth: 340,
+              background: t.bgSurface, color: t.text, display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+              paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              paddingLeft: 'env(safe-area-inset-left, 0px)', boxShadow: t.shadowLg,
+              transform: open ? 'translateX(0)' : 'translateX(-100%)',
+              visibility: open ? 'visible' : 'hidden',
+              transition: prefersReducedMotion ? 'none'
+                : `transform .25s cubic-bezier(.4,0,.2,1), visibility 0s linear ${open ? '0s' : '.25s'}`,
+              willChange: 'transform',
+            }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 16px', borderBottom: `1px solid ${t.border}`, flexShrink: 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div style={{
+                  width: 30, height: 30, background: t.accent, borderRadius: 9,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 15, color: t.accentText, fontWeight: 700, flexShrink: 0,
+                }}>{logoSvg}</div>
+                <span style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{siteName}</span>
+              </div>
+              <button type="button" className="kbs-m-btn" aria-label="Закрыть меню" onClick={close}
+                style={{
+                  color: t.iconColor, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  minWidth: 44, minHeight: 44, borderRadius: 8, flexShrink: 0,
+                }}>
+                <IcoX s={18} />
+              </button>
             </div>
-            <button type="button" className="kbs-m-btn" aria-label="Закрыть меню" onClick={close}
-              style={{
-                color: t.iconColor, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                minWidth: 44, minHeight: 44, borderRadius: 8, flexShrink: 0,
-              }}>
-              <IcoX s={18} />
-            </button>
-          </div>
 
-          <nav className="kbs-m-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 8 }}>
-            {visibleTabs.map((tab) =>
-              tab.children && tab.children.length > 0 ? renderGroup(tab) : renderLeaf(tab, activeTab === tab.id, 0))}
-          </nav>
+            <nav className="kbs-m-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 8 }}>
+              {visibleTabs.map((tab) =>
+                tab.children && tab.children.length > 0 ? renderGroup(tab) : renderLeaf(tab, activeTab === tab.id, 0))}
+            </nav>
 
-          {showThemeSwitcher && currentTheme && onThemeChange && (
-            <div style={{ padding: 14, borderTop: `1px solid ${t.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Тема</div>
-              <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact stretch minButtonHeight={44} />
-            </div>
-          )}
+            {showThemeSwitcher && currentTheme && onThemeChange && (
+              <div style={{ padding: 14, borderTop: `1px solid ${t.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Тема</div>
+                <ThemeSwitcher theme={currentTheme} onChange={onThemeChange} t={t} compact stretch minButtonHeight={44} />
+              </div>
+            )}
 
-          <div style={{ padding: 14, borderTop: `1px solid ${t.border}`, flexShrink: 0 }}>
-            {isLoggedIn ? (
-              <>
-                <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {userName}
-                </div>
-                {onProfileClick && accountAction('◈ Профиль', onProfileClick)}
-                {effectiveSettings && accountAction('⚙ Настройки', effectiveSettings)}
-                {onPasswordChangeRequest && accountAction('🔑 Сменить пароль', onPasswordChangeRequest)}
-                <button type="button" className="kbs-m-btn" onClick={() => { close(); onSignOut(); }}
+            <div style={{ padding: 14, borderTop: `1px solid ${t.border}`, flexShrink: 0 }}>
+              {isLoggedIn ? (
+                <>
+                  <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {userName}
+                  </div>
+                  {onProfileClick && accountAction('◈ Профиль', onProfileClick)}
+                  {effectiveSettings && accountAction('⚙ Настройки', effectiveSettings)}
+                  {onPasswordChangeRequest && accountAction('🔑 Сменить пароль', onPasswordChangeRequest)}
+                  <button type="button" className="kbs-m-btn" onClick={() => { close(); onSignOut(); }}
+                    style={{
+                      width: '100%', minHeight: TOUCH, padding: '12px 16px',
+                      background: t.danger, color: '#ffffff', borderRadius: 10,
+                      fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    }}>
+                    <IcoLogOut s={16} /> Выйти
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="kbs-m-btn" onClick={() => { close(); onSignIn(); }}
                   style={{
                     width: '100%', minHeight: TOUCH, padding: '12px 16px',
-                    background: t.danger, color: '#ffffff', borderRadius: 10,
+                    background: t.accent, color: t.accentText, borderRadius: 10,
                     fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    boxShadow: `0 2px 16px ${t.accentGlow}`,
                   }}>
-                  <IcoLogOut s={16} /> Выйти
+                  <IcoLogIn s={16} /> Войти
                 </button>
-              </>
-            ) : (
-              <button type="button" className="kbs-m-btn" onClick={() => { close(); onSignIn(); }}
-                style={{
-                  width: '100%', minHeight: TOUCH, padding: '12px 16px',
-                  background: t.accent, color: t.accentText, borderRadius: 10,
-                  fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: `0 2px 16px ${t.accentGlow}`,
-                }}>
-                <IcoLogIn s={16} /> Войти
-              </button>
-            )}
-          </div>
-        </aside>
-      </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
     </>
   );
 }
@@ -1537,8 +1546,8 @@ function MobileDrawerHeader(p: HeaderProps & { onPasswordChangeRequest?: () => v
 
 /**
  * Шапка приложения: мобильный drawer на узком экране, горизонтальная или
- * вертикальная раскладка на десктопе. Модалка смены пароля встраивается
- * автоматически при передаче onPasswordChange.
+ * вертикальная раскладка на десктопе. showNavigation=false убирает всю навигацию.
+ * Модалка смены пароля встраивается автоматически при передаче onPasswordChange.
  */
 export const Header = memo(function Header(props: HeaderProps) {
   useStyleTag('kbs-header-styles', HEADER_CSS);

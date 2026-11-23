@@ -1,15 +1,19 @@
-// PageLayout.tsx - UI Kit
 // PageLayout.tsx — каркас страницы: Header + заголовок + контент + футер.
 //
-// ИЗМЕНЕНИЕ: hideHeader / hideFooter скрывают шапку и футер на конкретной
-// странице, не отказываясь от PageLayout (например, главная с изображением
-// на весь экран). hideFooter перекрывает footer.
+// ИЗМЕНЕНИЯ:
+//  • Инжектит базовые стили библиотеки (reset/шрифты/скроллбары) — работает даже
+//    при использовании PageLayout без AppProvider.
+//  • Выставляет на <html> переменные скроллбаров и color-scheme из темы.
+//  • showNavigation=false — навигация полностью скрыта, раскладка принудительно
+//    горизонтальная (вертикальная без меню бессмысленна).
+
 import React, { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Header, type HeaderProps, type LayoutMode } from './Header';
 import { colorScheme, themes, type Theme, type ThemeName } from '../themes/theme';
 import { useResponsive } from '../context/AppContext';
-import { useStyleTag } from '../hooks';
+import { useIsoLayoutEffect, useStyleTag } from '../hooks';
+import { useGlobalStyles } from '../styles/global';
 import { filterNavTabs, matchActiveTab, type NavTab, type NavUser } from './Nav';
 
 /** Подпись автора в футере. */
@@ -42,6 +46,8 @@ export interface PageLayoutProps<TUser extends NavUser = NavUser> {
   layout: LayoutMode;
   /** Смена раскладки. */
   onLayoutChange: (l: LayoutMode) => void;
+  /** Показывать навигацию: пункты меню, бургер и мобильный drawer. @default true */
+  showNavigation?: boolean;
   /** Заголовок страницы. */
   title?: string;
   /** Действия справа от заголовка. */
@@ -58,10 +64,6 @@ export interface PageLayoutProps<TUser extends NavUser = NavUser> {
   headerProps?: Partial<HeaderProps>;
   /** Футер: конфиг или false. */
   footer?: FooterConfig | false;
-  /** Скрыть шапку на этой странице. @default false */
-  hideHeader?: boolean;
-  /** Скрыть футер на этой странице (перекрывает footer). @default false */
-  hideFooter?: boolean;
   /** Содержимое страницы. */
   children: React.ReactNode;
 }
@@ -69,11 +71,11 @@ export interface PageLayoutProps<TUser extends NavUser = NavUser> {
 const FOOTER_CSS = `
 .kbs-footer-link { transition: color .15s ease, border-bottom-color .15s ease; }
 @media (hover: hover) {
-.kbs-footer:hover { opacity: 1; }
-.kbs-footer-link:hover { color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); }
+  .kbs-footer:hover { opacity: 1; }
+  .kbs-footer-link:hover { color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); }
 }
 .kbs-footer-link:focus-visible, .kbs-footer-link:active {
-color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); outline: none;
+  color: var(--kbs-footer-accent); border-bottom-color: var(--kbs-footer-accent); outline: none;
 }
 @media (prefers-reduced-motion: reduce) { .kbs-footer, .kbs-footer-link { transition: none !important; } }
 `;
@@ -109,42 +111,55 @@ const CreatorFooter = ({ siteName, theme, config }: { siteName: string; theme: T
 /** Каркас страницы с адаптивной шапкой, скроллом и футером. */
 export function PageLayout<TUser extends NavUser = NavUser>({
   siteName, logo, user, tabs, guestTabs = false, onSignOut,
-  theme, onThemeChange, layout, onLayoutChange,
+  theme, onThemeChange, layout, onLayoutChange, showNavigation = true,
   title, actions, padding, paddingBottom,
-  scrollMode = 'content', onProfileClick, headerProps, footer,
-  hideHeader = false, hideFooter = false, children,
+  scrollMode = 'content', onProfileClick, headerProps, footer, children,
 }: PageLayoutProps<TUser>) {
+  useGlobalStyles();
   useStyleTag('kbs-page-layout-css', FOOTER_CSS);
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile } = useResponsive();
+  const t = themes[theme];
+
+  // Скроллбары и нативные контролы в палитре темы (порталы наследуют от <html>).
+  useIsoLayoutEffect(() => {
+    if (typeof document === 'undefined') return;
+    const r = document.documentElement;
+    r.style.setProperty('--kbs-sb-thumb', t.scrollbarThumb);
+    r.style.setProperty('--kbs-sb-track', 'transparent');
+    r.style.setProperty('--kbs-sb-accent', t.accent);
+    r.style.setProperty('color-scheme', colorScheme(t.bg));
+  }, [t]);
+
   const handleSignIn = useCallback(() => navigate('/login'), [navigate]);
   const handleSignOut = useCallback(async () => { await onSignOut(); navigate('/login'); }, [onSignOut, navigate]);
-  const effectiveLayout: LayoutMode = isMobile ? 'horizontal' : layout;
-  const t = themes[theme];
-  const navTabs = useMemo(() => filterNavTabs(tabs, user, { guestTabs }), [tabs, user, guestTabs]);
+
+  const effectiveLayout: LayoutMode = isMobile || !showNavigation ? 'horizontal' : layout;
+  const navTabs = useMemo(
+    () => (showNavigation ? filterNavTabs(tabs, user, { guestTabs }) : []),
+    [tabs, user, guestTabs, showNavigation]);
   const activeTab = matchActiveTab(location.pathname, navTabs);
   const showHeaderBlock = Boolean(title) || Boolean(actions);
+
   return (
     <div className="kbs-shell" style={{
-      height: '100dvh', overflow: 'hidden', display: 'flex',
+      height: '100dvh', overflow: 'hidden', display: 'flex', boxSizing: 'border-box',
       flexDirection: effectiveLayout === 'vertical' ? 'row' : 'column',
       background: t.bg, color: t.text, colorScheme: colorScheme(t.bg),
     }}>
-      {!hideHeader && (
-        <Header
-          t={t} layout={effectiveLayout}
-          activeTab={activeTab} onTabChange={navigate}
-          isLoggedIn={!!user} onSignIn={handleSignIn} onSignOut={handleSignOut}
-          userName={user?.name} navTabs={navTabs}
-          siteName={siteName} logoSvg={logo}
-          onProfileClick={onProfileClick} showSettings={false}
-          showMoscowTime showLayoutToggle={!isMobile} showThemeSwitcher
-          onLayoutChange={onLayoutChange}
-          currentTheme={theme} onThemeChange={onThemeChange}
-          {...headerProps}
-        />
-      )}
+      <Header
+        t={t} layout={effectiveLayout}
+        activeTab={activeTab} onTabChange={navigate}
+        isLoggedIn={!!user} onSignIn={handleSignIn} onSignOut={handleSignOut}
+        userName={user?.name} navTabs={navTabs} showNavigation={showNavigation}
+        siteName={siteName} logoSvg={logo}
+        onProfileClick={onProfileClick} showSettings={false}
+        showMoscowTime showLayoutToggle={!isMobile && showNavigation} showThemeSwitcher
+        onLayoutChange={onLayoutChange}
+        currentTheme={theme} onThemeChange={onThemeChange}
+        {...headerProps}
+      />
       <div className="kbs-content" style={{
         flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, boxSizing: 'border-box',
         padding: padding ?? 'clamp(12px, 3vw, 24px)',
@@ -155,9 +170,7 @@ export function PageLayout<TUser extends NavUser = NavUser>({
             flexShrink: 0, display: 'flex', justifyContent: 'space-between',
             alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8,
           }}>
-            {title && (
-              <h2 className="kbs-page-title" style={{ margin: 0, color: t.text, fontSize: 'clamp(18px, 2.5vw, 24px)' }}>{title}</h2>
-            )}
+            {title && <h2 className="kbs-page-title" style={{ margin: 0, color: t.text, fontSize: 'clamp(18px, 2.5vw, 24px)' }}>{title}</h2>}
             {actions && <div className="kbs-page-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions}</div>}
           </div>
         )}
@@ -167,7 +180,7 @@ export function PageLayout<TUser extends NavUser = NavUser>({
         }}>
           {children}
         </div>
-        {!hideFooter && footer !== false && <CreatorFooter siteName={siteName} theme={t} config={footer ?? {}} />}
+        {footer !== false && <CreatorFooter siteName={siteName} theme={t} config={footer ?? {}} />}
       </div>
     </div>
   );

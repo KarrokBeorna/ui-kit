@@ -1,10 +1,16 @@
-// DataTable.tsx — готовый блок «таблица + пагинация + оверлей загрузки».
-// Сортировка (внутренняя или controlled), нарезка страниц, персист колонок, мобильные карточки.
+// DataTable.tsx — блок «таблица + пагинация + оверлей загрузки».
+//
+// ИЗМЕНЕНИЕ: убран второй (внешний) скролл-контейнер на десктопе. Скроллит
+// только внутренний контейнер Table — дробные flex-высоты больше не дают
+// паразитную прокрутку в 1–2px по X и Y. На мобильном (карточки) скроллится
+// внешняя область, т.к. карточки не имеют фиксированной высоты.
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Theme } from '../themes/theme';
 import Table, { useSort, type Column, type SortState, type MobileCardField } from './Table';
 import LoadingOverlay from './LoadingOverlay';
 import { Pagination, type PaginationProps } from './Pagination';
+import { useResponsive } from '../context/AppContext';
 
 /** Нарезка массива на страницы с автосбросом при смене resetKey и сжатии данных. */
 export function usePagedData<T>(data: T[], perPage: number, resetKey?: unknown) {
@@ -81,6 +87,7 @@ export default function DataTable<T extends Record<string, any>>({
   resetKey, columnMaxWidth = 300, mobileTitleRender, mobileLabelMaxWidth, mobileFields, mobileActions,
   onRowClick, rowStyle, selectedRowKey, refetch, autoRefreshInterval, autoRefreshPaused, pagination,
 }: DataTableProps<T>) {
+  const { isMobile } = useResponsive();
   const inner = useSort(data, initialSort ?? []);
   const sortState = extSort ?? inner.sortState;
   const sorted = extSort ? data : inner.sortedData;
@@ -89,8 +96,11 @@ export default function DataTable<T extends Record<string, any>>({
   const changeSort = (s: SortState) => { setPage(1); (onSortChange ?? inner.setSortState)(s); };
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'auto', overscrollBehavior: 'contain' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, boxSizing: 'border-box' }}>
+      <div style={{
+        flex: 1, minHeight: 0, position: 'relative', boxSizing: 'border-box',
+        overflow: isMobile ? 'auto' : 'hidden', overscrollBehavior: 'contain',
+      }}>
         <Table
           theme={t} columns={columns} data={pageData} rowKey={rowKey}
           fixedHeader height="100%" columnMaxWidth={columnMaxWidth}

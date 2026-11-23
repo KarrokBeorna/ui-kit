@@ -1,16 +1,16 @@
-// AppContext.tsx - UI Kit
 // AppContext.tsx — единый контекст приложения: адаптивность + персистентные
-// настройки + авторизация + HTTP-клиент для useFetch.
+// настройки + авторизация + HTTP-клиент для useFetch + базовые стили.
 //
-// ИЗМЕНЕНИЕ: AppProvider публикует axiosInstance модуля через FetchClientContext,
-// поэтому все useFetch внутри приложения ходят тем же клиентом (моки, interceptors,
-// baseURL), что и авторизация. Без провайдера useFetch использует глобальный axios.
-//
-// ИЗМЕНЕНИЕ: BoundPageLayout принимает hideHeader / hideFooter и пробрасывает
-// их в PageLayout — шапку и футер можно скрывать постранично.
+// ИЗМЕНЕНИЯ:
+//  • AppProvider (и лёгкий, и созданный createAppModule) инжектит базовые стили
+//    библиотеки — reset/шрифты применяются в любом проекте без импорта CSS.
+//  • AppModuleOptions.showNavigation — предикат видимости навигации. Позволяет
+//    намеренно запереть пользователя на странице: шапка остаётся (тема, время,
+//    профиль), но ни пунктов меню, ни бургера, ни drawer не渲染ится.
 //
 // NOTE: цикл импорта AppContext ↔ PageLayout безопасен: с обеих сторон
 // используются только function declarations, вызываемые в render-time.
+
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   useSyncExternalStore, type ComponentType, type Dispatch, type ReactNode, type SetStateAction,
@@ -19,11 +19,13 @@ import { Navigate, Outlet } from 'react-router-dom';
 import axios, { AxiosError, type AxiosInstance } from 'axios';
 import { themes, type Theme, type ThemeName } from '../themes/theme';
 import { FetchClientContext } from '../hooks';
+import { useGlobalStyles } from '../styles/global';
 import type { LayoutMode } from '../components/Header';
 import { PageLayout, type PageLayoutProps, type FooterConfig } from '../components/PageLayout';
 import type { NavTab } from '../components/Nav';
 
 /* ───────────────────────── Media queries ───────────────────────── */
+
 const mqlCache = new Map<string, MediaQueryList>();
 function getMQL(query: string): MediaQueryList | null {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
@@ -31,6 +33,7 @@ function getMQL(query: string): MediaQueryList | null {
   if (!mql) { mql = window.matchMedia(query); mqlCache.set(query, mql); }
   return mql;
 }
+
 /** Подписка на media-query: SSR-safe, без tearing, с кэшем MediaQueryList. */
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback((onChange: () => void) => {
@@ -45,6 +48,7 @@ export function useMediaQuery(query: string): boolean {
 }
 
 /* ───────────────────────── Адаптивность ───────────────────────── */
+
 export interface ResponsiveConfig {
   /** Верхняя граница мобильного диапазона, px. @default 640 */
   mobileBreakpoint?: number;
@@ -53,6 +57,7 @@ export interface ResponsiveConfig {
   /** Принудительный режим (Storybook / визуальные тесты). */
   forceMode?: 'mobile' | 'tablet' | 'desktop';
 }
+
 export interface ResponsiveValue {
   isMobile: boolean; isTablet: boolean; isDesktop: boolean;
   width: 'mobile' | 'tablet' | 'desktop';
@@ -63,15 +68,19 @@ export interface ResponsiveValue {
   /** Пользователь предпочитает reduced motion. */
   prefersReducedMotion: boolean;
 }
+
 const DESKTOP_DEFAULT: ResponsiveValue = {
   isMobile: false, isTablet: false, isDesktop: true, width: 'desktop',
   hasHover: true, isTouch: false, prefersReducedMotion: false,
 };
+
 const ResponsiveCtx = createContext<ResponsiveValue>(DESKTOP_DEFAULT);
+
 /** Адаптивное состояние приложения. Без провайдера — desktop-дефолты. */
 export function useResponsive(): ResponsiveValue {
   return useContext(ResponsiveCtx);
 }
+
 function ResponsiveLayer({
   children, mobileBreakpoint = 640, tabletBreakpoint = 1024, forceMode,
 }: ResponsiveConfig & { children: ReactNode }) {
@@ -97,16 +106,20 @@ function ResponsiveLayer({
   }, [mobileQ, tabletQ, hoverQ, touchQ, reducedQ, forceMode]);
   return <ResponsiveCtx.Provider value={value}>{children}</ResponsiveCtx.Provider>;
 }
+
 export interface AppProviderProps extends ResponsiveConfig { children: ReactNode; }
+
 /**
- * Базовый провайдер UI Kit (только адаптивность). Модуль из createAppModule
- * включает адаптивность автоматически — двойной провайдер не нужен.
+ * Базовый провайдер UI Kit: адаптивность + базовые стили.
+ * Модуль из createAppModule включает то же самое — двойной провайдер не нужен.
  */
 export function AppProvider({ children, ...cfg }: AppProviderProps) {
+  useGlobalStyles();
   return <ResponsiveLayer {...cfg}>{children}</ResponsiveLayer>;
 }
 
 /* ───────────────────────── Персистентные настройки ───────────────────────── */
+
 export interface SettingDef<T> {
   default: T;
   validate?: (value: unknown) => boolean;
@@ -118,16 +131,20 @@ export type SettingValues<S extends SettingsSchema> = { [K in keyof S]: S[K]['de
 export type SettingSetters<S extends SettingsSchema> = {
   [K in keyof S as `set${Capitalize<string & K>}`]: (value: S[K]['default']) => void;
 };
+
 /** Описывает настройку схемы: значение по умолчанию + опциональная валидация. */
 export const setting = <T,>(defaultValue: T, validate?: (v: unknown) => boolean): SettingDef<T> =>
   ({ default: defaultValue, validate });
+
 /** Валидатор «одно из перечисленных строковых значений». */
 export const oneOf = <T extends string>(...values: readonly T[]) =>
   (v: unknown): v is T => values.includes(v as T);
+
 const kebab = (s: string) => s.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 const setterName = (s: string) => `set${s[0].toUpperCase()}${s.slice(1)}`;
 const defaultSerialize = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v));
 const defaultParse = (raw: string): unknown => { try { return JSON.parse(raw); } catch { return raw; } };
+
 export interface UsePersistentStateOptions<T> {
   validate?: (v: unknown) => boolean;
   parse?: (raw: string) => T;
@@ -135,6 +152,7 @@ export interface UsePersistentStateOptions<T> {
   /** Синхронизировать между вкладками через storage-событие. @default true */
   syncTabs?: boolean;
 }
+
 /** useState с персистом в localStorage, валидацией и синхронизацией вкладок. */
 export function usePersistentState<T>(
   key: string, initial: T, options: UsePersistentStateOptions<T> = {},
@@ -167,13 +185,16 @@ export function usePersistentState<T>(
 }
 
 /* ───────────────────────── Типы модуля ───────────────────────── */
+
 export interface BaseUser {
   userId: number; username: string; name: string; surname: string;
   isAdmin: boolean; webAdmin?: boolean; allowedTabs?: string[] | null;
 }
+
 export interface AuthEndpoints {
   me: string; login: string; logout: string; changePassword: string; sessionEnd?: string;
 }
+
 export interface AuthContextType<TUser extends BaseUser> {
   user: TUser | null; loading: boolean; error: string | null;
   login: (username: string, password: string) => Promise<void>;
@@ -182,15 +203,18 @@ export interface AuthContextType<TUser extends BaseUser> {
   clearError: () => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
+
 export interface BaseUIState {
   theme: ThemeName; layout: LayoutMode; perPage: number;
   setTheme: (t: ThemeName) => void;
   setLayout: (l: LayoutMode) => void;
   setPerPage: (n: number) => void;
 }
+
 export interface ProfileModalProps<TUser> {
   theme: Theme; isOpen: boolean; onClose: () => void; user: TUser | null;
 }
+
 export interface AppModuleOptions<TUser extends BaseUser, S extends SettingsSchema> {
   siteName: string;
   logo?: ReactNode;
@@ -200,6 +224,12 @@ export interface AppModuleOptions<TUser extends BaseUser, S extends SettingsSche
   footer?: FooterConfig | false;
   headerProps?: PageLayoutProps<TUser>['headerProps'];
   profile?: { canSee?: (user: TUser | null) => boolean; Modal: ComponentType<ProfileModalProps<TUser>> };
+  /**
+   * Кому показывать навигацию (пункты меню, бургер, мобильный drawer).
+   * false — шапка остаётся (логотип, тема, время, профиль), но перейти
+   * на другую страницу из интерфейса нельзя. @default () => true
+   */
+  showNavigation?: (user: TUser | null) => boolean;
   /** HTTP-клиент модуля: auth И useFetch внутри AppProvider. @default axios */
   axiosInstance?: AxiosInstance;
   endpoints?: Partial<AuthEndpoints>;
@@ -215,8 +245,10 @@ export interface AppModuleOptions<TUser extends BaseUser, S extends SettingsSche
   homePath?: string;
   noAccess?: ReactNode;
 }
+
 export type AppContextType<TUser extends BaseUser, S extends SettingsSchema> =
   AuthContextType<TUser> & BaseUIState & SettingValues<S> & SettingSetters<S>;
+
 /** Пропсы провайдера, созданного createAppModule. */
 export interface ModuleProviderProps {
   children: ReactNode;
@@ -228,14 +260,16 @@ export interface ModuleProviderProps {
   axiosInstance?: AxiosInstance;
   endpoints?: Partial<AuthEndpoints>;
 }
+
 export type BoundPageLayoutProps = Pick<
-  PageLayoutProps,
-  'title' | 'actions' | 'children' | 'padding' | 'paddingBottom' | 'hideHeader' | 'hideFooter'
+  PageLayoutProps, 'title' | 'actions' | 'children' | 'padding' | 'paddingBottom'
 >;
+
 const DEFAULT_ENDPOINTS: AuthEndpoints = {
   me: '/api/auth/me', login: '/api/auth/login', logout: '/api/auth/logout',
   changePassword: '/api/auth/change-password', sessionEnd: '/api/usage/session/end',
 };
+
 const DEFAULT_MESSAGES = {
   authCheckFailed: 'Не удалось проверить авторизацию',
   invalidCredentials: 'Неверное имя пользователя или пароль',
@@ -244,9 +278,11 @@ const DEFAULT_MESSAGES = {
 };
 
 /* ───────────────────────── Фабрика модуля ───────────────────────── */
+
 /**
  * Создаёт модуль приложения: AppProvider (auth + UI + настройки + адаптивность +
- * HTTP-клиент), хуки useApp/useAuth/useUI, привязанный PageLayout и route-guards.
+ * HTTP-клиент + базовые стили), хуки useApp/useAuth/useUI, привязанный PageLayout
+ * и route-guards.
  *
  *   createAppModule<User>()({ siteName, tabs, axiosInstance, settings: {...} })
  */
@@ -254,6 +290,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
   return function buildAppModule<S extends SettingsSchema = {}>(options: AppModuleOptions<TUser, S>) {
     const {
       siteName, logo, tabs, guestTabs, scrollMode, footer, headerProps, profile,
+      showNavigation: showNavigationFor,
       axiosInstance: defaultAxios = axios, endpoints: defaultEndpoints, refreshOn = [], messages,
       settings, storagePrefix: defaultPrefix = 'app',
       defaultTheme: defTheme = 'light', defaultLayout: defLayout = 'horizontal',
@@ -262,6 +299,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
     } = options;
     const msg = { ...DEFAULT_MESSAGES, ...messages };
     const settingsEntries = Object.entries(settings ?? {}) as [string, SettingDef<any>][];
+
     const AuthContext = createContext<AuthContextType<TUser> | undefined>(undefined);
     const UIContext = createContext<(BaseUIState & SettingValues<S> & SettingSetters<S>) | undefined>(undefined);
 
@@ -272,6 +310,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
       const [user, setUser] = useState<TUser | null>(null);
       const [loading, setLoading] = useState(true);
       const [error, setError] = useState<string | null>(null);
+
       const fetchUser = useCallback(async (silent = false) => {
         if (!silent) { setLoading(true); setError(null); }
         try {
@@ -285,13 +324,16 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
           if (!silent) setLoading(false);
         }
       }, [axiosInstance, endpoints.me]);
+
       useEffect(() => { void fetchUser(); }, [fetchUser]);
+
       useEffect(() => {
         const id = axiosInstance.interceptors.response.use(
           (r) => r,
           (err: AxiosError) => { if (err.response?.status === 401) setUser(null); return Promise.reject(err); });
         return () => { axiosInstance.interceptors.response.eject(id); };
       }, [axiosInstance]);
+
       const hasUser = !!user;
       useEffect(() => {
         if (!hasUser || refreshOn.length === 0) return;
@@ -304,6 +346,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
           document.removeEventListener('visibilitychange', onVis);
         };
       }, [hasUser, fetchUser]);
+
       const login = useCallback(async (username: string, password: string) => {
         setError(null);
         try {
@@ -315,6 +358,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
           throw err;
         }
       }, [axiosInstance, endpoints.login]);
+
       const logout = useCallback(async () => {
         setError(null);
         try {
@@ -322,6 +366,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
           await axiosInstance.post(endpoints.logout);
         } catch { /* ignore */ } finally { setUser(null); }
       }, [axiosInstance, endpoints.logout, endpoints.sessionEnd]);
+
       const refreshUser = useCallback(async () => { await fetchUser(true); }, [fetchUser]);
       const clearError = useCallback(() => setError(null), []);
       const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
@@ -332,6 +377,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
           throw new Error(e.response?.data?.error ?? msg.changePasswordFailed);
         }
       }, [axiosInstance, endpoints.changePassword]);
+
       const value = useMemo<AuthContextType<TUser>>(
         () => ({ user, loading, error, login, logout, refreshUser, clearError, changePassword }),
         [user, loading, error, login, logout, refreshUser, clearError, changePassword]);
@@ -349,6 +395,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
         { validate: oneOf('horizontal', 'vertical') });
       const [perPage, setPerPage] = usePersistentState<number>(`${storagePrefix}-per-page`, defaultPerPage,
         { validate: (v) => typeof v === 'number' && Number.isInteger(v) && v > 0 });
+
       const extraValues: Record<string, unknown> = {};
       const extraSetters: Record<string, unknown> = {};
       // Схема фиксирована при создании модуля → порядок хуков стабилен.
@@ -365,15 +412,20 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
         [theme, layout, perPage, ...Object.values(extraValues)]);
       return <UIContext.Provider value={value as BaseUIState & SettingValues<S> & SettingSetters<S>}>{children}</UIContext.Provider>;
     };
-    const AppProvider = (props: ModuleProviderProps) => (
-      <FetchClientContext.Provider value={props.axiosInstance ?? defaultAxios}>
-        <AuthProvider {...props}>
-          <UIProvider {...props}>
-            <ResponsiveLayer mobileBreakpoint={mobileBreakpoint}>{props.children}</ResponsiveLayer>
-          </UIProvider>
-        </AuthProvider>
-      </FetchClientContext.Provider>
-    );
+
+    const AppProvider = (props: ModuleProviderProps) => {
+      useGlobalStyles();
+      return (
+        <FetchClientContext.Provider value={props.axiosInstance ?? defaultAxios}>
+          <AuthProvider {...props}>
+            <UIProvider {...props}>
+              <ResponsiveLayer mobileBreakpoint={mobileBreakpoint}>{props.children}</ResponsiveLayer>
+            </UIProvider>
+          </AuthProvider>
+        </FetchClientContext.Provider>
+      );
+    };
+
     const useAuth = (): AuthContextType<TUser> => {
       const ctx = useContext(AuthContext);
       if (!ctx) throw new Error('useAuth must be used within AppProvider');
@@ -397,6 +449,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
         У вас нет доступных разделов.<br />Обратитесь к администратору для назначения роли.
       </div>
     );
+
     const ProtectedRoute = ({ children, redirectTo = loginPath }: { children?: ReactNode; redirectTo?: string }) => {
       const { user, loading } = useAuth();
       if (loading) return null;
@@ -429,11 +482,12 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
     };
 
     /* ── Привязанный PageLayout ── */
-    const BoundPageLayout = ({ title, actions, children, padding, paddingBottom, hideHeader, hideFooter }: BoundPageLayoutProps) => {
+    const BoundPageLayout = ({ title, actions, children, padding, paddingBottom }: BoundPageLayoutProps) => {
       const { user, logout, theme, layout, setTheme, setLayout } = useApp();
       const [profileOpen, setProfileOpen] = useState(false);
       const canSeeProfile = !!profile && (profile.canSee?.(user) ?? (!!user && !user.webAdmin));
       const ProfileModal = profile?.Modal;
+      const showNavigation = showNavigationFor?.(user) ?? true;
       return (
         <>
           <PageLayout
@@ -442,9 +496,9 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
             user={user} onSignOut={logout}
             theme={theme} onThemeChange={setTheme}
             layout={layout} onLayoutChange={setLayout}
+            showNavigation={showNavigation}
             onProfileClick={canSeeProfile ? () => setProfileOpen(true) : undefined}
             title={title} actions={actions} padding={padding} paddingBottom={paddingBottom}
-            hideHeader={hideHeader} hideFooter={hideFooter}
           >
             {children}
           </PageLayout>
@@ -454,6 +508,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
         </>
       );
     };
+
     return {
       AppProvider, useApp, useAuth, useUI,
       PageLayout: BoundPageLayout,

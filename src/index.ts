@@ -1,4 +1,6 @@
 // index.ts — публичный API UI Kit.
+// Базовые стили больше не импортируются как CSS-файл (см. styles/global.ts):
+// они инжектятся в рантайме провайдерами, поэтому применяются при любой сборке.
 
 /* Поля */
 export { default as CustomInput } from './components/CustomInput';
@@ -79,13 +81,12 @@ export {
 } from './hooks';
 export type { UseFetchOptions, UseFetchResult, UseAutoRefreshOptions, UseAutofocusOptions } from './hooks';
 
-/* Утилиты и поиск */
+/* Утилиты, поиск, базовые стили */
 export * from './utils';
 export * from './highlight';
+export { useGlobalStyles, GLOBAL_CSS, GLOBAL_STYLE_ID } from './styles/global';
 
 /* Иконки и темы */
 export * from './components/icons';
 export { themes, colorScheme, readableOn } from './themes/theme';
 export type { Theme, ThemeName } from './themes/theme';
-
-import './styles/global.css';
