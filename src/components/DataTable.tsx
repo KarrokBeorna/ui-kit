@@ -1,10 +1,8 @@
 // DataTable.tsx — блок «таблица + пагинация + оверлей загрузки».
 //
-// ИЗМЕНЕНИЕ: оверлей больше не привязан к непустой странице.
-//   • data-empty (первый запрос, данных нет) → скелетон внутри Table;
-//   • data-nonempty (есть данные) → затемняющий оверлей поверх блока таблицы
-//     (включая пагинацию), чтобы было видно, что идёт обновление.
-// Так overlay виден всегда, когда loading=true и это осмысленно.
+// ИЗМЕНЕНИЕ: при первом запросе (loading=true, данных нет) не рендерим Table
+// вообще — только LoadingOverlay с текстом «Загрузка…». Иначе <td> с этим
+// текстом внутри таблицы перекрывал оверлей (zIndex контента > zIndex оверлея).
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Theme } from '../themes/theme';
@@ -96,9 +94,9 @@ export default function DataTable<T extends Record<string, any>>({
 
   const changeSort = (s: SortState) => { setPage(1); (onSortChange ?? inner.setSortState)(s); };
 
-  // Пусто = первый запрос или реально нет строк. В этом случае скелетон рисует сам Table,
-  // оверлей поверх не нужен (иначе он закрыл бы «Нет данных»).
-  const hasRows = sorted.length > 0;
+  // Первый запрос: данных нет, идёт загрузка → показываем только оверлей, без таблицы.
+  // Иначе <td>«Загрузка…» внутри таблицы перекрывает LoadingOverlay.
+  const isFirstLoad = loading && sorted.length === 0;
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, boxSizing: 'border-box' }}>
@@ -106,19 +104,22 @@ export default function DataTable<T extends Record<string, any>>({
         flex: 1, minHeight: 0, position: 'relative', boxSizing: 'border-box',
         overflow: isMobile ? 'auto' : 'hidden', overscrollBehavior: 'contain',
       }}>
-        <Table
-          theme={t} columns={columns} data={pageData} rowKey={rowKey}
-          fixedHeader height="100%" columnMaxWidth={columnMaxWidth}
-          persistKey={persistKey} pinnedColumns={pinnedColumns} stickyRight={stickyRight}
-          sortState={sortState} onSortChange={changeSort} sortable={false}
-          loading={loading}
-          mobileTitleRender={mobileTitleRender} mobileLabelMaxWidth={mobileLabelMaxWidth}
-          mobileFields={mobileFields} mobileActions={mobileActions}
-          onRowClick={onRowClick} rowStyle={rowStyle} selectedRowKey={selectedRowKey}
-          refetch={refetch} autoRefreshInterval={autoRefreshInterval} autoRefreshPaused={autoRefreshPaused}
-        />
-        {/* Затемнение только когда есть чем закрыть: пустую область перекрывать бессмысленно. */}
-        <LoadingOverlay visible={loading && hasRows} theme={t} />
+        {/* Таблица рендерится только если есть данные ИЛИ загрузка закончилась */}
+        {(!isFirstLoad || !loading) && (
+          <Table
+            theme={t} columns={columns} data={pageData} rowKey={rowKey}
+            fixedHeader height="100%" columnMaxWidth={columnMaxWidth}
+            persistKey={persistKey} pinnedColumns={pinnedColumns} stickyRight={stickyRight}
+            sortState={sortState} onSortChange={changeSort} sortable={false}
+            loading={false}
+            mobileTitleRender={mobileTitleRender} mobileLabelMaxWidth={mobileLabelMaxWidth}
+            mobileFields={mobileFields} mobileActions={mobileActions}
+            onRowClick={onRowClick} rowStyle={rowStyle} selectedRowKey={selectedRowKey}
+            refetch={refetch} autoRefreshInterval={autoRefreshInterval} autoRefreshPaused={autoRefreshPaused}
+          />
+        )}
+        {/* Оверлей показываем всегда при loading, независимо от наличия данных */}
+        <LoadingOverlay visible={loading} theme={t} />
       </div>
       <Pagination
         t={t} total={total} page={page} defaultPerPage={perPage}
