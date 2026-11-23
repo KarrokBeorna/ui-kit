@@ -1,9 +1,10 @@
 // DataTable.tsx — блок «таблица + пагинация + оверлей загрузки».
 //
-// ИЗМЕНЕНИЕ: убран второй (внешний) скролл-контейнер на десктопе. Скроллит
-// только внутренний контейнер Table — дробные flex-высоты больше не дают
-// паразитную прокрутку в 1–2px по X и Y. На мобильном (карточки) скроллится
-// внешняя область, т.к. карточки не имеют фиксированной высоты.
+// ИЗМЕНЕНИЕ: оверлей больше не привязан к непустой странице.
+//   • data-empty (первый запрос, данных нет) → скелетон внутри Table;
+//   • data-nonempty (есть данные) → затемняющий оверлей поверх блока таблицы
+//     (включая пагинацию), чтобы было видно, что идёт обновление.
+// Так overlay виден всегда, когда loading=true и это осмысленно.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Theme } from '../themes/theme';
@@ -34,7 +35,7 @@ export interface DataTableProps<T extends Record<string, any>> {
   data: T[];
   /** Ключ строки. @default 'id' */
   rowKey?: string;
-  /** Состояние загрузки — скелетон при пустых данных, оверлей при непустых. */
+  /** Состояние загрузки. */
   loading?: boolean;
   /** Строк на странице. */
   perPage: number;
@@ -95,6 +96,10 @@ export default function DataTable<T extends Record<string, any>>({
 
   const changeSort = (s: SortState) => { setPage(1); (onSortChange ?? inner.setSortState)(s); };
 
+  // Пусто = первый запрос или реально нет строк. В этом случае скелетон рисует сам Table,
+  // оверлей поверх не нужен (иначе он закрыл бы «Нет данных»).
+  const hasRows = sorted.length > 0;
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, boxSizing: 'border-box' }}>
       <div style={{
@@ -106,13 +111,14 @@ export default function DataTable<T extends Record<string, any>>({
           fixedHeader height="100%" columnMaxWidth={columnMaxWidth}
           persistKey={persistKey} pinnedColumns={pinnedColumns} stickyRight={stickyRight}
           sortState={sortState} onSortChange={changeSort} sortable={false}
-          loading={loading && pageData.length === 0}
+          loading={loading}
           mobileTitleRender={mobileTitleRender} mobileLabelMaxWidth={mobileLabelMaxWidth}
           mobileFields={mobileFields} mobileActions={mobileActions}
           onRowClick={onRowClick} rowStyle={rowStyle} selectedRowKey={selectedRowKey}
           refetch={refetch} autoRefreshInterval={autoRefreshInterval} autoRefreshPaused={autoRefreshPaused}
         />
-        <LoadingOverlay visible={loading && pageData.length > 0} theme={t} />
+        {/* Затемнение только когда есть чем закрыть: пустую область перекрывать бессмысленно. */}
+        <LoadingOverlay visible={loading && hasRows} theme={t} />
       </div>
       <Pagination
         t={t} total={total} page={page} defaultPerPage={perPage}

@@ -1,4 +1,10 @@
 // LoadingOverlay.tsx — оверлей загрузки поверх relative-контейнера.
+//
+// ИЗМЕНЕНИЕ: delayMs теперь работает и при повторном появлении.
+// Раньше таймер сбрасывался только когда visible становился false, но если
+// компонент размонтировался во время задержки (или visible мигал true→false→true),
+// состояние show оставалось stale. Теперь задержка применяется к каждому
+// переходу hidden→visible, а скрытие мгновенное.
 import { useEffect, useState } from 'react';
 import type { Theme } from '../themes/theme';
 import { useStyleTag } from '../hooks';
