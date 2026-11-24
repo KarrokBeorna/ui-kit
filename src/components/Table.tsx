@@ -1,11 +1,14 @@
 // Table.tsx — таблица + мобильные карточки + фабрика колонки действий.
 //
 // ИЗМЕНЕНИЯ:
+//  • НОВОЕ: действие 'photos' (onPhotos / photosIcon) — просмотр фотографий
+//    записи в модальном окне (PhotoViewerModal). Ресурс `${acl}.photos`,
+//    подпись по умолчанию «Фотографии», порядок: edit → download → photos → log → delete;
 //  • шестерёнка «Настройка таблицы» следует за таблицей при любом сдвиге
 //    layout (watchLayout наблюдает за элементом и всеми его предками);
 //  • ACL: Column.acl / MobileCardField.acl скрывают колонки и поля карточек;
 //    ActionsColumn({ acl: 'users' }) сам объявляет и проверяет ресурсы
-//    users.edit / users.delete / users.download / users.log / users.restore;
+//    users.edit / users.download / users.photos / users.log / users.delete / users.restore;
 //  • labels — человекочитаемые имена действий для редактора ролей;
 //  • allow — точечное скрытие действия для конкретной строки (например
 //    «системную роль удалить нельзя»), не влияющее на реестр ресурсов;
@@ -26,7 +29,6 @@ import { useAcl, useAclResource, registerResource } from '../acl';
 /* ───────────────────────── Сортировка ───────────────────────── */
 
 export type SortDirection = 'asc' | 'desc';
-
 /** Состояние многоуровневой сортировки. */
 export type SortState = { key: string; direction: SortDirection }[];
 
@@ -38,7 +40,6 @@ function compareValues(a: unknown, b: unknown): number {
 /** Многоуровневая сортировка массива объектов (пустые значения — в конец). */
 export function useSort<T extends Record<string, any>>(data: T[], initialSort: SortState = []) {
   const [sortState, setSortState] = useState<SortState>(initialSort);
-
   const sortedData = useMemo(() => {
     if (sortState.length === 0) return data;
     const sorted = [...data];
@@ -57,7 +58,6 @@ export function useSort<T extends Record<string, any>>(data: T[], initialSort: S
     });
     return sorted;
   }, [data, sortState]);
-
   return { sortedData, sortState, setSortState };
 }
 
@@ -106,7 +106,6 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
     const s = loadColumns(storageKey);
     return s ? reconcileOrder(s.order, persistableKeys) : persistableKeys;
   });
-
   const [visible, setVisible] = useState<string[]>(() => {
     if (!enabled) return persistableKeys;
     const s = loadColumns(storageKey);
@@ -148,20 +147,21 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
 
   const columnOrder = useMemo(() => [...order, ...pinned], [order, pinned]);
   const visibleColumns = useMemo(() => [...visible, ...pinned], [visible, pinned]);
-
   return { columnOrder, visibleColumns, onApplySettings };
 }
 
 /* ───────────────────────── ActionsColumn ───────────────────────── */
 
 /** Вид действия в колонке «Действия». */
-export type ActionKind = 'edit' | 'download' | 'log' | 'delete' | 'restore';
+export type ActionKind = 'edit' | 'download' | 'photos' | 'log' | 'delete' | 'restore';
 
 export interface ActionsColumnOptions<T> {
   /** Тема оформления. */
   theme: Theme;
   onEdit?: (row: T) => void;
   onDownload?: (row: T) => void;
+  /** Просмотр фотографий записи (открывает PhotoViewerModal). Ресурс `${acl}.photos`. */
+  onPhotos?: (row: T) => void;
   onLog?: (row: T) => void;
   onDelete?: (row: T) => void;
   onRestore?: (row: T) => void;
@@ -173,6 +173,8 @@ export interface ActionsColumnOptions<T> {
   header?: string;
   editIcon?: React.ReactNode;
   downloadIcon?: React.ReactNode;
+  /** Иконка действия «Фотографии». @default '🖼' */
+  photosIcon?: React.ReactNode;
   deleteIcon?: React.ReactNode;
   restoreIcon?: React.ReactNode;
   logIcon?: React.ReactNode;
@@ -182,31 +184,32 @@ export interface ActionsColumnOptions<T> {
   /** Передавайте из useResponsive(). */
   isMobile?: boolean;
   buttonSize?: 'sm' | 'md';
-  /** Префикс ресурсов: 'users' → users.edit, users.delete, … Без пропа права не проверяются. */
+  /** Префикс ресурсов: 'users' → users.edit, users.photos, users.delete, … Без пропа права не проверяются. */
   acl?: string;
-  /** Имена действий для редактора ролей: { edit: 'Открыть карточку пользователя' }. */
+  /** Имена действий для редактора ролей: { photos: 'Журнал: фотографии' }. */
   labels?: Partial<Record<ActionKind, string>>;
-  /** Скрыть действие для конкретной строки (системную роль нельзя удалить). На реестр не влияет. */
+  /** Скрыть действие для конкретной строки (например фото нет — кнопку не показываем). На реестр не влияет. */
   allow?: (action: ActionKind, row: T) => boolean;
 }
 
 const ACTION_LABELS: Record<ActionKind, string> = {
-  edit: 'Изменить', download: 'Скачать', log: 'Журнал', delete: 'Удалить', restore: 'Восстановить',
+  edit: 'Изменить', download: 'Скачать', photos: 'Фотографии',
+  log: 'Журнал', delete: 'Удалить', restore: 'Восстановить',
 };
 
 /** Ячейка действий — компонент, чтобы читать права из контекста и объявлять ресурсы. */
 function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
   const { can } = useAcl();
   const {
-    theme, onEdit, onDownload, onLog, onDelete, onRestore,
+    theme, onEdit, onDownload, onPhotos, onLog, onDelete, onRestore,
     isDeleted = (r: any) => r?.is_deleted === true,
     header = 'Действия',
-    editIcon = '✎', downloadIcon = '⬇', logIcon = '⌸', deleteIcon = '✕', restoreIcon = '⟳',
+    editIcon = '✎', downloadIcon = '⬇', photosIcon = '🖼', logIcon = '⌸', deleteIcon = '✕', restoreIcon = '⟳',
     extraActions, isMobile = false, buttonSize, acl, labels, allow,
   } = o;
-
   const gap = o.gap ?? (isMobile ? 8 : 6);
   const size = buttonSize ?? (isMobile ? 'md' : 'sm');
+
   const idOf = (kind: ActionKind) => (acl ? `${acl}.${kind}` : undefined);
   const labelOf = (kind: ActionKind) => labels?.[kind] ?? `${header}: ${ACTION_LABELS[kind]}`;
   const show = (kind: ActionKind) =>
@@ -214,12 +217,12 @@ function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
 
   useAclResource('button', onEdit ? idOf('edit') : undefined, labelOf('edit'));
   useAclResource('button', onDownload ? idOf('download') : undefined, labelOf('download'));
+  useAclResource('button', onPhotos ? idOf('photos') : undefined, labelOf('photos'));
   useAclResource('button', onLog ? idOf('log') : undefined, labelOf('log'));
   useAclResource('button', onDelete ? idOf('delete') : undefined, labelOf('delete'));
   useAclResource('button', onRestore ? idOf('restore') : undefined, labelOf('restore'));
 
   const buttons: React.ReactNode[] = [];
-
   if (isDeleted(row)) {
     if (onRestore && show('restore')) {
       buttons.push(<Button key="restore" icon={restoreIcon} variant="primary" outline size={size}
@@ -234,6 +237,10 @@ function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
       buttons.push(<Button key="download" icon={downloadIcon} variant="primary" outline size={size}
         aria-label="Скачать" onClick={() => onDownload(row)} theme={theme} />);
     }
+    if (onPhotos && show('photos')) {
+      buttons.push(<Button key="photos" icon={photosIcon} variant="primary" outline size={size}
+        aria-label="Фотографии" title="Фотографии" onClick={() => onPhotos(row)} theme={theme} />);
+    }
     if (onLog && show('log')) {
       buttons.push(<Button key="log" icon={logIcon} variant="primary" outline size={size}
         aria-label="Журнал" onClick={() => onLog(row)} theme={theme} />);
@@ -243,10 +250,8 @@ function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
         aria-label="Удалить" onClick={() => onDelete(row)} theme={theme} />);
     }
   }
-
   const extra = extraActions?.(row);
   if (buttons.length === 0 && !extra) return null;
-
   return <div style={{ display: 'flex', gap, alignItems: 'center' }}>{buttons}{extra}</div>;
 }
 
@@ -549,7 +554,6 @@ export default function Table<T extends Record<string, any>>({
   const { can } = useAcl();
 
   /* Сортировка */
-
   const { sortedData, sortState: internalSortState, setSortState: setInternalSortState } = useSort(data, initialSort);
   const sortState = externalSortState !== undefined ? externalSortState : internalSortState;
   const updateSortState = useCallback((newState: SortState) => {
@@ -559,13 +563,11 @@ export default function Table<T extends Record<string, any>>({
   const dataToRender = sortable ? sortedData : data;
 
   /* Персист колонок */
-
   const allColumnKeys = useMemo(() => columns.map((c) => c.key), [columns]);
   const effectivePinned = pinnedColumns ?? stickyRight;
   const persisted = usePersistedTableColumns(persistKey ?? '__unused__', allColumnKeys, effectivePinned, !!persistKey);
 
   /* Колонки с ACL объявляют себя ресурсами */
-
   useEffect(() => {
     for (const col of columns) {
       if (col.acl) registerResource({ id: col.acl, kind: 'field', label: String(col.header) });
@@ -573,7 +575,6 @@ export default function Table<T extends Record<string, any>>({
   }, [columns]);
 
   /* Авто-refresh */
-
   const willRenderMobile = responsive && isMobile;
   useAutoRefresh(refetch ?? (() => {}), {
     intervalMs: autoRefreshInterval ?? 30_000,
@@ -581,10 +582,8 @@ export default function Table<T extends Record<string, any>>({
   });
 
   /* Порядок / видимость */
-
   const [internalOrder, setInternalOrder] = useState<string[]>(() => columns.map((c) => c.key));
   const [internalVisible, setInternalVisible] = useState<Set<string>>(() => new Set(columns.map((c) => c.key)));
-
   const order = externalColumnOrder !== undefined ? externalColumnOrder : persistKey ? persisted.columnOrder : internalOrder;
   const visibleKeys = useMemo(() =>
     externalVisibleColumns !== undefined ? new Set(externalVisibleColumns)
@@ -604,14 +603,12 @@ export default function Table<T extends Record<string, any>>({
     if (onColumnOrderChange) onColumnOrderChange(newOrder);
     else setInternalOrder(newOrder);
   }, [onColumnOrderChange]);
-
   const updateVisible = useCallback((newVisible: Set<string>) => {
     if (onVisibleColumnsChange) onVisibleColumnsChange(Array.from(newVisible));
     else setInternalVisible(newVisible);
   }, [onVisibleColumnsChange]);
 
   /* Модалка настроек */
-
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsOrder, setSettingsOrder] = useState<string[]>([]);
   const [settingsVisible, setSettingsVisible] = useState<Set<string>>(new Set());
@@ -694,7 +691,6 @@ export default function Table<T extends Record<string, any>>({
   }), [settingsOrder, settingsVisible, columnByKey, stickyRightSet, t, toggleVisible, moveColumn, getMoveButtonStyle, can]);
 
   /* Клик по заголовку */
-
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
     let newState: SortState = [];
@@ -714,7 +710,6 @@ export default function Table<T extends Record<string, any>>({
   };
 
   /* Sticky */
-
   const displayColumns = useMemo(() => {
     const uniqueKeys = Array.from(new Set(order.filter((key) => visibleKeys.has(key))));
     return uniqueKeys
@@ -738,17 +733,14 @@ export default function Table<T extends Record<string, any>>({
     maxWidth: columnMaxWidth, borderRight: `1px solid ${t.borderSubtle}`,
     color: t.text, textAlign: 'left', background: t.bgSurface,
   };
-
   const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle, fontWeight: 600, cursor: 'default', transition: 'background 0.15s',
     position: 'sticky', top: 0, zIndex: 3,
   };
 
   /* Шестерёнка в портале: следует за таблицей при любом сдвиге layout */
-
   const wrapRef = useRef<HTMLDivElement>(null);
   const [gearPos, setGearPos] = useState<{ top: number; left: number } | null>(null);
-
   useLayoutEffect(() => {
     if (willRenderMobile || typeof window === 'undefined') { setGearPos(null); return; }
     const el = wrapRef.current;
@@ -764,22 +756,18 @@ export default function Table<T extends Record<string, any>>({
   }, [willRenderMobile, height, fixedHeader]);
 
   /* ===== Мобильный режим (все хуки выше) ===== */
-
   if (willRenderMobile) {
     if (renderMobile) return <>{renderMobile(dataToRender)}</>;
-
     const actionsColumn = columns.find((c) => c.key === 'actions');
     const autoActions = actionsColumn?.render
       ? (row: T) => actionsColumn.render!((row as any)[actionsColumn.key], row)
       : undefined;
-
     const fields: MobileCardField<T>[] = mobileFields ?? displayColumns
       .filter((col) => col.key !== 'actions')
       .map((col) => ({
         label: typeof col.header === 'string' ? col.header : col.key,
         render: (row: T) => col.render ? col.render((row as any)[col.key], row) : (row as any)[col.key],
       }));
-
     return (
       <MobileCardList t={t} data={dataToRender} rowKey={rowKey as keyof T} fields={fields}
         titleRender={mobileTitleRender} titleMaxLines={mobileTitleMaxLines} titleMaxChars={mobileTitleMaxChars}
@@ -791,7 +779,6 @@ export default function Table<T extends Record<string, any>>({
   }
 
   /* ===== Desktop ===== */
-
   return (
     <>
       <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: fixedHeader ? height : 'auto' }}>

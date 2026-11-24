@@ -1,6 +1,5 @@
 // index.ts — публичный API UI Kit.
-// Базовые стили больше не импортируются как CSS-файл (см. styles/global.ts):
-// они инжектятся в рантайме провайдерами, поэтому применяются при любой сборке.
+// Базовые стили инжектятся в рантайме провайдерами (styles/global.ts).
 
 /* Поля */
 export { default as CustomInput } from './components/CustomInput';
@@ -24,7 +23,7 @@ export type { BadgeProps } from './components/Badge';
 
 /* Данные */
 export { default as Table, MobileCardList, ActionsColumn, useSort } from './components/Table';
-export type { Column, TableProps, MobileCardListProps, MobileCardField, ActionsColumnOptions, SortState, SortDirection } from './components/Table';
+export type { Column, TableProps, MobileCardListProps, MobileCardField, ActionsColumnOptions, ActionKind, SortState, SortDirection } from './components/Table';
 export { default as DataTable, usePagedData } from './components/DataTable';
 export type { DataTableProps } from './components/DataTable';
 export { Pagination } from './components/Pagination';
@@ -54,6 +53,8 @@ export { default as LoadingOverlay } from './components/LoadingOverlay';
 export type { LoadingOverlayProps } from './components/LoadingOverlay';
 export { FeedbackProvider, useToast, useConfirm } from './components/Feedback';
 export type { ToastApi, ToastOptions, ConfirmOptions } from './components/Feedback';
+export { default as PhotoViewerModal } from './components/PhotoViewerModal';
+export type { PhotoViewerModalProps, ViewerPhoto } from './components/PhotoViewerModal';
 
 /* Диаграммы */
 export { PieChart } from './components/charts/PieChart';
@@ -92,5 +93,6 @@ export { useGlobalStyles, GLOBAL_CSS, GLOBAL_STYLE_ID } from './styles/global';
 
 /* Иконки и темы */
 export * from './components/icons';
+export * from './components/iconsExtra';
 export { themes, colorScheme, readableOn } from './themes/theme';
 export type { Theme, ThemeName } from './themes/theme';
