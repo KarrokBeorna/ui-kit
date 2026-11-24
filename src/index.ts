@@ -1,4 +1,7 @@
 // index.ts — публичный API UI Kit.
+// Базовые стили больше не импортируются как CSS-файл (см. styles/global.ts):
+// они инжектятся в рантайме провайдерами, поэтому применяются при любой сборке.
+
 /* Поля */
 export { default as CustomInput } from './components/CustomInput';
 export type { CustomInputProps, CustomInputType } from './components/CustomInput';
@@ -59,8 +62,8 @@ export { Histogram } from './components/charts/Histogram';
 export type { HistogramProps, HistogramDataItem } from './components/charts/Histogram';
 
 /* Ролевая модель */
-export { PermissionsProvider, useCan, hasPermission, Can, CanEdit } from './permissions';
-export type { PermissionUser } from './permissions';
+export { AclProvider, useAcl, useAclResources, useAclResource, registerResource, canView, canEdit, Acl } from './acl';
+export type { AclKind, AclResource, AclGrants, AclUser, AclProviderProps, AclProps } from './acl';
 
 /* Контекст приложения */
 export {

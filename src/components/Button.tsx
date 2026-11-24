@@ -1,6 +1,8 @@
 // Button.tsx — кнопка (primary / danger / success, outline, sm/md).
+// Проп acl: ресурс сам регистрируется в реестре, без права кнопка не рендерится.
 import React from 'react';
 import type { Theme } from '../themes/theme';
+import { useAcl, useAclResource } from '../acl';
 
 export interface ButtonProps {
   /** Иконка слева от текста. */
@@ -27,20 +29,25 @@ export interface ButtonProps {
   'aria-label'?: string;
   /** Нативный тултип. */
   title?: string;
+  /** Идентификатор ресурса ('users.add'). Нет права — кнопка скрыта. */
+  acl?: string;
 }
 
 /** Кнопка UI Kit. Hover не залипает на таче (pointerType === 'mouse'). */
 export default function Button({
   icon, children, variant = 'primary', outline = false, size = 'md',
   onClick, disabled = false, theme, type = 'button', className = '', style = {},
-  'aria-label': ariaLabel, title,
+  'aria-label': ariaLabel, title, acl,
 }: ButtonProps) {
+  const { can } = useAcl();
+  const aclLabel = typeof children === 'string' ? children : ariaLabel;
+  useAclResource('button', acl, aclLabel);
+
   const solidColor = variant === 'danger' ? theme.danger : variant === 'success' ? theme.success : theme.accent;
   const textColor = variant === 'primary' ? theme.accentText : '#ffffff';
   const colors = outline
     ? { background: 'transparent', color: solidColor, border: `1px solid ${solidColor}`, hover: `color-mix(in srgb, ${solidColor} 10%, transparent)` }
     : { background: solidColor, color: textColor, border: 'none', hover: undefined as string | undefined };
-
   const sizeStyles = size === 'sm'
     ? { padding: '4px 10px', fontSize: '12px', gap: '5px' }
     : { padding: '8px 20px', fontSize: '13px', gap: '8px' };
@@ -67,6 +74,8 @@ export default function Button({
     if (outline) e.currentTarget.style.background = 'transparent';
     e.currentTarget.style.opacity = disabled ? '0.5' : '1';
   };
+
+  if (!can(acl)) return null;
 
   return (
     <button type={type} onClick={onClick} disabled={disabled} className={className}

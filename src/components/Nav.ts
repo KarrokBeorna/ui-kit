@@ -1,13 +1,13 @@
 // Nav.ts — типы навигации и чистые хелперы (используются PageLayout и AppContext).
+// Правила видимости: webAdminOnly, allowedTabs, visible и право acl.
 import type { ReactNode } from 'react';
-import { hasPermission } from '../permissions';
+import { canView } from '../acl';
 
 /** Минимальный пользователь для фильтрации навигации. */
 export interface NavUser {
-  isAdmin?: boolean;
   webAdmin?: boolean;
   allowedTabs?: string[] | null;
-  permissions?: string[] | null;
+  acl?: { view?: string[] | null; edit?: string[] | null } | null;
 }
 
 /** Пункт/подпункт навигации с правилами видимости. */
@@ -15,10 +15,9 @@ export interface NavTabChild<TUser extends NavUser = NavUser> {
   id: string;
   label: string;
   icon?: ReactNode;
-  adminOnly?: boolean;
   webAdminOnly?: boolean;
-  /** Право доступа (проверяется через hasPermission). */
-  permission?: string;
+  /** Идентификатор ресурса ('users'). Нет права — пункт скрыт. */
+  acl?: string;
   visible?: (user: TUser | null) => boolean;
 }
 
@@ -29,13 +28,15 @@ export interface NavTab<TUser extends NavUser = NavUser> extends NavTabChild<TUs
   displayMode?: 'keep' | 'replace';
 }
 
-export type VisibleNavTabChild = Omit<NavTabChild, 'adminOnly' | 'webAdminOnly' | 'visible' | 'permission'>;
-export type VisibleNavTab = Omit<NavTab, 'adminOnly' | 'webAdminOnly' | 'visible' | 'permission' | 'children'> & {
+export type VisibleNavTabChild = Omit<NavTabChild, 'webAdminOnly' | 'visible' | 'acl'>;
+export type VisibleNavTab = Omit<NavTab, 'webAdminOnly' | 'visible' | 'acl' | 'children'> & {
   children?: VisibleNavTabChild[];
 };
 
 export interface FilterNavTabsOptions<TUser extends NavUser> {
+  /** Показывать ли навигацию гостям. */
   guestTabs?: boolean;
+  /** Кастомная проверка доступа к пункту. */
   canSeeBase?: (id: string, user: TUser) => boolean;
 }
 
@@ -53,18 +54,20 @@ export function filterNavTabs<TUser extends NavUser>(
 ): VisibleNavTab[] {
   const { guestTabs = false, canSeeBase = defaultCanSeeBase } = options;
   if (!user && !guestTabs) return [];
+
   const canSee = (node: NavTabChild<TUser>): boolean => {
     if (node.webAdminOnly && !user?.webAdmin) return false;
-    if (node.adminOnly && !user?.isAdmin) return false;
-    if (node.permission && !hasPermission(user, node.permission)) return false;
-    if (!node.adminOnly && !node.webAdminOnly && user && !canSeeBase(node.id, user)) return false;
+    if (!canView(user, node.acl)) return false;
+    if (!node.webAdminOnly && user && !canSeeBase(node.id, user)) return false;
     if (node.visible && !node.visible(user)) return false;
     return true;
   };
+
   const clean = <T extends NavTabChild<TUser>>(node: T) => {
-    const { adminOnly: _a, webAdminOnly: _w, visible: _v, permission: _p, ...rest } = node;
+    const { webAdminOnly: _w, visible: _v, acl: _p, ...rest } = node;
     return rest;
   };
+
   return tabs
     .map((tab): VisibleNavTab | null => {
       if (!canSee(tab)) return null;
@@ -83,7 +86,7 @@ const matches = (pathname: string, id: string): boolean => {
   return pathname === id || pathname.startsWith(`${id}/`);
 };
 
-/** Определяет активный таб по pathname. */
+/** Определяет активный таб по pathname: самое длинное совпадение, дети приоритетнее. */
 export function matchActiveTab(
   pathname: string,
   tabs: readonly { id: string; children?: readonly { id: string }[] }[],

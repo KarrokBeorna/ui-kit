@@ -1,30 +1,43 @@
-// Menu.tsx — простое вертикальное меню с поддержкой прав.
-import React from 'react';
+// Menu.tsx — простое вертикальное меню (без авторизации/подменю).
+// Проп acl у пункта: ресурс регистрируется сам, без права пункт скрыт.
+import React, { useEffect } from 'react';
 import type { Theme } from '../themes/theme';
-import { useCan } from '../permissions';
+import { useAcl, registerResource } from '../acl';
 
 /** Пункт меню. */
 export interface MenuTab {
   id: string;
   label: string;
   icon?: React.ReactNode;
-  /** Право доступа к пункту. */
-  permission?: string;
+  /** Идентификатор ресурса ('settings.menu.billing'). Нет права — пункт скрыт. */
+  acl?: string;
 }
 
 export interface MenuProps {
+  /** Пункты. */
   tabs: MenuTab[];
+  /** Активный пункт. */
   activeTab: string;
+  /** Навигация. */
   onTabChange: (id: string) => void;
+  /** Тема оформления. */
   theme: Theme;
   className?: string;
   style?: React.CSSProperties;
 }
 
-/** Вертикальное sticky-меню 240px. Пункты без права скрываются. */
+/** Вертикальное sticky-меню 240px. */
 export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: MenuProps) {
-  const can = useCan();
-  const visibleTabs = tabs.filter((t) => can(t.permission));
+  const { can } = useAcl();
+
+  useEffect(() => {
+    for (const tab of tabs) {
+      if (tab.acl) registerResource({ id: tab.acl, kind: 'menu', label: tab.label });
+    }
+  }, [tabs]);
+
+  const visibleTabs = tabs.filter((tab) => can(tab.acl));
+
   return (
     <nav className={className} role="navigation" style={{
       width: 240, height: '100dvh', position: 'sticky', top: 0,

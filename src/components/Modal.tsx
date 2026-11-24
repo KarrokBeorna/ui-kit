@@ -1,11 +1,13 @@
 // Modal.tsx — модальное окно с сеткой полей, focus-trap и fullscreen на мобильном.
-// Поля поддерживают permission (видимость) и editPermission (блокировка через CanEdit).
+//
+// ИЗМЕНЕНИЕ: поля поддерживают ACL. Поле с acl регистрируется в реестре ресурсов
+// само; без права view — не рендерится, без права edit — видно, но заблокировано.
 import React, { useEffect, useRef, useId } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
 import { useResponsive } from '../context/AppContext';
 import { useBodyScrollLock } from '../hooks';
-import { useCan, CanEdit } from '../permissions';
+import { useAcl, registerResource, Acl as AclField } from '../acl';
 
 export interface ModalField {
   /** Строка сетки (0-based). */
@@ -20,10 +22,12 @@ export interface ModalField {
   required?: boolean;
   /** Содержимое ячейки. */
   content: React.ReactNode;
-  /** Право видимости: нет права — поле скрыто. */
-  permission?: string;
-  /** Право редактирования: нет права — поле заблокировано (CanEdit). */
-  editPermission?: string;
+  /** Идентификатор ресурса ('user.password'). Нет права — поле скрыто. */
+  acl?: string;
+  /** Право редактирования. Нет права — поле видно, но заблокировано. */
+  aclEdit?: string;
+  /** Подпись поля для редактора ролей. */
+  label?: string;
 }
 
 export interface ModalProps {
@@ -65,7 +69,7 @@ export interface ModalProps {
 
 const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-/** Модальное окно. Enter подтверждает, Escape закрывает. */
+/** Модальное окно. Enter подтверждает (кроме textarea/кнопок/дропдаунов), Escape закрывает. */
 export default function Modal({
   theme: t, isOpen, onClose, onOk, title = 'Модальное окно',
   columns, rows, fields, okText = 'Ок', cancelText = 'Отмена', width = 640,
@@ -74,7 +78,7 @@ export default function Modal({
   const modalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const { isMobile } = useResponsive();
-  const can = useCan();
+  const { can } = useAcl();
   const fullscreen = fullscreenProp ?? isMobile;
   const onCloseRef = useRef(onClose); onCloseRef.current = onClose;
   useBodyScrollLock(isOpen);
@@ -83,6 +87,16 @@ export default function Modal({
     const all = document.querySelectorAll('[data-modal="true"]');
     return all[all.length - 1] === modalRef.current;
   };
+
+  // Ресурсы полей объявляются даже у закрытой модалки — редактор ролей видит их сразу.
+  useEffect(() => {
+    for (const field of fields) {
+      if (field.acl) registerResource({ id: field.acl, kind: 'field', label: field.label || field.acl });
+      if (field.aclEdit && field.aclEdit !== field.acl) {
+        registerResource({ id: field.aclEdit, kind: 'field', label: field.label || field.aclEdit });
+      }
+    }
+  }, [fields]);
 
   // Focus-trap + возврат фокуса при закрытии.
   useEffect(() => {
@@ -124,14 +138,17 @@ export default function Modal({
 
   if (!isOpen) return null;
 
-  const visibleFields = fields.filter((f) => can(f.permission));
-  const contentOf = (f: ModalField) => f.editPermission
-    ? <CanEdit permission={f.editPermission}>{f.content}</CanEdit>
-    : f.content;
+  // Видимость по ACL и блокировка редактирования.
+  const visibleFields = fields.filter((field) => can(field.acl));
+  const contentOf = (field: ModalField) => field.aclEdit
+    ? <AclField id={field.acl ?? ''} edit={field.aclEdit} label={field.label}>{field.content}</AclField>
+    : field.content;
 
+  // Раскладка полей с учётом span и коллизий.
   const grid: (React.ReactNode | null)[][] = Array.from({ length: rows }, () => Array(columns).fill(null));
   const occupied: boolean[][] = Array.from({ length: rows }, () => Array(columns).fill(false));
   const placedFields = new Map<string, ModalField>();
+
   visibleFields.forEach((field) => {
     const { row: r, col: c } = field;
     if (r < 0 || c < 0 || r >= rows || c >= columns) return;
@@ -251,6 +268,7 @@ export default function Modal({
           </div>
         )}
       </div>
+
       <style>{`
         @keyframes modalFadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes modalScaleIn { from { transform: scale(0.94); opacity: 0 } to { transform: scale(1); opacity: 1 } }

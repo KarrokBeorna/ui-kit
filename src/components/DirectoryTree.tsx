@@ -1,4 +1,12 @@
-// DirectoryTree.tsx — единый справочник с правами на корни (DirectoryItem.permission).
+// DirectoryTree.tsx — единый справочник. Объединяет DirectoryTree и
+// MobileDirectoryTree: на узком экране — drill-down с хлебными крошками,
+// на десктопе — колонки уровней. Хук useDirectoryTree, модалка формы и
+// storage-утилиты встроены сюда (наружу не нужны).
+//
+// ИЗМЕНЕНИЕ: корни справочника поддерживают ACL (DirectoryItem.acl).
+// Ресурс регистрируется сам, без права корень не показывается.
+// Права на CRUD внутри дерева по-прежнему задаются пропсами
+// creatable / editable / deletable и allowedDirectoryRoots.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Theme } from '../themes/theme';
 import Button from './Button';
@@ -7,7 +15,7 @@ import CustomInput from './CustomInput';
 import CustomSelect from './CustomSelect';
 import { IcoChevronLeft, IcoChevronRight } from './icons';
 import { useResponsive } from '../context/AppContext';
-import { useCan } from '../permissions';
+import { useAcl, registerResource } from '../acl';
 
 /* ───────────────────────── Типы ───────────────────────── */
 
@@ -18,8 +26,8 @@ export interface DirectoryItem {
   type: string;
   parent_id: number | null;
   sort_order?: number;
-  /** Право видимости корневого справочника. */
-  permission?: string;
+  /** Идентификатор ресурса корневого справочника ('directory.hr'). */
+  acl?: string;
 }
 
 /** API справочника (реализуется в проекте). */
@@ -72,15 +80,16 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     creatable = true, editable = true, deletable = true,
     storageKey = 'last_directory_type', directoryTypes, onError, autoSelectFirstRoot,
   } = opts;
-  const can = useCan();
-  const visibleRoots = useCallback(
-    (roots: DirectoryItem[]) => roots.filter((r) => can(r.permission)),
-    [can],
-  );
+
+  const { can } = useAcl();
+
+  // Свежие пропсы через ref: смена ссылки api не сбрасывает путь.
   const apiRef = useRef(api);
   useEffect(() => { apiRef.current = api; }, [api]);
+
   const onErrorRef = useRef(onError);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
+
   const notifyError = useCallback((msg: string) => {
     if (onErrorRef.current) onErrorRef.current(msg); else console.error(msg);
   }, []);
@@ -89,7 +98,8 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
   const [selectedPath, setSelectedPath] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [mutating, setMutating] = useState(false);
-  const navReq = useRef(0);
+  const navReq = useRef(0); // защита от гонок при быстрой навигации
+
   const getLastType = useCallback(() => safeGet(storageKey) || directoryTypes[0]?.value || '', [storageKey, directoryTypes]);
   const setLastType = useCallback((type: string) => safeSet(storageKey, type), [storageKey]);
 
@@ -101,13 +111,22 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     });
   }, []);
 
+  // Регистрируем все корни (даже скрытые) — редактор ролей должен их видеть.
+  const prepareRoots = useCallback((raw: DirectoryItem[]): DirectoryItem[] => {
+    const roots = raw.map((r) => ({ ...r, type: 'root' }));
+    for (const root of roots) {
+      if (root.acl) registerResource({ id: root.acl, kind: 'directory', label: root.name });
+    }
+    return roots.filter((root) => can(root.acl));
+  }, [can]);
+
   const loadRoots = useCallback(async (autoSelect: boolean) => {
     const req = ++navReq.current;
     setLoading(true);
     try {
       const rawRoots = await apiRef.current.getRoots();
       if (req !== navReq.current) return;
-      const roots = visibleRoots(rawRoots.map((r) => ({ ...r, type: 'root' })));
+      const roots = prepareRoots(rawRoots);
       if (autoSelect && roots.length > 0) {
         const first = roots[0];
         let children: DirectoryItem[] = [];
@@ -124,11 +143,14 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     } finally {
       if (req === navReq.current) setLoading(false);
     }
-  }, [notifyError, visibleRoots]);
+  }, [notifyError, prepareRoots]);
+
   useEffect(() => { void loadRoots(autoSelectFirstRoot); }, [autoSelectFirstRoot, loadRoots]);
 
   /* Права */
+
   const canManageRoots = isAuthenticated && !!isWebAdmin;
+
   const isRootAllowed = useCallback((rootId: number | null | undefined): boolean => {
     if (!rootId) return false;
     if (isWebAdmin) return true;
@@ -141,11 +163,13 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     if (level === 0) return canManageRoots;
     return isRootAllowed(selectedPath[0]);
   }, [isAuthenticated, canManageRoots, isRootAllowed, selectedPath]);
+
   const canCreate = useCallback((level: number) => levelRight(creatable, level), [levelRight, creatable]);
   const canEdit = useCallback((level: number) => levelRight(editable, level), [levelRight, editable]);
   const canDelete = useCallback((level: number) => levelRight(deletable, level), [levelRight, deletable]);
 
   /* Навигация */
+
   const selectItem = useCallback(async (item: DirectoryItem, level: number) => {
     const req = ++navReq.current;
     setSelectedPath((prev) => [...prev.slice(0, level), item.id]);
@@ -167,6 +191,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
   }, []);
 
   /* CRUD */
+
   const addItem = useCallback(async (level: number, data: { name: string; type: string }): Promise<boolean> => {
     const parentId = level === 0 ? null : selectedPath[level - 1] ?? null;
     const typeToUse = level === 0 ? 'root' : data.type;
@@ -175,8 +200,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
       await apiRef.current.createItem({ parent_id: parentId, name: data.name, type: typeToUse });
       if (level !== 0) setLastType(data.type);
       if (level === 0) {
-        const rawRoots = await apiRef.current.getRoots();
-        applyChildren(0, visibleRoots(rawRoots.map((r) => ({ ...r, type: 'root' }))), false);
+        applyChildren(0, prepareRoots(await apiRef.current.getRoots()), false);
       } else if (parentId != null) {
         applyChildren(level, await apiRef.current.getChildren(parentId), false);
       }
@@ -187,7 +211,8 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     } finally {
       setMutating(false);
     }
-  }, [selectedPath, applyChildren, setLastType, notifyError, visibleRoots]);
+  }, [selectedPath, applyChildren, setLastType, notifyError, prepareRoots]);
+
   const editItem = useCallback(async (id: number, data: { name: string; type: string }): Promise<boolean> => {
     setMutating(true);
     try {
@@ -238,8 +263,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     try {
       await apiRef.current.moveItem(item.id, direction);
       if (level === 0) {
-        const rawRoots = await apiRef.current.getRoots();
-        applyChildren(0, visibleRoots(rawRoots.map((r) => ({ ...r, type: 'root' }))), false);
+        applyChildren(0, prepareRoots(await apiRef.current.getRoots()), false);
       } else {
         const parentId = selectedPath[level - 1];
         if (parentId != null) applyChildren(level, await apiRef.current.getChildren(parentId), false);
@@ -251,13 +275,14 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     } finally {
       setMutating(false);
     }
-  }, [selectedPath, applyChildren, notifyError, visibleRoots]);
+  }, [selectedPath, applyChildren, notifyError, prepareRoots]);
 
   const itemById = useMemo(() => {
     const m = new Map<number, DirectoryItem>();
     for (const k of Object.keys(itemsByLevel)) for (const item of itemsByLevel[Number(k)]) m.set(item.id, item);
     return m;
   }, [itemsByLevel]);
+
   const levels = useMemo(() => Object.keys(itemsByLevel).map(Number).sort((a, b) => a - b), [itemsByLevel]);
   const maxLevel = levels.length ? Math.max(...levels) : 0;
 
@@ -324,11 +349,15 @@ function DirectoryFormModal({ theme, isOpen, onClose, onSave, title, okText, sho
 
 const TOUCH = 44;
 
-/** Справочник с CRUD и сортировкой. Корни фильтруются по праву. */
+/**
+ * Справочник с CRUD и сортировкой. На узком экране — мобильный drill-down,
+ * на десктопе — колонки уровней. Заменяет DirectoryTree / MobileDirectoryTree.
+ */
 export default function DirectoryTree(props: DirectoryTreeProps) {
   const { theme: t, directoryTypes, typeLabels } = props;
   const { isMobile } = useResponsive();
   const tree = useDirectoryTree({ ...props, autoSelectFirstRoot: !isMobile });
+
   const {
     itemsByLevel, selectedPath, itemById, levels, maxLevel, loading, mutating,
     canCreate, canEdit, canDelete, getLastType,
@@ -382,6 +411,7 @@ export default function DirectoryTree(props: DirectoryTreeProps) {
   };
 
   /* ── Desktop: колонки уровней ── */
+
   const desktopView = (
     <div style={{ display: 'flex', gap: 24, overflow: 'auto', height: '100%', paddingBottom: 10 }}>
       {levels.map((level) => {
@@ -430,8 +460,10 @@ export default function DirectoryTree(props: DirectoryTreeProps) {
   );
 
   /* ── Mobile: drill-down ── */
+
   const crumbs = selectedPath.map((id) => itemById.get(id)?.name ?? '…');
   const levelCreatable = canCreate(currentLevel);
+
   const mobileView = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, color: t.text }}>
       <div style={{

@@ -1,4 +1,11 @@
-// Table.tsx — таблица + мобильные карточки + фабрика колонки действий (с правами).
+// Table.tsx — таблица + мобильные карточки + фабрика колонки действий.
+//
+// ИЗМЕНЕНИЯ:
+//  • шестерёнка «Настройка таблицы» следует за таблицей при любом сдвиге
+//    layout (watchLayout наблюдает за элементом и всеми его предками);
+//  • ACL: Column.acl / MobileCardField.acl скрывают колонки и поля карточек;
+//    ActionsColumn({ acl: 'users' }) сам объявляет и проверяет ресурсы
+//    users.edit / users.delete / users.download / users.log / users.restore.
 import React, {
   useState, useMemo, useCallback, useRef, useLayoutEffect, Fragment, useEffect,
 } from 'react';
@@ -10,11 +17,12 @@ import Button from './Button';
 import { IcoChevronUp, IcoChevronDown } from './icons';
 import { useResponsive } from '../context/AppContext';
 import { useAutoRefresh, useStyleTag, watchLayout } from '../hooks';
-import { useCan } from '../permissions';
+import { useAcl, useAclResource, registerResource } from '../acl';
 
 /* ───────────────────────── Сортировка ───────────────────────── */
 
 export type SortDirection = 'asc' | 'desc';
+
 /** Состояние многоуровневой сортировки. */
 export type SortState = { key: string; direction: SortDirection }[];
 
@@ -26,6 +34,7 @@ function compareValues(a: unknown, b: unknown): number {
 /** Многоуровневая сортировка массива объектов (пустые значения — в конец). */
 export function useSort<T extends Record<string, any>>(data: T[], initialSort: SortState = []) {
   const [sortState, setSortState] = useState<SortState>(initialSort);
+
   const sortedData = useMemo(() => {
     if (sortState.length === 0) return data;
     const sorted = [...data];
@@ -44,6 +53,7 @@ export function useSort<T extends Record<string, any>>(data: T[], initialSort: S
     });
     return sorted;
   }, [data, sortState]);
+
   return { sortedData, sortState, setSortState };
 }
 
@@ -64,16 +74,19 @@ function loadColumns(key: string): StoredColumns | null {
   } catch { /* ignore */ }
   return null;
 }
+
 function saveColumns(key: string, value: StoredColumns) {
   if (!hasStorage) return;
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
+
 function reconcileOrder(stored: string[], allKeys: string[]): string[] {
   const allSet = new Set(allKeys);
   const result = stored.filter((k) => allSet.has(k));
   for (const k of allKeys) if (!result.includes(k)) result.push(k);
   return result;
 }
+
 const sameArr = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pinnedKeys: string[], enabled: boolean) {
@@ -89,6 +102,7 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
     const s = loadColumns(storageKey);
     return s ? reconcileOrder(s.order, persistableKeys) : persistableKeys;
   });
+
   const [visible, setVisible] = useState<string[]>(() => {
     if (!enabled) return persistableKeys;
     const s = loadColumns(storageKey);
@@ -103,6 +117,7 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
   const prevKeysRef = useRef<string[]>(persistableKeys);
   const allKeysRef = useRef<string[]>(persistableKeys);
   allKeysRef.current = persistableKeys;
+
   useEffect(() => {
     const prevSet = new Set(prevKeysRef.current);
     const current = allKeysRef.current;
@@ -129,6 +144,7 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
 
   const columnOrder = useMemo(() => [...order, ...pinned], [order, pinned]);
   const visibleColumns = useMemo(() => [...visible, ...pinned], [visible, pinned]);
+
   return { columnOrder, visibleColumns, onApplySettings };
 }
 
@@ -159,40 +175,67 @@ export interface ActionsColumnOptions<T> {
   /** Передавайте из useResponsive(). */
   isMobile?: boolean;
   buttonSize?: 'sm' | 'md';
-  /** Права на действия: нет права — кнопка скрыта. */
-  permissions?: Partial<Record<'edit' | 'download' | 'log' | 'delete' | 'restore', string>>;
+  /** Префикс ресурсов: 'users' → users.edit, users.delete, … Без пропа права не проверяются. */
+  acl?: string;
 }
 
 type ActionKind = 'edit' | 'download' | 'log' | 'delete' | 'restore';
 
-/** Ячейка действий — компонент, чтобы читать права из контекста. */
+const ACTION_LABELS: Record<ActionKind, string> = {
+  edit: 'Изменить', download: 'Скачать', log: 'Журнал', delete: 'Удалить', restore: 'Восстановить',
+};
+
+/** Ячейка действий — компонент, чтобы читать права из контекста и объявлять ресурсы. */
 function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
-  const can = useCan();
+  const { can } = useAcl();
   const {
     theme, onEdit, onDownload, onLog, onDelete, onRestore,
     isDeleted = (r: any) => r?.is_deleted === true,
+    header = 'Действия',
     editIcon = '✎', downloadIcon = '⬇', logIcon = '⌸', deleteIcon = '✕', restoreIcon = '⟳',
-    extraActions, isMobile = false, buttonSize, permissions,
+    extraActions, isMobile = false, buttonSize, acl,
   } = o;
+
   const gap = o.gap ?? (isMobile ? 8 : 6);
   const size = buttonSize ?? (isMobile ? 'md' : 'sm');
-  const show = (kind: ActionKind) => can(permissions?.[kind]);
+  const idOf = (kind: ActionKind) => (acl ? `${acl}.${kind}` : undefined);
+  const show = (kind: ActionKind) => !acl || can(idOf(kind));
+
+  useAclResource('button', idOf('edit'), `${header}: ${ACTION_LABELS.edit}`);
+  useAclResource('button', idOf('download'), `${header}: ${ACTION_LABELS.download}`);
+  useAclResource('button', idOf('log'), `${header}: ${ACTION_LABELS.log}`);
+  useAclResource('button', idOf('delete'), `${header}: ${ACTION_LABELS.delete}`);
+  useAclResource('button', idOf('restore'), `${header}: ${ACTION_LABELS.restore}`);
+
   const buttons: React.ReactNode[] = [];
+
   if (isDeleted(row)) {
-    if (onRestore && show('restore')) buttons.push(
-      <Button key="restore" icon={restoreIcon} variant="primary" outline size={size} aria-label="Восстановить" onClick={() => onRestore(row)} theme={theme} />);
+    if (onRestore && show('restore')) {
+      buttons.push(<Button key="restore" icon={restoreIcon} variant="primary" outline size={size}
+        aria-label="Восстановить" onClick={() => onRestore(row)} theme={theme} />);
+    }
   } else {
-    if (onEdit && show('edit')) buttons.push(
-      <Button key="edit" icon={editIcon} variant="primary" outline size={size} aria-label="Редактировать" onClick={() => onEdit(row)} theme={theme} />);
-    if (onDownload && show('download')) buttons.push(
-      <Button key="download" icon={downloadIcon} variant="primary" outline size={size} aria-label="Скачать" onClick={() => onDownload(row)} theme={theme} />);
-    if (onLog && show('log')) buttons.push(
-      <Button key="log" icon={logIcon} variant="primary" outline size={size} aria-label="Журнал" onClick={() => onLog(row)} theme={theme} />);
-    if (onDelete && show('delete')) buttons.push(
-      <Button key="delete" icon={deleteIcon} variant="danger" outline size={size} aria-label="Удалить" onClick={() => onDelete(row)} theme={theme} />);
+    if (onEdit && show('edit')) {
+      buttons.push(<Button key="edit" icon={editIcon} variant="primary" outline size={size}
+        aria-label="Редактировать" onClick={() => onEdit(row)} theme={theme} />);
+    }
+    if (onDownload && show('download')) {
+      buttons.push(<Button key="download" icon={downloadIcon} variant="primary" outline size={size}
+        aria-label="Скачать" onClick={() => onDownload(row)} theme={theme} />);
+    }
+    if (onLog && show('log')) {
+      buttons.push(<Button key="log" icon={logIcon} variant="primary" outline size={size}
+        aria-label="Журнал" onClick={() => onLog(row)} theme={theme} />);
+    }
+    if (onDelete && show('delete')) {
+      buttons.push(<Button key="delete" icon={deleteIcon} variant="danger" outline size={size}
+        aria-label="Удалить" onClick={() => onDelete(row)} theme={theme} />);
+    }
   }
+
   const extra = extraActions?.(row);
   if (buttons.length === 0 && !extra) return null;
+
   return <div style={{ display: 'flex', gap, alignItems: 'center' }}>{buttons}{extra}</div>;
 }
 
@@ -212,6 +255,8 @@ export interface MobileCardField<T> {
   label: string;
   render: (row: T) => React.ReactNode;
   hidden?: boolean;
+  /** Идентификатор ресурса. Нет права — поле скрыто. */
+  acl?: string;
 }
 
 export interface MobileCardListProps<T> {
@@ -260,13 +305,17 @@ export function MobileCardList<T extends Record<string, any>>({
   loading = false, pageSize = 20, gap = 10, labelMaxWidth = 160, labelMaxLines,
   autoRefreshInterval, autoRefreshPaused = false, refetch,
 }: MobileCardListProps<T>) {
+  const { can } = useAcl();
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
   useAutoRefresh(refetch ?? (() => {}), {
     intervalMs: autoRefreshInterval ?? 30_000,
     paused: autoRefreshPaused || !refetch || autoRefreshInterval === undefined,
   });
+
   useEffect(() => { setVisibleCount(pageSize); }, [data, pageSize]);
+
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
@@ -291,6 +340,7 @@ export function MobileCardList<T extends Record<string, any>>({
       </div>
     );
   }
+
   if (data.length === 0) {
     return (
       <div style={{
@@ -302,9 +352,10 @@ export function MobileCardList<T extends Record<string, any>>({
     );
   }
 
-  const visibleFields = fields.filter((f) => !f.hidden);
+  const visibleFields = fields.filter((f) => !f.hidden && can(f.acl));
   const hasMore = visibleCount < data.length;
   const slice = data.slice(0, visibleCount);
+
   const renderTitle = (row: T): React.ReactNode => {
     if (!titleRender) return null;
     const raw = titleRender(row);
@@ -391,6 +442,8 @@ export interface Column<T extends Record<string, any> = any> {
   headerStyle?: React.CSSProperties;
   sortable?: boolean;
   render?: (value: any, row: T) => React.ReactNode;
+  /** Идентификатор ресурса. Нет права — колонка скрыта. */
+  acl?: string;
 }
 
 export interface TableProps<T extends Record<string, any>> {
@@ -482,8 +535,10 @@ export default function Table<T extends Record<string, any>>({
 }: TableProps<T>) {
   useStyleTag('kbs-table-css', TABLE_CSS);
   const { isMobile } = useResponsive();
+  const { can } = useAcl();
 
   /* Сортировка */
+
   const { sortedData, sortState: internalSortState, setSortState: setInternalSortState } = useSort(data, initialSort);
   const sortState = externalSortState !== undefined ? externalSortState : internalSortState;
   const updateSortState = useCallback((newState: SortState) => {
@@ -493,11 +548,21 @@ export default function Table<T extends Record<string, any>>({
   const dataToRender = sortable ? sortedData : data;
 
   /* Персист колонок */
+
   const allColumnKeys = useMemo(() => columns.map((c) => c.key), [columns]);
   const effectivePinned = pinnedColumns ?? stickyRight;
   const persisted = usePersistedTableColumns(persistKey ?? '__unused__', allColumnKeys, effectivePinned, !!persistKey);
 
+  /* Колонки с ACL объявляют себя ресурсами */
+
+  useEffect(() => {
+    for (const col of columns) {
+      if (col.acl) registerResource({ id: col.acl, kind: 'field', label: String(col.header) });
+    }
+  }, [columns]);
+
   /* Авто-refresh */
+
   const willRenderMobile = responsive && isMobile;
   useAutoRefresh(refetch ?? (() => {}), {
     intervalMs: autoRefreshInterval ?? 30_000,
@@ -505,8 +570,10 @@ export default function Table<T extends Record<string, any>>({
   });
 
   /* Порядок / видимость */
+
   const [internalOrder, setInternalOrder] = useState<string[]>(() => columns.map((c) => c.key));
   const [internalVisible, setInternalVisible] = useState<Set<string>>(() => new Set(columns.map((c) => c.key)));
+
   const order = externalColumnOrder !== undefined ? externalColumnOrder : persistKey ? persisted.columnOrder : internalOrder;
   const visibleKeys = useMemo(() =>
     externalVisibleColumns !== undefined ? new Set(externalVisibleColumns)
@@ -519,26 +586,31 @@ export default function Table<T extends Record<string, any>>({
     for (const col of columns) map.set(col.key, col);
     return map;
   }, [columns]);
+
   const stickyRightSet = useMemo(() => new Set(stickyRight), [stickyRight]);
 
   const updateOrder = useCallback((newOrder: string[]) => {
     if (onColumnOrderChange) onColumnOrderChange(newOrder);
     else setInternalOrder(newOrder);
   }, [onColumnOrderChange]);
+
   const updateVisible = useCallback((newVisible: Set<string>) => {
     if (onVisibleColumnsChange) onVisibleColumnsChange(Array.from(newVisible));
     else setInternalVisible(newVisible);
   }, [onVisibleColumnsChange]);
 
   /* Модалка настроек */
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsOrder, setSettingsOrder] = useState<string[]>([]);
   const [settingsVisible, setSettingsVisible] = useState<Set<string>>(new Set());
+
   const openSettings = useCallback(() => {
     setSettingsOrder([...order]);
     setSettingsVisible(new Set(visibleKeys));
     setSettingsOpen(true);
   }, [order, visibleKeys]);
+
   const applySettings = useCallback(() => {
     if (onApplySettings) onApplySettings(Array.from(settingsVisible), settingsOrder);
     else if (persistKey) persisted.onApplySettings(Array.from(settingsVisible), settingsOrder);
@@ -553,6 +625,7 @@ export default function Table<T extends Record<string, any>>({
       return next;
     });
   }, []);
+
   const moveColumn = useCallback((key: string, dir: -1 | 1) => {
     setSettingsOrder((prev) => {
       const idx = prev.indexOf(key);
@@ -584,7 +657,7 @@ export default function Table<T extends Record<string, any>>({
       }}>
         {settingsOrder.map((key, index) => {
           const col = columnByKey.get(key);
-          if (!col) return null;
+          if (!col || !can(col.acl)) return null;
           const isSticky = stickyRightSet.has(key);
           const canUp = !isSticky && index > 0 && !stickyRightSet.has(settingsOrder[index - 1]);
           const canDown = !isSticky && index < settingsOrder.length - 1 && !stickyRightSet.has(settingsOrder[index + 1]);
@@ -607,9 +680,10 @@ export default function Table<T extends Record<string, any>>({
         })}
       </div>
     ),
-  }), [settingsOrder, settingsVisible, columnByKey, stickyRightSet, t, toggleVisible, moveColumn, getMoveButtonStyle]);
+  }), [settingsOrder, settingsVisible, columnByKey, stickyRightSet, t, toggleVisible, moveColumn, getMoveButtonStyle, can]);
 
   /* Клик по заголовку */
+
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
     let newState: SortState = [];
@@ -629,12 +703,16 @@ export default function Table<T extends Record<string, any>>({
   };
 
   /* Sticky */
+
   const displayColumns = useMemo(() => {
     const uniqueKeys = Array.from(new Set(order.filter((key) => visibleKeys.has(key))));
-    return uniqueKeys.map((key) => columnByKey.get(key)).filter((col): col is Column<T> => col !== undefined);
-  }, [order, visibleKeys, columnByKey]);
+    return uniqueKeys
+      .map((key) => columnByKey.get(key))
+      .filter((col): col is Column<T> => col !== undefined && can(col.acl));
+  }, [order, visibleKeys, columnByKey, can]);
 
   const firstStickyKey = useMemo(() => displayColumns.find((c) => stickyRightSet.has(c.key))?.key, [displayColumns, stickyRightSet]);
+
   const getStickyStyle = useCallback((key: string, isHeader = false): React.CSSProperties => {
     if (!stickyRightSet.has(key)) return {};
     return {
@@ -649,14 +727,17 @@ export default function Table<T extends Record<string, any>>({
     maxWidth: columnMaxWidth, borderRight: `1px solid ${t.borderSubtle}`,
     color: t.text, textAlign: 'left', background: t.bgSurface,
   };
+
   const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle, fontWeight: 600, cursor: 'default', transition: 'background 0.15s',
     position: 'sticky', top: 0, zIndex: 3,
   };
 
   /* Шестерёнка в портале: следует за таблицей при любом сдвиге layout */
+
   const wrapRef = useRef<HTMLDivElement>(null);
   const [gearPos, setGearPos] = useState<{ top: number; left: number } | null>(null);
+
   useLayoutEffect(() => {
     if (willRenderMobile || typeof window === 'undefined') { setGearPos(null); return; }
     const el = wrapRef.current;
@@ -671,19 +752,23 @@ export default function Table<T extends Record<string, any>>({
     return watchLayout(el, update);
   }, [willRenderMobile, height, fixedHeader]);
 
-  /* ===== Мобильный режим ===== */
+  /* ===== Мобильный режим (все хуки выше) ===== */
+
   if (willRenderMobile) {
     if (renderMobile) return <>{renderMobile(dataToRender)}</>;
+
     const actionsColumn = columns.find((c) => c.key === 'actions');
     const autoActions = actionsColumn?.render
       ? (row: T) => actionsColumn.render!((row as any)[actionsColumn.key], row)
       : undefined;
+
     const fields: MobileCardField<T>[] = mobileFields ?? displayColumns
       .filter((col) => col.key !== 'actions')
       .map((col) => ({
         label: typeof col.header === 'string' ? col.header : col.key,
         render: (row: T) => col.render ? col.render((row as any)[col.key], row) : (row as any)[col.key],
       }));
+
     return (
       <MobileCardList t={t} data={dataToRender} rowKey={rowKey as keyof T} fields={fields}
         titleRender={mobileTitleRender} titleMaxLines={mobileTitleMaxLines} titleMaxChars={mobileTitleMaxChars}
@@ -695,6 +780,7 @@ export default function Table<T extends Record<string, any>>({
   }
 
   /* ===== Desktop ===== */
+
   return (
     <>
       <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: fixedHeader ? height : 'auto' }}>

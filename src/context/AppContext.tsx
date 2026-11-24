@@ -1,5 +1,31 @@
-// AppContext.tsx — единый контекст приложения: адаптивность + персистентные настройки + 
-// авторизация + HTTP-клиент для useFetch + базовые стили + ролевая модель (PermissionsLayer, PermissionRoute).
+// AppContext.tsx — единый контекст приложения: адаптивность + персистентные
+// настройки + авторизация + HTTP-клиент для useFetch + базовые стили + ACL.
+//
+// ИЗМЕНЕНИЯ:
+//  • isAdmin и AdminRoute удалены: «Администратор» — обычная роль из БД.
+//    Остался webAdmin (env-учётка) — он обходит любые проверки прав.
+//  • AclLayer прокидывает пользователя в AclProvider; onDiscoverResources
+//    отправляет обнаруженные ресурсы на сервер (реестр для редактора ролей).
+//  • BoundPageLayout объявляет пункты навигации ресурсами kind='header'.
+//  • AclRoute — guard по идентификатору ресурса.
+//
+// Смена пароля включена по умолчанию: BoundPageLayout прокидывает в Header
+// onPasswordChange = changePassword из useApp() — тот же клиент/эндпоинт, что
+// и у авторизации, и человекочитаемая ошибка сервера прямо в модалке.
+//
+// Управление:
+//   • выключить:  createAppModule<User>()({ ..., allowPasswordChange: false })
+//   • переопределить (свой эндпоинт / тост / логаут):
+//       headerProps: {
+//         onPasswordChange: async (oldPassword, newPassword) => {
+//           await axios.post('/api/auth/change-password', { oldPassword, newPassword });
+//           toast.success('Пароль изменён');
+//         },
+//       }
+//   • гостям пункт не показывается — меню пользователя есть только у вошедших.
+//
+// NOTE: цикл импорта AppContext ↔ PageLayout безопасен: с обеих сторон
+// используются только function declarations, вызываемые в render-time.
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   useSyncExternalStore, type ComponentType, type Dispatch, type ReactNode, type SetStateAction,
@@ -12,11 +38,12 @@ import { useGlobalStyles } from '../styles/global';
 import type { LayoutMode } from '../components/Header';
 import { PageLayout, type PageLayoutProps, type FooterConfig } from '../components/PageLayout';
 import type { NavTab } from '../components/Nav';
-import { PermissionsProvider, hasPermission } from '../permissions';
+import { AclProvider, canView, registerResource, type AclGrants, type AclResource } from '../acl';
 
 /* ───────────────────────── Media queries ───────────────────────── */
 
 const mqlCache = new Map<string, MediaQueryList>();
+
 function getMQL(query: string): MediaQueryList | null {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
   let mql = mqlCache.get(query);
@@ -79,6 +106,7 @@ function ResponsiveLayer({
   const hoverQ = useMediaQuery('(hover: hover)');
   const touchQ = useMediaQuery('(pointer: coarse)');
   const reducedQ = useMediaQuery('(prefers-reduced-motion: reduce)');
+
   const value = useMemo<ResponsiveValue>(() => {
     if (forceMode) {
       const m = forceMode === 'mobile', t = forceMode === 'tablet';
@@ -94,6 +122,7 @@ function ResponsiveLayer({
       hasHover: hoverQ, isTouch: touchQ, prefersReducedMotion: reducedQ,
     };
   }, [mobileQ, tabletQ, hoverQ, touchQ, reducedQ, forceMode]);
+
   return <ResponsiveCtx.Provider value={value}>{children}</ResponsiveCtx.Provider>;
 }
 
@@ -116,6 +145,7 @@ export interface SettingDef<T> {
   parse?: (raw: string) => T;
   serialize?: (value: T) => string;
 }
+
 export type SettingsSchema = Record<string, SettingDef<any>>;
 export type SettingValues<S extends SettingsSchema> = { [K in keyof S]: S[K]['default'] };
 export type SettingSetters<S extends SettingsSchema> = {
@@ -149,6 +179,7 @@ export function usePersistentState<T>(
 ): [T, Dispatch<SetStateAction<T>>] {
   const optsRef = useRef(options); optsRef.current = options;
   const initialRef = useRef(initial); initialRef.current = initial;
+
   const read = useCallback((): T => {
     if (typeof window === 'undefined') return initialRef.current;
     try {
@@ -160,10 +191,13 @@ export function usePersistentState<T>(
       return parsed;
     } catch { return initialRef.current; }
   }, [key]);
+
   const [value, setValue] = useState<T>(read);
+
   useEffect(() => {
     try { window.localStorage.setItem(key, (optsRef.current.serialize ?? defaultSerialize)(value)); } catch { /* ignore */ }
   }, [key, value]);
+
   const syncTabs = options.syncTabs ?? true;
   useEffect(() => {
     if (!syncTabs || typeof window === 'undefined') return;
@@ -171,6 +205,7 @@ export function usePersistentState<T>(
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, [key, syncTabs, read]);
+
   return [value, setValue];
 }
 
@@ -178,9 +213,13 @@ export function usePersistentState<T>(
 
 export interface BaseUser {
   userId: number; username: string; name: string; surname: string;
-  isAdmin: boolean; webAdmin?: boolean; allowedTabs?: string[] | null;
-  /** Права-строки ('*' — все). */
-  permissions?: string[] | null;
+  /** Env-учётка: обходит любые проверки прав. */
+  webAdmin?: boolean;
+  allowedTabs?: string[] | null;
+  /** Названия назначенных ролей (для отображения). */
+  roles?: string[];
+  /** Объединённые права ролей: списки view / edit. */
+  acl?: AclGrants | null;
 }
 
 export interface AuthEndpoints {
@@ -228,6 +267,12 @@ export interface AppModuleOptions<TUser extends BaseUser, S extends SettingsSche
    * Переопределяется через headerProps.onPasswordChange. @default true
    */
   allowPasswordChange?: boolean;
+  /**
+   * Приёмник обнаруженных ресурсов (кнопки, поля, вкладки, корни справочника).
+   * Вызывается батчем раз в секунду — проект отправляет их на сервер,
+   * откуда их забирает редактор ролей.
+   */
+  onDiscoverResources?: (resources: AclResource[]) => void;
   /** HTTP-клиент модуля: auth И useFetch внутри AppProvider. @default axios */
   axiosInstance?: AxiosInstance;
   endpoints?: Partial<AuthEndpoints>;
@@ -278,9 +323,9 @@ const DEFAULT_MESSAGES = {
 /* ───────────────────────── Фабрика модуля ───────────────────────── */
 
 /**
- * Создаёт модуль приложения: AppProvider (auth + UI + настройки + адаптивность +
- * HTTP-клиент + базовые стили), хуки useApp/useAuth/useUI, привязанный PageLayout
- * (с профилем и сменой пароля) и route-guards.
+ * Создаёт модуль приложения: AppProvider (auth + ACL + UI + настройки +
+ * адаптивность + HTTP-клиент + базовые стили), хуки useApp/useAuth/useUI,
+ * привязанный PageLayout (с профилем и сменой пароля) и route-guards.
  *
  *   createAppModule<User>()({ siteName, tabs, axiosInstance, settings: {...} })
  */
@@ -288,13 +333,14 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
   return function buildAppModule<S extends SettingsSchema = {}>(options: AppModuleOptions<TUser, S>) {
     const {
       siteName, logo, tabs, guestTabs, scrollMode, footer, headerProps, profile,
-      showNavigation: showNavigationFor, allowPasswordChange = true,
+      showNavigation: showNavigationFor, allowPasswordChange = true, onDiscoverResources,
       axiosInstance: defaultAxios = axios, endpoints: defaultEndpoints, refreshOn = [], messages,
       settings, storagePrefix: defaultPrefix = 'app',
       defaultTheme: defTheme = 'light', defaultLayout: defLayout = 'horizontal',
       defaultPerPage: defPerPage = 50, mobileBreakpoint = 640,
       loginPath = '/login', homePath = '/', noAccess,
     } = options;
+
     const msg = { ...DEFAULT_MESSAGES, ...messages };
     const settingsEntries = Object.entries(settings ?? {}) as [string, SettingDef<any>][];
 
@@ -302,9 +348,11 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
     const UIContext = createContext<(BaseUIState & SettingValues<S> & SettingSetters<S>) | undefined>(undefined);
 
     /* ── Auth ── */
+
     const AuthProvider = ({ children, axiosInstance = defaultAxios, endpoints: override }: ModuleProviderProps) => {
       const endpoints = useMemo<AuthEndpoints>(
         () => ({ ...DEFAULT_ENDPOINTS, ...defaultEndpoints, ...override }), [override]);
+
       const [user, setUser] = useState<TUser | null>(null);
       const [loading, setLoading] = useState(true);
       const [error, setError] = useState<string | null>(null);
@@ -367,6 +415,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
 
       const refreshUser = useCallback(async () => { await fetchUser(true); }, [fetchUser]);
       const clearError = useCallback(() => setError(null), []);
+
       const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
         try {
           await axiosInstance.post(endpoints.changePassword, { oldPassword, newPassword });
@@ -379,10 +428,12 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
       const value = useMemo<AuthContextType<TUser>>(
         () => ({ user, loading, error, login, logout, refreshUser, clearError, changePassword }),
         [user, loading, error, login, logout, refreshUser, clearError, changePassword]);
+
       return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
     };
 
     /* ── UI + настройки ── */
+
     const UIProvider = ({
       children, storagePrefix = defaultPrefix, defaultTheme = defTheme,
       defaultLayout = defLayout, defaultPerPage = defPerPage, settingDefaults,
@@ -396,6 +447,8 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
 
       const extraValues: Record<string, unknown> = {};
       const extraSetters: Record<string, unknown> = {};
+
+      // Схема фиксирована при создании модуля → порядок хуков стабилен.
       for (const [key, def] of settingsEntries) {
         // eslint-disable-next-line react-hooks/rules-of-hooks
         const [v, setV] = usePersistentState(`${storagePrefix}-${kebab(key)}`, settingDefaults?.[key] ?? def.default,
@@ -403,10 +456,12 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
         extraValues[key] = v;
         extraSetters[setterName(key)] = setV;
       }
+
       const value = useMemo(
         () => ({ theme, layout, perPage, setTheme, setLayout, setPerPage, ...extraValues, ...extraSetters }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [theme, layout, perPage, ...Object.values(extraValues)]);
+
       return <UIContext.Provider value={value as BaseUIState & SettingValues<S> & SettingSetters<S>}>{children}</UIContext.Provider>;
     };
 
@@ -415,22 +470,25 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
       if (!ctx) throw new Error('useAuth must be used within AppProvider');
       return ctx;
     };
+
     const useUI = (): BaseUIState & SettingValues<S> & SettingSetters<S> => {
       const ctx = useContext(UIContext);
       if (!ctx) throw new Error('useUI must be used within AppProvider');
       return ctx;
     };
-    /** Auth + UI + настройки одним объектом. */
+
+    /** Auth + UI + настройки одним объектом (мемоизирован). */
     const useApp = (): AppContextType<TUser, S> => {
       const auth = useAuth();
       const ui = useUI();
       return useMemo(() => ({ ...auth, ...ui }) as AppContextType<TUser, S>, [auth, ui]);
     };
 
-    /* ── Слой прав ── */
-    const PermissionsLayer = ({ children }: { children: ReactNode }) => {
+    /* ── ACL ── */
+
+    const AclLayer = ({ children }: { children: ReactNode }) => {
       const { user } = useAuth();
-      return <PermissionsProvider user={user}>{children}</PermissionsProvider>;
+      return <AclProvider user={user} onDiscover={onDiscoverResources}>{children}</AclProvider>;
     };
 
     const AppProvider = (props: ModuleProviderProps) => {
@@ -438,17 +496,18 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
       return (
         <FetchClientContext.Provider value={props.axiosInstance ?? defaultAxios}>
           <AuthProvider {...props}>
-            <PermissionsLayer>
+            <AclLayer>
               <UIProvider {...props}>
                 <ResponsiveLayer mobileBreakpoint={mobileBreakpoint}>{props.children}</ResponsiveLayer>
               </UIProvider>
-            </PermissionsLayer>
+            </AclLayer>
           </AuthProvider>
         </FetchClientContext.Provider>
       );
     };
 
     /* ── Guards ── */
+
     const noAccessNode = noAccess ?? (
       <div style={{ padding: 40, textAlign: 'center', fontSize: 15, lineHeight: 1.6 }}>
         У вас нет доступных разделов.<br />Обратитесь к администратору для назначения роли.
@@ -461,14 +520,17 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
       if (!user) return <Navigate to={redirectTo} replace />;
       return <>{children ?? <Outlet />}</>;
     };
-    const AdminRoute = ({ children, redirectTo = loginPath, forbiddenRedirectTo = homePath }:
-      { children?: ReactNode; redirectTo?: string; forbiddenRedirectTo?: string }) => {
+
+    /** Guard по ресурсу: гость → login, нет права → home. */
+    const AclRoute = ({ id, children, redirectTo = loginPath, forbiddenRedirectTo = homePath }:
+      { id: string; children?: ReactNode; redirectTo?: string; forbiddenRedirectTo?: string }) => {
       const { user, loading } = useAuth();
       if (loading) return null;
       if (!user) return <Navigate to={redirectTo} replace />;
-      if (!user.isAdmin) return <Navigate to={forbiddenRedirectTo} replace />;
+      if (!canView(user, id)) return <Navigate to={forbiddenRedirectTo} replace />;
       return <>{children ?? <Outlet />}</>;
     };
+
     const WebAdminRoute = ({ children, redirectTo = loginPath, forbiddenRedirectTo = homePath }:
       { children?: ReactNode; redirectTo?: string; forbiddenRedirectTo?: string }) => {
       const { user, loading } = useAuth();
@@ -477,16 +539,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
       if (!user.webAdmin) return <Navigate to={forbiddenRedirectTo} replace />;
       return <>{children ?? <Outlet />}</>;
     };
-    /** Guard по праву: гость → login, нет права → home. */
-    const PermissionRoute = ({ permission, children, redirectTo = loginPath, forbiddenRedirectTo = homePath }: {
-      permission: string; children?: ReactNode; redirectTo?: string; forbiddenRedirectTo?: string;
-    }) => {
-      const { user, loading } = useAuth();
-      if (loading) return null;
-      if (!user) return <Navigate to={redirectTo} replace />;
-      if (!hasPermission(user, permission)) return <Navigate to={forbiddenRedirectTo} replace />;
-      return <>{children ?? <Outlet />}</>;
-    };
+
     const TabGuard = ({ tabId, children, redirectTo }: { tabId: string; children: ReactNode; redirectTo?: string }) => {
       const { user, loading } = useAuth();
       if (loading) return null;
@@ -497,13 +550,29 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
     };
 
     /* ── Привязанный PageLayout ── */
+
     const BoundPageLayout = ({ title, actions, children, padding, paddingBottom }: BoundPageLayoutProps) => {
       const { user, logout, changePassword, refreshUser, theme, layout, setTheme, setLayout } = useApp();
       const [profileOpen, setProfileOpen] = useState(false);
+
       const canSeeProfile = !!profile && (profile.canSee?.(user) ?? (!!user && !user.webAdmin));
       const ProfileModal = profile?.Modal;
       const showNavigation = showNavigationFor?.(user) ?? true;
 
+      // Пункты навигации объявляют себя ресурсами kind='header'.
+      useEffect(() => {
+        for (const tab of tabs) {
+          if (tab.acl) registerResource({ id: tab.acl, kind: 'header', label: tab.label });
+          for (const child of tab.children ?? []) {
+            if (child.acl) registerResource({ id: child.acl, kind: 'header', label: child.label });
+          }
+        }
+      }, []);
+
+      // Смена пароля: клиент, эндпоинт и текст ошибки — из auth-слоя модуля.
+      // После успеха тихо сверяем сессию: если бэкенд её сбросил при смене
+      // пароля, interceptor обнулит user и guards уведут на страницу входа.
+      // headerProps идёт последним — потребитель может переопределить обработчик.
       const mergedHeaderProps = useMemo(() => ({
         onPasswordChange: allowPasswordChange
           ? async (oldPassword: string, newPassword: string) => {
@@ -528,6 +597,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
           >
             {children}
           </PageLayout>
+
           {canSeeProfile && ProfileModal && (
             <ProfileModal theme={themes[theme]} isOpen={profileOpen} onClose={() => setProfileOpen(false)} user={user} />
           )}
@@ -538,7 +608,7 @@ export function createAppModule<TUser extends BaseUser = BaseUser>() {
     return {
       AppProvider, useApp, useAuth, useUI,
       PageLayout: BoundPageLayout,
-      ProtectedRoute, AdminRoute, WebAdminRoute, TabGuard, PermissionRoute,
+      ProtectedRoute, AclRoute, WebAdminRoute, TabGuard,
     };
   };
 }
