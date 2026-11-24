@@ -201,11 +201,11 @@ function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
   const idOf = (kind: ActionKind) => (acl ? `${acl}.${kind}` : undefined);
   const show = (kind: ActionKind) => !acl || can(idOf(kind));
 
-  useAclResource('button', idOf('edit'), `${header}: ${ACTION_LABELS.edit}`);
-  useAclResource('button', idOf('download'), `${header}: ${ACTION_LABELS.download}`);
-  useAclResource('button', idOf('log'), `${header}: ${ACTION_LABELS.log}`);
-  useAclResource('button', idOf('delete'), `${header}: ${ACTION_LABELS.delete}`);
-  useAclResource('button', idOf('restore'), `${header}: ${ACTION_LABELS.restore}`);
+  useAclResource('button', onEdit ? idOf('edit') : undefined, `${header}: ${ACTION_LABELS.edit}`);
+  useAclResource('button', onDownload ? idOf('download') : undefined, `${header}: ${ACTION_LABELS.download}`);
+  useAclResource('button', onLog ? idOf('log') : undefined, `${header}: ${ACTION_LABELS.log}`);
+  useAclResource('button', onDelete ? idOf('delete') : undefined, `${header}: ${ACTION_LABELS.delete}`);
+  useAclResource('button', onRestore ? idOf('restore') : undefined, `${header}: ${ACTION_LABELS.restore}`);
 
   const buttons: React.ReactNode[] = [];
 
