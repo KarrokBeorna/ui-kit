@@ -1,5 +1,6 @@
 // Button.tsx — кнопка (primary / danger / success, outline, sm/md).
 // Проп acl: ресурс сам регистрируется в реестре, без права кнопка не рендерится.
+// Проп aclLabel: человекочитаемое имя ресурса для редактора ролей.
 import React from 'react';
 import type { Theme } from '../themes/theme';
 import { useAcl, useAclResource } from '../acl';
@@ -31,17 +32,19 @@ export interface ButtonProps {
   title?: string;
   /** Идентификатор ресурса ('users.add'). Нет права — кнопка скрыта. */
   acl?: string;
+  /** Имя ресурса в редакторе ролей ('Пользователи: добавить'). По умолчанию — текст кнопки или aria-label. */
+  aclLabel?: string;
 }
 
 /** Кнопка UI Kit. Hover не залипает на таче (pointerType === 'mouse'). */
 export default function Button({
   icon, children, variant = 'primary', outline = false, size = 'md',
   onClick, disabled = false, theme, type = 'button', className = '', style = {},
-  'aria-label': ariaLabel, title, acl,
+  'aria-label': ariaLabel, title, acl, aclLabel,
 }: ButtonProps) {
   const { can } = useAcl();
-  const aclLabel = typeof children === 'string' ? children : ariaLabel;
-  useAclResource('button', acl, aclLabel);
+  const resourceName = aclLabel ?? (typeof children === 'string' ? children : ariaLabel);
+  useAclResource('button', acl, resourceName);
 
   const solidColor = variant === 'danger' ? theme.danger : variant === 'success' ? theme.success : theme.accent;
   const textColor = variant === 'primary' ? theme.accentText : '#ffffff';

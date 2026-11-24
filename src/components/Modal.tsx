@@ -1,7 +1,11 @@
 // Modal.tsx — модальное окно с сеткой полей, focus-trap и fullscreen на мобильном.
 //
-// ИЗМЕНЕНИЕ: поля поддерживают ACL. Поле с acl регистрируется в реестре ресурсов
-// само; без права view — не рендерится, без права edit — видно, но заблокировано.
+// Поля поддерживают ACL: поле с acl регистрируется в реестре ресурсов само;
+// без права view — не рендерится, без права edit — видно, но заблокировано.
+//
+// ИЗМЕНЕНИЕ: height наконец применяется, добавлены rowSizes и bodyOverflow.
+// Это позволяет собрать модалку фиксированной высоты, где скроллится только
+// одна ячейка (например таблица полей), а само окно остаётся неподвижным.
 import React, { useEffect, useRef, useId } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
@@ -53,8 +57,12 @@ export interface ModalProps {
   cancelText?: string;
   /** Ширина (px или CSS). @default 640 */
   width?: number | string;
-  /** Высота (px или CSS). @default 640 */
+  /** Высота карточки (px или CSS). На мобильном игнорируется — там fullscreen. */
   height?: number | string;
+  /** Явные размеры строк сетки: ['auto', 'minmax(0,1fr)']. Число → px. */
+  rowSizes?: (string | number)[];
+  /** Скролл тела. 'hidden' — скроллится только содержимое ячейки. @default 'auto' */
+  bodyOverflow?: 'auto' | 'hidden';
   /** Доступность кнопки Ok. @default true */
   canSubmit?: boolean;
   /** Выравнивание по вертикали для каждой строки. */
@@ -72,7 +80,8 @@ const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]),select:no
 /** Модальное окно. Enter подтверждает (кроме textarea/кнопок/дропдаунов), Escape закрывает. */
 export default function Modal({
   theme: t, isOpen, onClose, onOk, title = 'Модальное окно',
-  columns, rows, fields, okText = 'Ок', cancelText = 'Отмена', width = 640,
+  columns, rows, fields, okText = 'Ок', cancelText = 'Отмена', width = 640, height,
+  rowSizes, bodyOverflow = 'auto',
   canSubmit = true, rowAlign, fullscreen: fullscreenProp, showCancel = true, showOk = true,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -164,6 +173,13 @@ export default function Modal({
   const gridToRender = fullscreen ? visibleFields.map((f) => [contentOf(f)]) : grid;
   const showFooter = showOk || showCancel;
 
+  // Фиксированная раскладка работает только на десктопе: во fullscreen строки
+  // пересобираются в один столбец, и тело снова скроллится, чтобы ничего не обрезать.
+  const fill = bodyOverflow === 'hidden' && !fullscreen;
+  const templateRows = rowSizes && !fullscreen && rowSizes.length === gridToRender.length
+    ? rowSizes.map((s) => (typeof s === 'number' ? `${s}px` : s)).join(' ')
+    : `repeat(${gridToRender.length}, auto)`;
+
   return (
     <div
       ref={modalRef} data-modal="true" role="dialog" aria-modal="true" aria-labelledby={titleId}
@@ -177,7 +193,7 @@ export default function Modal({
       <div style={{
         background: t.bgSurface, borderRadius: fullscreen ? 0 : 16,
         width: fullscreen ? '100vw' : width, maxWidth: fullscreen ? '100vw' : 'calc(100vw - 40px)',
-        maxHeight: fullscreen ? '100dvh' : 'calc(100vh - 40px)', height: fullscreen ? '100dvh' : undefined,
+        maxHeight: fullscreen ? '100dvh' : 'calc(100vh - 40px)', height: fullscreen ? '100dvh' : height,
         display: 'flex', flexDirection: 'column', boxShadow: t.shadowLg,
         animation: fullscreen ? 'modalFadeIn 0.2s ease' : 'modalScaleIn 0.25s cubic-bezier(0.4,0,0.2,1)',
         border: fullscreen ? 'none' : `1px solid ${t.border}`, overflow: 'hidden',
@@ -202,10 +218,15 @@ export default function Modal({
           </button>
         </div>
 
-        <div style={{ padding: 20, overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
+        <div style={{
+          padding: 20, overflowY: fill ? 'hidden' : 'auto', overscrollBehavior: 'contain',
+          flex: 1, minHeight: 0,
+          ...(fill ? { display: 'flex', flexDirection: 'column' } : null),
+        }}>
           <div style={{
             display: 'grid', gridTemplateColumns: `repeat(${effectiveColumns}, 1fr)`,
-            gridTemplateRows: `repeat(${gridToRender.length}, auto)`, gap: 12,
+            gridTemplateRows: templateRows, gap: 12,
+            ...(fill ? { flex: 1, minHeight: 0 } : null),
           }}>
             {gridToRender.map((row, ri) =>
               row.map((cell, ci) => {
@@ -216,7 +237,7 @@ export default function Modal({
                 return (
                   <div key={`${ri}-${ci}`} style={{
                     gridRow: `${ri + 1} / span ${rowspan}`, gridColumn: `${ci + 1} / span ${colspan}`,
-                    display: 'flex', flexDirection: 'column',
+                    display: 'flex', flexDirection: 'column', minHeight: 0,
                     alignSelf: fullscreen ? 'stretch' : rowAlign?.[ri] ?? 'end',
                   }}>
                     {field?.required && <span style={{ color: t.danger, fontSize: 12, fontWeight: 600, marginRight: 4 }}>*</span>}

@@ -5,7 +5,11 @@
 //    layout (watchLayout наблюдает за элементом и всеми его предками);
 //  • ACL: Column.acl / MobileCardField.acl скрывают колонки и поля карточек;
 //    ActionsColumn({ acl: 'users' }) сам объявляет и проверяет ресурсы
-//    users.edit / users.delete / users.download / users.log / users.restore.
+//    users.edit / users.delete / users.download / users.log / users.restore;
+//  • labels — человекочитаемые имена действий для редактора ролей;
+//  • allow — точечное скрытие действия для конкретной строки (например
+//    «системную роль удалить нельзя»), не влияющее на реестр ресурсов;
+//  • ресурсы объявляются только для действий, у которых есть обработчик.
 import React, {
   useState, useMemo, useCallback, useRef, useLayoutEffect, Fragment, useEffect,
 } from 'react';
@@ -150,6 +154,9 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
 
 /* ───────────────────────── ActionsColumn ───────────────────────── */
 
+/** Вид действия в колонке «Действия». */
+export type ActionKind = 'edit' | 'download' | 'log' | 'delete' | 'restore';
+
 export interface ActionsColumnOptions<T> {
   /** Тема оформления. */
   theme: Theme;
@@ -177,9 +184,11 @@ export interface ActionsColumnOptions<T> {
   buttonSize?: 'sm' | 'md';
   /** Префикс ресурсов: 'users' → users.edit, users.delete, … Без пропа права не проверяются. */
   acl?: string;
+  /** Имена действий для редактора ролей: { edit: 'Открыть карточку пользователя' }. */
+  labels?: Partial<Record<ActionKind, string>>;
+  /** Скрыть действие для конкретной строки (системную роль нельзя удалить). На реестр не влияет. */
+  allow?: (action: ActionKind, row: T) => boolean;
 }
-
-type ActionKind = 'edit' | 'download' | 'log' | 'delete' | 'restore';
 
 const ACTION_LABELS: Record<ActionKind, string> = {
   edit: 'Изменить', download: 'Скачать', log: 'Журнал', delete: 'Удалить', restore: 'Восстановить',
@@ -193,19 +202,21 @@ function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
     isDeleted = (r: any) => r?.is_deleted === true,
     header = 'Действия',
     editIcon = '✎', downloadIcon = '⬇', logIcon = '⌸', deleteIcon = '✕', restoreIcon = '⟳',
-    extraActions, isMobile = false, buttonSize, acl,
+    extraActions, isMobile = false, buttonSize, acl, labels, allow,
   } = o;
 
   const gap = o.gap ?? (isMobile ? 8 : 6);
   const size = buttonSize ?? (isMobile ? 'md' : 'sm');
   const idOf = (kind: ActionKind) => (acl ? `${acl}.${kind}` : undefined);
-  const show = (kind: ActionKind) => !acl || can(idOf(kind));
+  const labelOf = (kind: ActionKind) => labels?.[kind] ?? `${header}: ${ACTION_LABELS[kind]}`;
+  const show = (kind: ActionKind) =>
+    (!acl || can(idOf(kind))) && (!allow || allow(kind, row));
 
-  useAclResource('button', onEdit ? idOf('edit') : undefined, `${header}: ${ACTION_LABELS.edit}`);
-  useAclResource('button', onDownload ? idOf('download') : undefined, `${header}: ${ACTION_LABELS.download}`);
-  useAclResource('button', onLog ? idOf('log') : undefined, `${header}: ${ACTION_LABELS.log}`);
-  useAclResource('button', onDelete ? idOf('delete') : undefined, `${header}: ${ACTION_LABELS.delete}`);
-  useAclResource('button', onRestore ? idOf('restore') : undefined, `${header}: ${ACTION_LABELS.restore}`);
+  useAclResource('button', onEdit ? idOf('edit') : undefined, labelOf('edit'));
+  useAclResource('button', onDownload ? idOf('download') : undefined, labelOf('download'));
+  useAclResource('button', onLog ? idOf('log') : undefined, labelOf('log'));
+  useAclResource('button', onDelete ? idOf('delete') : undefined, labelOf('delete'));
+  useAclResource('button', onRestore ? idOf('restore') : undefined, labelOf('restore'));
 
   const buttons: React.ReactNode[] = [];
 
