@@ -1,8 +1,4 @@
-// DirectoryTree.tsx — единый справочник. Объединяет DirectoryTree и
-// MobileDirectoryTree: на узком экране — drill-down с хлебными крошками,
-// на десктопе — колонки уровней. Хук useDirectoryTree, модалка формы и
-// storage-утилиты встроены сюда (наружу не нужны).
-
+// DirectoryTree.tsx — единый справочник с правами на корни (DirectoryItem.permission).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Theme } from '../themes/theme';
 import Button from './Button';
@@ -11,6 +7,7 @@ import CustomInput from './CustomInput';
 import CustomSelect from './CustomSelect';
 import { IcoChevronLeft, IcoChevronRight } from './icons';
 import { useResponsive } from '../context/AppContext';
+import { useCan } from '../permissions';
 
 /* ───────────────────────── Типы ───────────────────────── */
 
@@ -21,6 +18,8 @@ export interface DirectoryItem {
   type: string;
   parent_id: number | null;
   sort_order?: number;
+  /** Право видимости корневого справочника. */
+  permission?: string;
 }
 
 /** API справочника (реализуется в проекте). */
@@ -73,8 +72,11 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     creatable = true, editable = true, deletable = true,
     storageKey = 'last_directory_type', directoryTypes, onError, autoSelectFirstRoot,
   } = opts;
-
-  // Свежие пропсы через ref: смена ссылки api не сбрасывает путь.
+  const can = useCan();
+  const visibleRoots = useCallback(
+    (roots: DirectoryItem[]) => roots.filter((r) => can(r.permission)),
+    [can],
+  );
   const apiRef = useRef(api);
   useEffect(() => { apiRef.current = api; }, [api]);
   const onErrorRef = useRef(onError);
@@ -87,8 +89,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
   const [selectedPath, setSelectedPath] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [mutating, setMutating] = useState(false);
-  const navReq = useRef(0); // защита от гонок при быстрой навигации
-
+  const navReq = useRef(0);
   const getLastType = useCallback(() => safeGet(storageKey) || directoryTypes[0]?.value || '', [storageKey, directoryTypes]);
   const setLastType = useCallback((type: string) => safeSet(storageKey, type), [storageKey]);
 
@@ -106,7 +107,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     try {
       const rawRoots = await apiRef.current.getRoots();
       if (req !== navReq.current) return;
-      const roots = rawRoots.map((r) => ({ ...r, type: 'root' }));
+      const roots = visibleRoots(rawRoots.map((r) => ({ ...r, type: 'root' })));
       if (autoSelect && roots.length > 0) {
         const first = roots[0];
         let children: DirectoryItem[] = [];
@@ -123,8 +124,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     } finally {
       if (req === navReq.current) setLoading(false);
     }
-  }, [notifyError]);
-
+  }, [notifyError, visibleRoots]);
   useEffect(() => { void loadRoots(autoSelectFirstRoot); }, [autoSelectFirstRoot, loadRoots]);
 
   /* Права */
@@ -176,7 +176,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
       if (level !== 0) setLastType(data.type);
       if (level === 0) {
         const rawRoots = await apiRef.current.getRoots();
-        applyChildren(0, rawRoots.map((r) => ({ ...r, type: 'root' })), false);
+        applyChildren(0, visibleRoots(rawRoots.map((r) => ({ ...r, type: 'root' }))), false);
       } else if (parentId != null) {
         applyChildren(level, await apiRef.current.getChildren(parentId), false);
       }
@@ -187,8 +187,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     } finally {
       setMutating(false);
     }
-  }, [selectedPath, applyChildren, setLastType, notifyError]);
-
+  }, [selectedPath, applyChildren, setLastType, notifyError, visibleRoots]);
   const editItem = useCallback(async (id: number, data: { name: string; type: string }): Promise<boolean> => {
     setMutating(true);
     try {
@@ -240,7 +239,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
       await apiRef.current.moveItem(item.id, direction);
       if (level === 0) {
         const rawRoots = await apiRef.current.getRoots();
-        applyChildren(0, rawRoots.map((r) => ({ ...r, type: 'root' })), false);
+        applyChildren(0, visibleRoots(rawRoots.map((r) => ({ ...r, type: 'root' }))), false);
       } else {
         const parentId = selectedPath[level - 1];
         if (parentId != null) applyChildren(level, await apiRef.current.getChildren(parentId), false);
@@ -252,7 +251,7 @@ function useDirectoryTree(opts: DirectoryTreeProps & { autoSelectFirstRoot: bool
     } finally {
       setMutating(false);
     }
-  }, [selectedPath, applyChildren, notifyError]);
+  }, [selectedPath, applyChildren, notifyError, visibleRoots]);
 
   const itemById = useMemo(() => {
     const m = new Map<number, DirectoryItem>();
@@ -325,10 +324,7 @@ function DirectoryFormModal({ theme, isOpen, onClose, onSave, title, okText, sho
 
 const TOUCH = 44;
 
-/**
- * Справочник с CRUD и сортировкой. На узком экране — мобильный drill-down,
- * на десктопе — колонки уровней. Заменяет DirectoryTree / MobileDirectoryTree.
- */
+/** Справочник с CRUD и сортировкой. Корни фильтруются по праву. */
 export default function DirectoryTree(props: DirectoryTreeProps) {
   const { theme: t, directoryTypes, typeLabels } = props;
   const { isMobile } = useResponsive();

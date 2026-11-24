@@ -1,9 +1,4 @@
-// Table.tsx — таблица + мобильные карточки + фабрика колонки действий.
-//
-// ИЗМЕНЕНИЕ: шестерёнка «Настройка таблицы» теперь следует за таблицей при любом
-// сдвиге layout (раскрытие FilterBar, рост тулбара, анимации), а не только при
-// ресайзе самой таблицы: watchLayout наблюдает за элементом и всеми его предками.
-
+// Table.tsx — таблица + мобильные карточки + фабрика колонки действий (с правами).
 import React, {
   useState, useMemo, useCallback, useRef, useLayoutEffect, Fragment, useEffect,
 } from 'react';
@@ -15,6 +10,7 @@ import Button from './Button';
 import { IcoChevronUp, IcoChevronDown } from './icons';
 import { useResponsive } from '../context/AppContext';
 import { useAutoRefresh, useStyleTag, watchLayout } from '../hooks';
+import { useCan } from '../permissions';
 
 /* ───────────────────────── Сортировка ───────────────────────── */
 
@@ -163,39 +159,49 @@ export interface ActionsColumnOptions<T> {
   /** Передавайте из useResponsive(). */
   isMobile?: boolean;
   buttonSize?: 'sm' | 'md';
+  /** Права на действия: нет права — кнопка скрыта. */
+  permissions?: Partial<Record<'edit' | 'download' | 'log' | 'delete' | 'restore', string>>;
+}
+
+type ActionKind = 'edit' | 'download' | 'log' | 'delete' | 'restore';
+
+/** Ячейка действий — компонент, чтобы читать права из контекста. */
+function ActionsCell<T>({ row, o }: { row: T; o: ActionsColumnOptions<T> }) {
+  const can = useCan();
+  const {
+    theme, onEdit, onDownload, onLog, onDelete, onRestore,
+    isDeleted = (r: any) => r?.is_deleted === true,
+    editIcon = '✎', downloadIcon = '⬇', logIcon = '⌸', deleteIcon = '✕', restoreIcon = '⟳',
+    extraActions, isMobile = false, buttonSize, permissions,
+  } = o;
+  const gap = o.gap ?? (isMobile ? 8 : 6);
+  const size = buttonSize ?? (isMobile ? 'md' : 'sm');
+  const show = (kind: ActionKind) => can(permissions?.[kind]);
+  const buttons: React.ReactNode[] = [];
+  if (isDeleted(row)) {
+    if (onRestore && show('restore')) buttons.push(
+      <Button key="restore" icon={restoreIcon} variant="primary" outline size={size} aria-label="Восстановить" onClick={() => onRestore(row)} theme={theme} />);
+  } else {
+    if (onEdit && show('edit')) buttons.push(
+      <Button key="edit" icon={editIcon} variant="primary" outline size={size} aria-label="Редактировать" onClick={() => onEdit(row)} theme={theme} />);
+    if (onDownload && show('download')) buttons.push(
+      <Button key="download" icon={downloadIcon} variant="primary" outline size={size} aria-label="Скачать" onClick={() => onDownload(row)} theme={theme} />);
+    if (onLog && show('log')) buttons.push(
+      <Button key="log" icon={logIcon} variant="primary" outline size={size} aria-label="Журнал" onClick={() => onLog(row)} theme={theme} />);
+    if (onDelete && show('delete')) buttons.push(
+      <Button key="delete" icon={deleteIcon} variant="danger" outline size={size} aria-label="Удалить" onClick={() => onDelete(row)} theme={theme} />);
+  }
+  const extra = extraActions?.(row);
+  if (buttons.length === 0 && !extra) return null;
+  return <div style={{ display: 'flex', gap, alignItems: 'center' }}>{buttons}{extra}</div>;
 }
 
 /** Фабрика колонки «Действия» (не хук). */
 export function ActionsColumn<T>(options: ActionsColumnOptions<T>) {
-  const {
-    theme, onEdit, onDownload, onLog, onDelete, onRestore,
-    isDeleted = (row: any) => row?.is_deleted === true,
-    key = 'actions', header = 'Действия',
-    editIcon = '✎', downloadIcon = '⬇', logIcon = '⌸', deleteIcon = '✕', restoreIcon = '⟳',
-    extraActions, sortable = false, isMobile = false, buttonSize,
-  } = options;
-  const gap = options.gap ?? (isMobile ? 8 : 6);
-  const size = buttonSize ?? (isMobile ? 'md' : 'sm');
-  const wrap = (children: React.ReactNode) => <div style={{ display: 'flex', gap, alignItems: 'center' }}>{children}</div>;
+  const { key = 'actions', header = 'Действия', sortable = false } = options;
   return {
     key, header, sortable,
-    render: (_: unknown, row: T): React.ReactNode => {
-      if (isDeleted(row)) {
-        if (!onRestore && !extraActions) return null;
-        return wrap(<>
-          {onRestore && <Button icon={restoreIcon} variant="primary" outline size={size} aria-label="Восстановить" onClick={() => onRestore(row)} theme={theme} />}
-          {extraActions?.(row)}
-        </>);
-      }
-      if (!onEdit && !onDownload && !onLog && !onDelete && !extraActions) return null;
-      return wrap(<>
-        {onEdit && <Button icon={editIcon} variant="primary" outline size={size} aria-label="Редактировать" onClick={() => onEdit(row)} theme={theme} />}
-        {onDownload && <Button icon={downloadIcon} variant="primary" outline size={size} aria-label="Скачать" onClick={() => onDownload(row)} theme={theme} />}
-        {onLog && <Button icon={logIcon} variant="primary" outline size={size} aria-label="Журнал" onClick={() => onLog(row)} theme={theme} />}
-        {onDelete && <Button icon={deleteIcon} variant="danger" outline size={size} aria-label="Удалить" onClick={() => onDelete(row)} theme={theme} />}
-        {extraActions?.(row)}
-      </>);
-    },
+    render: (_: unknown, row: T): React.ReactNode => <ActionsCell row={row} o={options} />,
   };
 }
 
@@ -505,7 +511,7 @@ export default function Table<T extends Record<string, any>>({
   const visibleKeys = useMemo(() =>
     externalVisibleColumns !== undefined ? new Set(externalVisibleColumns)
       : persistKey ? new Set(persisted.visibleColumns)
-      : internalVisible,
+        : internalVisible,
     [externalVisibleColumns, persistKey, persisted.visibleColumns, internalVisible]);
 
   const columnByKey = useMemo(() => {
@@ -665,7 +671,7 @@ export default function Table<T extends Record<string, any>>({
     return watchLayout(el, update);
   }, [willRenderMobile, height, fixedHeader]);
 
-  /* ===== Мобильный режим (все хуки выше) ===== */
+  /* ===== Мобильный режим ===== */
   if (willRenderMobile) {
     if (renderMobile) return <>{renderMobile(dataToRender)}</>;
     const actionsColumn = columns.find((c) => c.key === 'actions');

@@ -1,25 +1,30 @@
-// Menu.tsx — простое вертикальное меню (без авторизации/подменю).
+// Menu.tsx — простое вертикальное меню с поддержкой прав.
 import React from 'react';
 import type { Theme } from '../themes/theme';
+import { useCan } from '../permissions';
 
 /** Пункт меню. */
-export interface MenuTab { id: string; label: string; icon?: React.ReactNode; }
+export interface MenuTab {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  /** Право доступа к пункту. */
+  permission?: string;
+}
 
 export interface MenuProps {
-  /** Пункты. */
   tabs: MenuTab[];
-  /** Активный пункт. */
   activeTab: string;
-  /** Навигация. */
   onTabChange: (id: string) => void;
-  /** Тема оформления. */
   theme: Theme;
   className?: string;
   style?: React.CSSProperties;
 }
 
-/** Вертикальное sticky-меню 240px. */
+/** Вертикальное sticky-меню 240px. Пункты без права скрываются. */
 export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: MenuProps) {
+  const can = useCan();
+  const visibleTabs = tabs.filter((t) => can(t.permission));
   return (
     <nav className={className} role="navigation" style={{
       width: 240, height: '100dvh', position: 'sticky', top: 0,
@@ -28,7 +33,7 @@ export function Menu({ tabs, activeTab, onTabChange, theme, className, style }: 
       padding: '16px 8px', display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0,
       ...style,
     }}>
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button key={tab.id} type="button" onClick={() => onTabChange(tab.id)}
