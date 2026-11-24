@@ -1,18 +1,12 @@
 // icons.tsx — SVG-иконки UI Kit.
-//
-// Все иконки принимают s (размер, px), size (алиас s) и любые SVG-пропсы:
-// stroke, style, className, aria-* и т.д. Дефолтный размер у каждой своё.
-//
-// ИЗМЕНЕНИЕ: предметные иконки и логотипы перенесены сюда из проектов.
-// Раньше EmployeesIcon / DepartmentsIcon / AGMIcon / AGMMonogram жили в
-// AGM Service (src/constants/icons.tsx) и не переиспользовались между apps.
+// Все иконки принимают s (размер, px), size (алиас s) и любые SVG-пропсы.
+// Предметные иконки всех проектов живут здесь (AGM, Rolis).
 import React, { type SVGProps } from 'react';
 
-/** Пропсы иконки: s или size задают размер, остальное уходит в <svg>. */
 export type IconProps = Omit<SVGProps<SVGSVGElement>, 'size'> & {
   /** Размер в px. */
   s?: number;
-  /** Алиас s — совместимость с иконками, перенесёнными из проектов. */
+  /** Алиас s. */
   size?: number;
 };
 
@@ -187,7 +181,7 @@ export const DateTimeIcon = ({ s, size, ...p }: IconProps) => {
   const d = s ?? size ?? 16;
   return (
     <svg width={d} height={d} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <rect x="3" y="4" width="13" height="13" rx="1.5" />
+      <rect x="2" y="3" width="13" height="13" rx="1.5" />
       <line x1="7" y1="2" x2="7" y2="6" /><line x1="12" y1="2" x2="12" y2="6" /><line x1="3" y1="9" x2="16" y2="9" />
       <circle cx="19" cy="19" r="4" />
       <polyline points="19 17 19 19 21 19" />
@@ -239,11 +233,7 @@ export const IcoVerHeader = ({ s, size, ...p }: IconProps) => {
   );
 };
 
-/* ───────────────────────── Предметные иконки ─────────────────────────
-   Перенесены из проектов. Размер по умолчанию 20px; в NavIcon шапки
-   переопределяется CSS `width: 1em`, поэтому важен только при
-   standalone-использовании (логотип, пустые состояния, кнопки).
-──────────────────────────────────────────────────────────────────── */
+/* ───────────────────────── Предметные иконки ───────────────────────── */
 
 /** Главная / дашборд. */
 export const HomeIcon = ({ s, size, ...p }: IconProps) => {
@@ -263,10 +253,8 @@ export const EmployeesIcon = ({ s, size, ...p }: IconProps) => {
   return (
     <svg width={d} height={d} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
-      {/* Передний человек */}
       <circle cx="9" cy="7.5" r="3.5" />
       <path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
-      {/* Задний человек — голова меньше, плечо уходит за переднего */}
       <circle cx="17" cy="6.5" r="2.5" />
       <path d="M16 11.5c2.8.2 5 2.3 5 5" />
     </svg>
@@ -285,7 +273,7 @@ export const UserIcon = ({ s, size, ...p }: IconProps) => {
   );
 };
 
-/** Подразделения — орг-структура (иерархия 1 → 2). */
+/** Подразделения — орг-структура. */
 export const DepartmentsIcon = ({ s, size, ...p }: IconProps) => {
   const d = s ?? size ?? 20;
   return (
@@ -324,6 +312,30 @@ export const ShieldIcon = ({ s, size, ...p }: IconProps) => {
   );
 };
 
+/** Подписки — конверт (email-уведомления по контейнерам). Rolis. */
+export const SubscriptionsIcon = ({ s, size, ...p }: IconProps) => {
+  const d = s ?? size ?? 20;
+  return (
+    <svg width={d} height={d} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m2 7 10 6 10-6" />
+    </svg>
+  );
+};
+
+/** Настройки — шестерёнка. Rolis. */
+export const SettingsIcon = ({ s, size, ...p }: IconProps) => {
+  const d = s ?? size ?? 20;
+  return (
+    <svg width={d} height={d} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+};
+
 /* ───────────────────────── Логотипы ───────────────────────── */
 
 /** AGM — промышленный корпус с двумя «пилами» и трубой. */
@@ -332,13 +344,9 @@ export const AGMIcon = ({ s, size, ...p }: IconProps) => {
   return (
     <svg width={d} height={d} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
-      {/* Основной цех */}
       <path d="M3 21V11l6-3v3l6-3v13" />
-      {/* Труба справа */}
       <path d="M15 21V8l3-1.5v3l3-1.5v13" />
-      {/* Земля */}
       <path d="M2 21h20" />
-      {/* Окна цеха и трубы */}
       <path d="M6 14v2M6 18v2M10 14v2M10 18v2M18 15v2M18 19v2" />
     </svg>
   );
@@ -352,6 +360,19 @@ export const AGMMonogram = ({ s, size, ...p }: IconProps) => {
       strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
       <path d="M4 20L12 4l8 16" />
       <path d="M7.5 14h9" />
+    </svg>
+  );
+};
+
+/** Rolis — морской контейнер с рёбрами жёсткости (логотип сервиса). */
+export const RolisIcon = ({ s, size, ...p }: IconProps) => {
+  const d = s ?? size ?? 20;
+  return (
+    <svg width={d} height={d} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
+      <rect x="2" y="5" width="20" height="13" rx="1.5" />
+      <path d="M6 8v7M10 8v7M14 8v7M18 8v7" />
+      <path d="M2 21h20" />
     </svg>
   );
 };
