@@ -1,18 +1,19 @@
 // Table.tsx — таблица + мобильные карточки + фабрика колонки действий.
 //
-// ИЗМЕНЕНИЯ:
-//  • НОВОЕ: действие 'photos' (onPhotos / photosIcon) — просмотр фотографий
-//    записи в модальном окне (PhotoViewerModal). Ресурс `${acl}.photos`,
-//    подпись по умолчанию «Фотографии», порядок: edit → download → photos → log → delete;
-//  • шестерёнка «Настройка таблицы» следует за таблицей при любом сдвиге
-//    layout (watchLayout наблюдает за элементом и всеми его предками);
-//  • ACL: Column.acl / MobileCardField.acl скрывают колонки и поля карточек;
-//    ActionsColumn({ acl: 'users' }) сам объявляет и проверяет ресурсы
-//    users.edit / users.download / users.photos / users.log / users.delete / users.restore;
-//  • labels — человекочитаемые имена действий для редактора ролей;
-//  • allow — точечное скрытие действия для конкретной строки (например
-//    «системную роль удалить нельзя»), не влияющее на реестр ресурсов;
-//  • ресурсы объявляются только для действий, у которых есть обработчик.
+// НОВОЕ (зебра):
+//  • проп stripe: true | 'odd' | 'even' | false — чередование фона строк;
+//    по умолчанию включено ('even') — строки больше не сливаются;
+//  • в «шестерёнке» настройки таблицы: чекбокс «Чередовать строки» и выбор
+//    чётных/нечётных; выбор сохраняется в localStorage (persistKey);
+//  • фон полосы берётся из темы (theme.stripeBg) и корректно ложится под
+//    липкие (sticky) колонки, выделение строки и ховер.
+//
+// Ранее:
+//  • действие 'photos' (onPhotos / photosIcon) — просмотр фотографий записи;
+//  • шестерёнка следует за таблицей при любом сдвиге layout (watchLayout);
+//  • ACL: Column.acl / MobileCardField.acl; ActionsColumn({ acl }) объявляет
+//    и проверяет ресурсы; labels — имена действий для редактора ролей;
+//    allow — точечное скрытие действия для конкретной строки.
 import React, {
   useState, useMemo, useCallback, useRef, useLayoutEffect, Fragment, useEffect,
 } from 'react';
@@ -20,6 +21,7 @@ import { createPortal } from 'react-dom';
 import type { Theme } from '../themes/theme';
 import Modal from './Modal';
 import Checkbox from './Checkbox';
+import CustomSelect from './CustomSelect';
 import Button from './Button';
 import { IcoChevronUp, IcoChevronDown } from './icons';
 import { useResponsive } from '../context/AppContext';
@@ -61,19 +63,27 @@ export function useSort<T extends Record<string, any>>(data: T[], initialSort: S
   return { sortedData, sortState, setSortState };
 }
 
-/* ───────────────────────── Персист колонок (внутренний) ───────────────────────── */
+/* ───────────────────────── Персист колонок + зебры (внутренний) ───────────────────────── */
+
+/** Режим чередования строк: 'even' — полоса на чётных, 'odd' — на нечётных, false — выключено. */
+export type StripeMode = 'odd' | 'even' | false;
 
 const STORAGE_PREFIX = 'table-columns:';
 const hasStorage = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
-interface StoredColumns { order: string[]; visible: string[]; }
+interface StoredColumns { order: string[]; visible: string[]; stripe?: StripeMode; }
 
 function loadColumns(key: string): StoredColumns | null {
   if (!hasStorage) return null;
   try {
     const parsed = JSON.parse(localStorage.getItem(key) ?? 'null');
     if (Array.isArray(parsed?.order) && Array.isArray(parsed?.visible)) {
-      return { order: Array.from(new Set<string>(parsed.order)), visible: Array.from(new Set<string>(parsed.visible)) };
+      return {
+        order: Array.from(new Set<string>(parsed.order)),
+        visible: Array.from(new Set<string>(parsed.visible)),
+        stripe: parsed.stripe === 'odd' || parsed.stripe === 'even' || parsed.stripe === false
+          ? parsed.stripe : undefined,
+      };
     }
   } catch { /* ignore */ }
   return null;
@@ -93,7 +103,10 @@ function reconcileOrder(stored: string[], allKeys: string[]): string[] {
 
 const sameArr = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
 
-function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pinnedKeys: string[], enabled: boolean) {
+function usePersistedTableColumns(
+  tableKey: string, allColumnKeys: string[], pinnedKeys: string[],
+  enabled: boolean, defaultStripe: StripeMode,
+) {
   const storageKey = STORAGE_PREFIX + tableKey;
   const pinnedSignature = pinnedKeys.join('\u0001');
   const pinned = useMemo(() => pinnedKeys, [pinnedSignature]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -115,6 +128,11 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
     const result = s.visible.filter((k) => allSet.has(k));
     for (const k of persistableKeys) if (!storedOrderSet.has(k) && !result.includes(k)) result.push(k);
     return result;
+  });
+  const [stripe, setStripe] = useState<StripeMode>(() => {
+    if (!enabled) return defaultStripe;
+    const s = loadColumns(storageKey);
+    return s?.stripe ?? defaultStripe;
   });
 
   const prevKeysRef = useRef<string[]>(persistableKeys);
@@ -138,16 +156,19 @@ function usePersistedTableColumns(tableKey: string, allColumnKeys: string[], pin
     prevKeysRef.current = current;
   }, [signature]);
 
-  useEffect(() => { if (enabled) saveColumns(storageKey, { order, visible }); }, [storageKey, order, visible, enabled]);
+  useEffect(() => {
+    if (enabled) saveColumns(storageKey, { order, visible, stripe });
+  }, [storageKey, order, visible, stripe, enabled]);
 
-  const onApplySettings = useCallback((v: string[], o: string[]) => {
+  const onApplySettings = useCallback((v: string[], o: string[], st: StripeMode) => {
     setVisible(v.filter((k) => !pinnedSet.has(k)));
     setOrder(o.filter((k) => !pinnedSet.has(k)));
+    setStripe(st);
   }, [pinnedSet]);
 
   const columnOrder = useMemo(() => [...order, ...pinned], [order, pinned]);
   const visibleColumns = useMemo(() => [...visible, ...pinned], [visible, pinned]);
-  return { columnOrder, visibleColumns, onApplySettings };
+  return { columnOrder, visibleColumns, stripe, onApplySettings };
 }
 
 /* ───────────────────────── ActionsColumn ───────────────────────── */
@@ -497,7 +518,8 @@ export interface TableProps<T extends Record<string, any>> {
   visibleColumns?: string[];
   onColumnOrderChange?: (order: string[]) => void;
   onVisibleColumnsChange?: (visible: string[]) => void;
-  onApplySettings?: (visible: string[], order: string[]) => void;
+  /** Применить настройки (колонки + зебра). Вызывается из модалки шестерёнки. */
+  onApplySettings?: (visible: string[], order: string[], stripe?: StripeMode) => void;
   /** Включить локальную сортировку. */
   sortable?: boolean;
   /** Ключ персиста колонок в localStorage. */
@@ -521,6 +543,17 @@ export interface TableProps<T extends Record<string, any>> {
   renderMobile?: (data: T[]) => React.ReactNode;
   /** Состояние загрузки. */
   loading?: boolean;
+  /**
+   * Чередование фона строк (зебра).
+   *  • true — полоса на чётных строках (2-я, 4-я, …); то же, что 'even';
+   *  • 'odd' — полоса на нечётных; 'even' — на чётных;
+   *  • false — выключено.
+   * Без пропа: значение из настроек пользователя (шестерёнка, сохраняется в
+   * localStorage при наличии persistKey), по умолчанию включено ('even').
+   * Явный фон из rowStyle/rowClassName перекрывает полосу.
+   * @default true
+   */
+  stripe?: boolean | StripeMode;
 }
 
 const TABLE_CSS = `
@@ -533,9 +566,12 @@ const TABLE_CSS = `
 @media (prefers-reduced-motion: reduce) { .kbs-table-gear, .kbs-col-move { transition: none !important; } }
 `;
 
+const normalizeStripe = (s: boolean | StripeMode | undefined): StripeMode | undefined =>
+  s === undefined ? undefined : s === false ? false : s === true ? 'even' : s;
+
 /**
- * Таблица с сортировкой, настройкой колонок (шестерёнка), sticky-колонками,
- * персистом и автоматическим мобильным режимом (карточки).
+ * Таблица с сортировкой, настройкой колонок (шестерёнка), зеброй,
+ * sticky-колонками, персистом и автоматическим мобильным режимом (карточки).
  */
 export default function Table<T extends Record<string, any>>({
   theme: t, columns, data, rowKey = 'id',
@@ -548,6 +584,7 @@ export default function Table<T extends Record<string, any>>({
   autoRefreshInterval, autoRefreshPaused = false, refetch,
   responsive = true, mobileFields, mobileTitleRender, mobileTitleMaxLines, mobileTitleMaxChars,
   mobileLabelMaxWidth, mobileLabelMaxLines, mobileActions, renderMobile, loading = false,
+  stripe,
 }: TableProps<T>) {
   useStyleTag('kbs-table-css', TABLE_CSS);
   const { isMobile } = useResponsive();
@@ -562,10 +599,24 @@ export default function Table<T extends Record<string, any>>({
   }, [onSortChange, setInternalSortState]);
   const dataToRender = sortable ? sortedData : data;
 
-  /* Персист колонок */
+  /* Персист колонок + зебры */
   const allColumnKeys = useMemo(() => columns.map((c) => c.key), [columns]);
   const effectivePinned = pinnedColumns ?? stickyRight;
-  const persisted = usePersistedTableColumns(persistKey ?? '__unused__', allColumnKeys, effectivePinned, !!persistKey);
+  const propStripe = normalizeStripe(stripe);
+  const defaultStripe: StripeMode = propStripe ?? 'even';
+  const persisted = usePersistedTableColumns(
+    persistKey ?? '__unused__', allColumnKeys, effectivePinned, !!persistKey, defaultStripe);
+
+  /* Зебра: проп → персист → дефолт */
+  const [internalStripe, setInternalStripe] = useState<StripeMode>(defaultStripe);
+  const effectiveStripe: StripeMode =
+    propStripe !== undefined ? propStripe : persistKey ? persisted.stripe : internalStripe;
+  const stripeRowBg = useCallback((index: number): string => {
+    if (effectiveStripe === false) return t.bgSurface;
+    const rowNumber = index + 1;
+    const shaded = effectiveStripe === 'odd' ? rowNumber % 2 === 1 : rowNumber % 2 === 0;
+    return shaded ? t.stripeBg : t.bgSurface;
+  }, [effectiveStripe, t.bgSurface, t.stripeBg]);
 
   /* Колонки с ACL объявляют себя ресурсами */
   useEffect(() => {
@@ -612,19 +663,25 @@ export default function Table<T extends Record<string, any>>({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsOrder, setSettingsOrder] = useState<string[]>([]);
   const [settingsVisible, setSettingsVisible] = useState<Set<string>>(new Set());
+  const [settingsStripe, setSettingsStripe] = useState<StripeMode>('even');
 
   const openSettings = useCallback(() => {
     setSettingsOrder([...order]);
     setSettingsVisible(new Set(visibleKeys));
+    setSettingsStripe(effectiveStripe);
     setSettingsOpen(true);
-  }, [order, visibleKeys]);
+  }, [order, visibleKeys, effectiveStripe]);
 
   const applySettings = useCallback(() => {
-    if (onApplySettings) onApplySettings(Array.from(settingsVisible), settingsOrder);
-    else if (persistKey) persisted.onApplySettings(Array.from(settingsVisible), settingsOrder);
-    else { updateOrder(settingsOrder); updateVisible(settingsVisible); }
+    if (onApplySettings) onApplySettings(Array.from(settingsVisible), settingsOrder, settingsStripe);
+    else if (persistKey) persisted.onApplySettings(Array.from(settingsVisible), settingsOrder, settingsStripe);
+    else {
+      updateOrder(settingsOrder);
+      updateVisible(settingsVisible);
+      setInternalStripe(settingsStripe);
+    }
     setSettingsOpen(false);
-  }, [onApplySettings, persistKey, persisted, settingsVisible, settingsOrder, updateOrder, updateVisible]);
+  }, [onApplySettings, persistKey, persisted, settingsVisible, settingsOrder, settingsStripe, updateOrder, updateVisible]);
 
   const toggleVisible = useCallback((key: string) => {
     setSettingsVisible((prev) => {
@@ -663,6 +720,28 @@ export default function Table<T extends Record<string, any>>({
         maxHeight: 'min(56vh, 460px)', overflowY: 'auto',
         padding: '6px 6px', boxSizing: 'border-box', overscrollBehavior: 'contain',
       }}>
+        {/* Зебра: чекбокс + выбор чётных/нечётных */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          padding: '2px 0 10px', borderBottom: `1px solid ${t.borderSubtle}`,
+        }}>
+          <Checkbox theme={t} size="sm" truncate label="Чередовать строки"
+            checked={settingsStripe !== false}
+            onChange={(v) => setSettingsStripe(v ? 'even' : false)}
+            style={{ flexShrink: 0 }} />
+          <div style={{
+            width: 160, flexShrink: 0,
+            opacity: settingsStripe === false ? 0.45 : 1,
+            pointerEvents: settingsStripe === false ? 'none' : 'auto',
+          }}>
+            <CustomSelect
+              theme={t} label="Полоса на"
+              options={[{ value: 'even', label: 'Чётных' }, { value: 'odd', label: 'Нечётных' }]}
+              value={settingsStripe === false ? 'even' : settingsStripe}
+              onChange={(v) => setSettingsStripe((v === 'odd' || v === 'even' ? v : 'even'))}
+              disabled={settingsStripe === false} />
+          </div>
+        </div>
         {settingsOrder.map((key, index) => {
           const col = columnByKey.get(key);
           if (!col || !can(col.acl)) return null;
@@ -688,7 +767,8 @@ export default function Table<T extends Record<string, any>>({
         })}
       </div>
     ),
-  }), [settingsOrder, settingsVisible, columnByKey, stickyRightSet, t, toggleVisible, moveColumn, getMoveButtonStyle, can]);
+  }), [settingsOrder, settingsVisible, settingsStripe, columnByKey, stickyRightSet, t,
+    toggleVisible, moveColumn, getMoveButtonStyle, can]);
 
   /* Клик по заголовку */
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
@@ -719,11 +799,15 @@ export default function Table<T extends Record<string, any>>({
 
   const firstStickyKey = useMemo(() => displayColumns.find((c) => stickyRightSet.has(c.key))?.key, [displayColumns, stickyRightSet]);
 
-  const getStickyStyle = useCallback((key: string, isHeader = false): React.CSSProperties => {
+  /**
+   * Фон липкой ячейки должен совпадать с фоном строки (зебра/выделение),
+   * иначе при горизонтальном скролле под ней «просвечивает» контент.
+   */
+  const getStickyStyle = useCallback((key: string, isHeader = false, rowBg = t.bgSurface): React.CSSProperties => {
     if (!stickyRightSet.has(key)) return {};
     return {
       position: 'sticky', right: 0, zIndex: isHeader ? 5 : 3,
-      background: t.bgSurface,
+      background: rowBg,
       boxShadow: key === firstStickyKey ? `inset 2px 0 ${t.border}` : 'none',
     };
   }, [stickyRightSet, firstStickyKey, t.bgSurface, t.border]);
@@ -731,11 +815,12 @@ export default function Table<T extends Record<string, any>>({
   const cellBaseStyle: React.CSSProperties = {
     padding: '10px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     maxWidth: columnMaxWidth, borderRight: `1px solid ${t.borderSubtle}`,
-    color: t.text, textAlign: 'left', background: t.bgSurface,
+    color: t.text, textAlign: 'left',
+    // Фон ячейки прозрачный: раскрашивается сама строка (зебра/ховер/выделение).
   };
   const headerCellStyle: React.CSSProperties = {
     ...cellBaseStyle, fontWeight: 600, cursor: 'default', transition: 'background 0.15s',
-    position: 'sticky', top: 0, zIndex: 3,
+    position: 'sticky', top: 0, zIndex: 3, background: t.bgSurface,
   };
 
   /* Шестерёнка в портале: следует за таблицей при любом сдвиге layout */
@@ -827,24 +912,28 @@ export default function Table<T extends Record<string, any>>({
                   </td>
                 </tr>
               ) : (
-                dataToRender.map((row) => {
+                dataToRender.map((row, index) => {
                   const isSelected = selectedRowKey !== undefined && row[rowKey] === selectedRowKey;
+                  const baseBg = stripeRowBg(index);
+                  const rowBg = isSelected
+                    ? `color-mix(in srgb, ${t.accent} 14%, ${baseBg})`
+                    : baseBg;
                   return (
                     <tr key={row[rowKey]}
                       className={rowClassName ? rowClassName(row) : ''}
                       onClick={() => onRowClick && onRowClick(row)}
                       style={{
                         cursor: onRowClick ? 'pointer' : 'default',
-                        background: isSelected ? `${t.accent}22` : t.bgSurface,
+                        background: rowBg,
                         borderLeft: isSelected ? `3px solid ${t.accent}` : 'none',
                         transition: 'background 0.15s',
                         ...(rowStyle ? rowStyle(row) : null),
                       }}
                       onMouseEnter={(e) => { if (onRowClick && !isSelected) e.currentTarget.style.background = t.navHoverBg; }}
-                      onMouseLeave={(e) => { if (onRowClick && !isSelected) e.currentTarget.style.background = t.bgSurface; }}
+                      onMouseLeave={(e) => { if (onRowClick) e.currentTarget.style.background = rowBg; }}
                     >
                       {displayColumns.map((col) => (
-                        <td key={col.key} style={{ ...cellBaseStyle, ...getStickyStyle(col.key), ...col.style }}>
+                        <td key={col.key} style={{ ...cellBaseStyle, ...getStickyStyle(col.key, false, rowBg), ...col.style }}>
                           {col.render ? col.render((row as any)[col.key], row) : (row as any)[col.key]}
                         </td>
                       ))}

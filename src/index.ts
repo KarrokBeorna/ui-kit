@@ -23,7 +23,7 @@ export type { BadgeProps } from './components/Badge';
 
 /* Данные */
 export { default as Table, MobileCardList, ActionsColumn, useSort } from './components/Table';
-export type { Column, TableProps, MobileCardListProps, MobileCardField, ActionsColumnOptions, ActionKind, SortState, SortDirection } from './components/Table';
+export type { Column, TableProps, MobileCardListProps, MobileCardField, ActionsColumnOptions, ActionKind, SortState, SortDirection, StripeMode } from './components/Table';
 export { default as DataTable, usePagedData } from './components/DataTable';
 export type { DataTableProps } from './components/DataTable';
 export { Pagination } from './components/Pagination';

@@ -1,5 +1,4 @@
 // theme.ts — реестр тем + утилиты контраста.
-
 export type ThemeName = 'dark' | 'light' | 'vibrant' | 'ocean';
 
 /** Полный набор токенов темы. Все компоненты принимают объект Theme пропом. */
@@ -15,6 +14,8 @@ export interface Theme {
   shadow: string; shadowLg: string;
   toggleBg: string; toggleActive: string; navHoverBg: string;
   danger: string; success: string; pending: string;
+  /** Фон чередующихся строк таблицы (зебра). */
+  stripeBg: string;
 }
 
 export const themes: Record<ThemeName, Theme> = {
@@ -30,6 +31,7 @@ export const themes: Record<ThemeName, Theme> = {
     shadow: '0 4px 24px rgba(0,0,0,0.6)', shadowLg: '0 8px 40px rgba(0,0,0,0.8)',
     toggleBg: '#2e3347', toggleActive: '#6c8aff', navHoverBg: 'rgba(108,138,255,0.1)',
     danger: '#ff6b6b', success: '#4ade80', pending: '#f59e0b',
+    stripeBg: '#171b26',
   },
   light: {
     name: 'light', label: 'Светлая',
@@ -43,6 +45,7 @@ export const themes: Record<ThemeName, Theme> = {
     shadow: '0 4px 24px rgba(0,0,0,0.08)', shadowLg: '0 8px 40px rgba(0,0,0,0.12)',
     toggleBg: '#d0d5e8', toggleActive: '#4361ee', navHoverBg: 'rgba(67,97,238,0.08)',
     danger: '#ef4444', success: '#16a34a', pending: '#f59e0b',
+    stripeBg: '#f6f7fb',
   },
   vibrant: {
     name: 'vibrant', label: 'Яркая',
@@ -56,6 +59,7 @@ export const themes: Record<ThemeName, Theme> = {
     shadow: '0 4px 24px rgba(200,75,255,0.2)', shadowLg: '0 8px 40px rgba(200,75,255,0.3)',
     toggleBg: '#4a2070', toggleActive: '#e040fb', navHoverBg: 'rgba(200,75,255,0.12)',
     danger: '#ff6b9d', success: '#22d3a0', pending: '#f59e0b',
+    stripeBg: '#190722',
   },
   ocean: {
     name: 'ocean', label: 'Океан',
@@ -69,6 +73,7 @@ export const themes: Record<ThemeName, Theme> = {
     shadow: '0 4px 24px rgba(0,200,255,0.15)', shadowLg: '0 8px 40px rgba(0,200,255,0.25)',
     toggleBg: '#1a4a7a', toggleActive: '#00d4aa', navHoverBg: 'rgba(0,200,255,0.1)',
     danger: '#ff6b6b', success: '#10b981', pending: '#f59e0b',
+    stripeBg: '#0a1e38',
   },
 };
 

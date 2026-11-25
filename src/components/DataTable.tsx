@@ -1,12 +1,8 @@
 // DataTable.tsx — блок «таблица + пагинация + оверлей загрузки».
-//
-// ИЗМЕНЕНИЕ: при первом запросе (loading=true, данных нет) не рендерим Table
-// вообще — только LoadingOverlay с текстом «Загрузка…». Иначе <td> с этим
-// текстом внутри таблицы перекрывал оверлей (zIndex контента > zIndex оверлея).
-
+// ИЗМЕНЕНИЕ: проброс пропа stripe (зебра) в Table.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Theme } from '../themes/theme';
-import Table, { useSort, type Column, type SortState, type MobileCardField } from './Table';
+import Table, { useSort, type Column, type SortState, type StripeMode, type MobileCardField } from './Table';
 import LoadingOverlay from './LoadingOverlay';
 import { Pagination, type PaginationProps } from './Pagination';
 import { useResponsive } from '../context/AppContext';
@@ -77,6 +73,8 @@ export interface DataTableProps<T extends Record<string, any>> {
   autoRefreshPaused?: boolean;
   /** Проброс пропсов в Pagination. */
   pagination?: Partial<PaginationProps>;
+  /** Чередование строк (зебра). Без пропа — настройка пользователя / 'even'. @default true */
+  stripe?: boolean | StripeMode;
 }
 
 /** Таблица со сортировкой, пагинацией и оверлеем загрузки в едином flex-блоке. */
@@ -85,40 +83,35 @@ export default function DataTable<T extends Record<string, any>>({
   persistKey, pinnedColumns, stickyRight, initialSort, sortState: extSort, onSortChange,
   resetKey, columnMaxWidth = 300, mobileTitleRender, mobileLabelMaxWidth, mobileFields, mobileActions,
   onRowClick, rowStyle, selectedRowKey, refetch, autoRefreshInterval, autoRefreshPaused, pagination,
+  stripe,
 }: DataTableProps<T>) {
   const { isMobile } = useResponsive();
   const inner = useSort(data, initialSort ?? []);
   const sortState = extSort ?? inner.sortState;
   const sorted = extSort ? data : inner.sortedData;
   const { page, setPage, pageData, total } = usePagedData(sorted, perPage, resetKey);
-
   const changeSort = (s: SortState) => { setPage(1); (onSortChange ?? inner.setSortState)(s); };
-
   // Первый запрос: данных нет, идёт загрузка → показываем только оверлей, без таблицы.
-  // Иначе <td>«Загрузка…» внутри таблицы перекрывает LoadingOverlay.
   const isFirstLoad = loading && sorted.length === 0;
-
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, boxSizing: 'border-box' }}>
       <div style={{
         flex: 1, minHeight: 0, position: 'relative', boxSizing: 'border-box',
         overflow: isMobile ? 'auto' : 'hidden', overscrollBehavior: 'contain',
       }}>
-        {/* Таблица рендерится только если есть данные ИЛИ загрузка закончилась */}
         {(!isFirstLoad || !loading) && (
           <Table
             theme={t} columns={columns} data={pageData} rowKey={rowKey}
             fixedHeader height="100%" columnMaxWidth={columnMaxWidth}
             persistKey={persistKey} pinnedColumns={pinnedColumns} stickyRight={stickyRight}
             sortState={sortState} onSortChange={changeSort} sortable={false}
-            loading={false}
+            loading={false} stripe={stripe}
             mobileTitleRender={mobileTitleRender} mobileLabelMaxWidth={mobileLabelMaxWidth}
             mobileFields={mobileFields} mobileActions={mobileActions}
             onRowClick={onRowClick} rowStyle={rowStyle} selectedRowKey={selectedRowKey}
             refetch={refetch} autoRefreshInterval={autoRefreshInterval} autoRefreshPaused={autoRefreshPaused}
           />
         )}
-        {/* Оверлей показываем всегда при loading, независимо от наличия данных */}
         <LoadingOverlay visible={loading} theme={t} />
       </div>
       <Pagination
