@@ -21,7 +21,6 @@ import { createPortal } from 'react-dom';
 import type { Theme } from '../themes/theme';
 import Modal from './Modal';
 import Checkbox from './Checkbox';
-import CustomSelect from './CustomSelect';
 import Button from './Button';
 import { IcoChevronUp, IcoChevronDown } from './icons';
 import { useResponsive } from '../context/AppContext';
@@ -720,27 +719,11 @@ export default function Table<T extends Record<string, any>>({
         maxHeight: 'min(56vh, 460px)', overflowY: 'auto',
         padding: '6px 6px', boxSizing: 'border-box', overscrollBehavior: 'contain',
       }}>
-        {/* Зебра: чекбокс + выбор чётных/нечётных */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-          padding: '2px 0 10px', borderBottom: `1px solid ${t.borderSubtle}`,
-        }}>
+        {/* Зебра */}
+        <div style={{ padding: '2px 0 10px', borderBottom: `1px solid ${t.borderSubtle}` }}>
           <Checkbox theme={t} size="sm" truncate label="Чередовать строки"
             checked={settingsStripe !== false}
-            onChange={(v) => setSettingsStripe(v ? 'even' : false)}
-            style={{ flexShrink: 0 }} />
-          <div style={{
-            width: 160, flexShrink: 0,
-            opacity: settingsStripe === false ? 0.45 : 1,
-            pointerEvents: settingsStripe === false ? 'none' : 'auto',
-          }}>
-            <CustomSelect
-              theme={t} label="Полоса на"
-              options={[{ value: 'even', label: 'Чётных' }, { value: 'odd', label: 'Нечётных' }]}
-              value={settingsStripe === false ? 'even' : settingsStripe}
-              onChange={(v) => setSettingsStripe((v === 'odd' || v === 'even' ? v : 'even'))}
-              disabled={settingsStripe === false} />
-          </div>
+            onChange={(v) => setSettingsStripe(v ? 'even' : false)} />
         </div>
         {settingsOrder.map((key, index) => {
           const col = columnByKey.get(key);
