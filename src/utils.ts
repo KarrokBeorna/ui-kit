@@ -1,11 +1,18 @@
+// utils.ts - UI Kit
 // utils.ts — переиспользуемые утилиты: даты, query-params, чипсы фильтров,
 // цвет, чтение состояния колонок таблицы, скачивание файлов + трекер сессии.
 //
-// ИЗМЕНЕНИЯ (централизация утилит Maintenance Service):
-//  • formatDateForChip / isoLocalDateTime — перенесены из Maintenance;
-//  • buildDateChip получил 4-й параметр withTime (чипсы с временем);
-//  • formatDuration получил compact-режим («2д 3ч 4м», бывший fmtDuration);
-//  • normalizeTime pads «9:30» → «09:30» и понимает ISO (как в Maintenance).
+// ИЗМЕНЕНИЯ (даты):
+//  • toDate понимает «YYYY.MM.DD HH:mm:ss», «YYYY/MM/DD», «DD.MM.YYYY HH:mm»,
+//    «DD/MM/YYYY», «DD-MM-YYYY» (день-первым для разделителей . и /),
+//    ISO c 'T'/'Z'/пробелом, Date, timestamp и текстовые даты вида «Wed Oct 08 2025».
+//    Раньше «2026.11.11 13:05:43» превращалось в «2026.11.11T13:05:43» → Invalid Date.
+//  • Пробел → 'T' подставляется только у ISO-подобных строк (иначе ломались
+//    текстовые даты с пробелами).
+//  • formatDate / formatDateTime форматируются вручную — стабильные
+//    «DD.MM.YYYY» и «DD.MM.YYYY, HH:mm» без сюрпризов ICU/локали.
+//  • fmtDay / formatDayLabel / formatDateForChip / normalizeTime работают через
+//    тот же разбор и получают поддержку всех форматов автоматически.
 import { useContext, useEffect, useRef } from 'react';
 import axios, { type AxiosInstance } from 'axios';
 import { FetchClientContext } from './hooks';
@@ -22,47 +29,82 @@ export function isoLocalDateTime(d: Date = new Date()): string {
   return `${isoLocal(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-/** ISO-дата → «DD.MM» (текущий год) или «DD.MM.YYYY». Пусто/мусор → исходная строка. */
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Строка начинается с ISO-даты «YYYY-MM-DD» — её парсит движок (с T/Z/пробелом). */
+const ISO_HEAD = /^\d{4}-\d{2}-\d{2}/;
+/** «2026.11.11», «2026/11/11» + опциональное время. */
+const YMD_LOOSE = /^(\d{4})[./](\d{1,2})[./](\d{1,2})(?:[\sT,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/;
+/** «11.11.2026», «11/11/2026», «11-11-2026» + опциональное время (день первым). */
+const DMY_LOOSE = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:[\sT,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/;
+
+/** Дата из компонентов с проверкой на переполнение (31.02 → null). */
+function dateFromParts(
+  y: number, m: number, d: number, hh = 0, mi = 0, ss = 0,
+): Date | null {
+  if (m < 1 || m > 12 || d < 1 || d > 31 || hh > 23 || mi > 59 || ss > 59) return null;
+  const dt = new Date(y, m - 1, d, hh, mi, ss);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? dt : null;
+}
+
+/**
+ * Разбирает ISO, «YYYY-MM-DD HH:mm:ss», «YYYY.MM.DD HH:mm:ss», «DD.MM.YYYY HH:mm»,
+ * «DD/MM/YYYY», Date, timestamp и текстовые даты. Невалидное → null.
+ */
+export function toDate(value: unknown): Date | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number') { const d = new Date(value); return isNaN(d.getTime()) ? null : d; }
+
+  const s = String(value).trim();
+  if (!s) return null;
+
+  if (ISO_HEAD.test(s)) {
+    const d = new Date(s.includes('T') || s.includes('Z') ? s : s.replace(' ', 'T'));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  let m = YMD_LOOSE.exec(s);
+  if (m) return dateFromParts(+m[1], +m[2], +m[3], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0));
+
+  m = DMY_LOOSE.exec(s);
+  if (m) return dateFromParts(+m[3], +m[2], +m[1], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0));
+
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** «DD.MM» (текущий год) или «DD.MM.YYYY». Пусто/мусор → исходная строка. */
 export function fmtDay(iso: string): string {
   if (!iso) return '';
-  const [y, m, d] = String(iso).slice(0, 10).split('-');
-  if (!y || !m || !d) return String(iso);
-  return y === String(new Date().getFullYear()) ? `${d}.${m}` : `${d}.${m}.${y}`;
+  const d = toDate(iso);
+  if (!d) return String(iso);
+  const day = `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
+  return d.getFullYear() === new Date().getFullYear() ? day : `${day}.${d.getFullYear()}`;
 }
 
 const MONTHS: Record<string, string> = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
 
-/** Метка дня для осей графиков: ISO / Date / «Wed Oct 08 2025» → «DD.MM». */
+/** Метка дня для осей графиков: ISO / Date / «2026.11.11» / «Wed Oct 08 2025» → «DD.MM». */
 export function formatDayLabel(day: unknown): string {
-  if (day instanceof Date && !isNaN(day.getTime())) return `${String(day.getDate()).padStart(2, '0')}.${String(day.getMonth() + 1).padStart(2, '0')}`;
+  const d = toDate(day);
+  if (d) return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
   const s = String(day ?? '');
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[3]}.${iso[2]}`;
   const loc = s.match(/\b([A-Z][a-z]{2})\s+(\d{1,2})/);
   if (loc && MONTHS[loc[1]]) return `${loc[2].padStart(2, '0')}.${MONTHS[loc[1]]}`;
   return s;
 }
 
-/** Разбирает ISO, «YYYY-MM-DD HH:mm:ss», Date, timestamp. Невалидное → null. */
-export function toDate(value: unknown): Date | null {
-  if (value == null || value === '') return null;
-  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
-  if (typeof value === 'number') { const d = new Date(value); return isNaN(d.getTime()) ? null : d; }
-  const s = String(value).trim();
-  const d = new Date(s.includes('T') || s.includes('Z') ? s : s.replace(' ', 'T'));
-  return isNaN(d.getTime()) ? null : d;
-}
-
-/** «DD.MM.YYYY» (ru-RU). Невалидное → ''. */
+/** «DD.MM.YYYY». Невалидное → ''. */
 export function formatDate(value: unknown): string {
   const d = toDate(value);
-  return d ? d.toLocaleDateString('ru-RU') : '';
+  return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : '';
 }
 
-/** «DD.MM.YYYY, HH:mm» (ru-RU). Невалидное → ''. */
+/** «DD.MM.YYYY, HH:mm». Невалидное → ''. */
 export function formatDateTime(value: unknown): string {
   const d = toDate(value);
-  return d ? d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  return d ? `${formatDate(d)}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : '';
 }
 
 /** Дата для чипа: «DD.MM.YYYY» или «DD.MM.YYYY HH:mm». Невалидное → исходная строка. */
@@ -70,9 +112,9 @@ export function formatDateForChip(value: string, withTime = false): string {
   if (!value) return value;
   const d = toDate(value);
   if (!d) return value;
-  const date = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+  const date = `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
   if (!withTime) return date;
-  return `${date} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 /**
@@ -117,7 +159,7 @@ export function normalizeTime(val: string | null | undefined): string | null {
   const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
   const d = toDate(s);
-  if (d) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (d) return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   return s;
 }
 
