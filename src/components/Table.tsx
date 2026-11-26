@@ -4,13 +4,14 @@
 // ИЗМЕНЕНИЯ (мобильные карточки):
 //  • значения полей переносятся по словам и обрезаются тем же лимитом строк,
 //    что и метки (заголовки столбцов) — проп labelMaxLines, по умолчанию 3;
-//    длинный непрерывный текст (URL, идентификаторы) тоже переносится;
 //  • настройка полей карточки: кнопка «Поля карточки» над списком открывает
 //    модалку с чекбоксами, порядком (↑/↓), «Выбрать все» / «Скрыть все».
-//    Можно оставить 5–10 полей для постоянного наблюдения — карточка
-//    становится компактной. Набор НЕ зависит от видимости колонок десктопа
-//    и сохраняется отдельно: localStorage 'table-mobile-fields:<persistKey>';
-//  • счётчик «видимо/всего» на кнопке настройки.
+//    Набор НЕ зависит от видимости колонок десктопа и сохраняется отдельно:
+//    localStorage 'table-mobile-fields:<persistKey>';
+//  • модалка «Поля карточки»: список чекбоксов занимает ВСЮ свободную зону
+//    между шапкой и футером на любой высоте экрана (bodyOverflow='hidden' +
+//    flex-раскладка). Подсказка и быстрые действия закреплены сверху,
+//    скроллится только список — без пустого «хвоста» на длинных телефонах.
 //
 // Ранее:
 //  • зебра (stripe / 'odd' / 'even') + настройка в шестерёнке десктопа;
@@ -952,11 +953,18 @@ export default function Table<T extends Record<string, any>>({
     touchAction: 'manipulation',
   }), [t.bgSurface, t.border, t.iconColor, t.placeholder]);
 
+  /**
+   * Содержимое модалки «Поля карточки».
+   * Колонка тянется на всю свободную высоту fullscreen-модалки: подсказка и
+   * быстрые действия закреплены (flexShrink: 0), список чекбоксов занимает
+   * всё оставшееся место (flex: 1) и скроллится внутри себя. На длинных
+   * экранах больше нет пустой зоны под списком.
+   */
   const mobileSettingsField = useMemo(() => ({
     row: 0, col: 0,
     content: (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 'min(62vh, 500px)', minHeight: 0 }}>
-        <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0, height: '100%' }}>
+        <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, flexShrink: 0 }}>
           Отметьте поля, которые видны в карточке. Оставьте 5–10 для компактного
           просмотра — остальные данные останутся в таблице на десктопе.
         </div>
@@ -969,6 +977,7 @@ export default function Table<T extends Record<string, any>>({
         </div>
         <div style={{
           flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
           border: `1px solid ${t.border}`, borderRadius: 10, padding: '2px 10px', background: t.bg,
         }}>
           {mobileSettingsOrder.length === 0 ? (
@@ -1144,6 +1153,7 @@ export default function Table<T extends Record<string, any>>({
         <Modal theme={t} isOpen={mobileSettingsOpen} onClose={() => setMobileSettingsOpen(false)}
           onOk={applyMobileSettings} title="Поля карточки" columns={1} rows={1}
           okText="Применить" cancelText="Отмена" width={520}
+          bodyOverflow="hidden"
           canSubmit={mobileSettingsVisible.size > 0} fields={[mobileSettingsField]} />
       </div>
     );

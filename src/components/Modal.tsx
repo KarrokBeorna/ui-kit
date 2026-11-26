@@ -1,11 +1,17 @@
+// Modal.tsx - UI Kit
 // Modal.tsx — модальное окно с сеткой полей, focus-trap и fullscreen на мобильном.
 //
 // Поля поддерживают ACL: поле с acl регистрируется в реестре ресурсов само;
 // без права view — не рендерится, без права edit — видно, но заблокировано.
 //
-// ИЗМЕНЕНИЕ: height наконец применяется, добавлены rowSizes и bodyOverflow.
-// Это позволяет собрать модалку фиксированной высоты, где скроллится только
-// одна ячейка (например таблица полей), а само окно остаётся неподвижным.
+// ИЗМЕНЕНИЕ: bodyOverflow='hidden' теперь работает и во fullscreen, когда
+// содержимое — одна ячейка (columns=1, rows=1): такая ячейка растягивается
+// на всю свободную зону между шапкой и футером на ЛЮБОЙ высоте экрана
+// (включая длинные телефоны), а скроллится только её внутреннее содержимое.
+// Многоколоночные fullscreen-модалки по-прежнему пересобираются в один
+// столбец со скроллом тела — прежнее поведение не тронуто.
+//
+// Ранее: height применяется, rowSizes и bodyOverflow для десктопа.
 import React, { useEffect, useRef, useId } from 'react';
 import type { Theme } from '../themes/theme';
 import { IcoX } from './icons';
@@ -61,7 +67,11 @@ export interface ModalProps {
   height?: number | string;
   /** Явные размеры строк сетки: ['auto', 'minmax(0,1fr)']. Число → px. */
   rowSizes?: (string | number)[];
-  /** Скролл тела. 'hidden' — скроллится только содержимое ячейки. @default 'auto' */
+  /**
+   * Скролл тела. 'hidden' — скроллится только содержимое ячейки.
+   * Во fullscreen работает для одноячеечных модалок: ячейка занимает всю
+   * свободную высоту, внутренние списки скроллятся сами. @default 'auto'
+   */
   bodyOverflow?: 'auto' | 'hidden';
   /** Доступность кнопки Ok. @default true */
   canSubmit?: boolean;
@@ -157,7 +167,6 @@ export default function Modal({
   const grid: (React.ReactNode | null)[][] = Array.from({ length: rows }, () => Array(columns).fill(null));
   const occupied: boolean[][] = Array.from({ length: rows }, () => Array(columns).fill(false));
   const placedFields = new Map<string, ModalField>();
-
   visibleFields.forEach((field) => {
     const { row: r, col: c } = field;
     if (r < 0 || c < 0 || r >= rows || c >= columns) return;
@@ -173,12 +182,17 @@ export default function Modal({
   const gridToRender = fullscreen ? visibleFields.map((f) => [contentOf(f)]) : grid;
   const showFooter = showOk || showCancel;
 
-  // Фиксированная раскладка работает только на десктопе: во fullscreen строки
-  // пересобираются в один столбец, и тело снова скроллится, чтобы ничего не обрезать.
-  const fill = bodyOverflow === 'hidden' && !fullscreen;
+  // Фиксированная раскладка: на десктопе — всегда; во fullscreen — когда
+  // содержимое занимает одну строку (пересборка в столбец её не меняет).
+  // Тогда единственная ячейка тянется на всю свободную зону, а скролл
+  // остаётся внутри неё — без «пустого хвоста» на длинных экранах.
+  const singleRow = gridToRender.length === 1;
+  const fill = bodyOverflow === 'hidden' && (!fullscreen || singleRow);
   const templateRows = rowSizes && !fullscreen && rowSizes.length === gridToRender.length
     ? rowSizes.map((s) => (typeof s === 'number' ? `${s}px` : s)).join(' ')
-    : `repeat(${gridToRender.length}, auto)`;
+    : fill && singleRow
+      ? 'minmax(0, 1fr)'
+      : `repeat(${gridToRender.length}, auto)`;
 
   return (
     <div
@@ -289,7 +303,6 @@ export default function Modal({
           </div>
         )}
       </div>
-
       <style>{`
         @keyframes modalFadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes modalScaleIn { from { transform: scale(0.94); opacity: 0 } to { transform: scale(1); opacity: 1 } }
