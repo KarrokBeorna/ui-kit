@@ -1110,7 +1110,7 @@ export default function Table<T extends Record<string, any>>({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {mobileBaseFields.length > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
             <button type="button" className="kbs-mobile-fields-btn" onClick={openMobileSettings}
               aria-label="Настройка полей карточки" title="Настройка полей карточки"
               style={{
