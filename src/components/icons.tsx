@@ -1,6 +1,9 @@
 // icons.tsx — SVG-иконки UI Kit.
 // Все иконки принимают s (размер, px), size (алиас s) и любые SVG-пропсы.
 // Предметные иконки всех проектов живут здесь (AGM, Rolis).
+//
+// ИЗМЕНЕНИЕ: добавлена IcoTrash — корзина для компактных кнопок удаления
+// (мобильная версия PhotoViewerModal и любые icon-only destructive-действия).
 import React, { type SVGProps } from 'react';
 
 export type IconProps = Omit<SVGProps<SVGSVGElement>, 'size'> & {
@@ -94,6 +97,21 @@ export const IcoX = ({ s, size, ...p }: IconProps) => {
   return (
     <svg width={d} height={d} viewBox="0 0 12 12" fill="none" {...p}>
       <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+};
+
+/** Корзина — компактная кнопка удаления (icon-only). */
+export const IcoTrash = ({ s, size, ...p }: IconProps) => {
+  const d = s ?? size ?? 16;
+  return (
+    <svg width={d} height={d} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
     </svg>
   );
 };

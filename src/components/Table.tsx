@@ -1,14 +1,19 @@
+// Table.tsx - UI Kit
 // Table.tsx — таблица + мобильные карточки + фабрика колонки действий.
 //
-// НОВОЕ (зебра):
-//  • проп stripe: true | 'odd' | 'even' | false — чередование фона строк;
-//    по умолчанию включено ('even') — строки больше не сливаются;
-//  • в «шестерёнке» настройки таблицы: чекбокс «Чередовать строки» и выбор
-//    чётных/нечётных; выбор сохраняется в localStorage (persistKey);
-//  • фон полосы берётся из темы (theme.stripeBg) и корректно ложится под
-//    липкие (sticky) колонки, выделение строки и ховер.
+// ИЗМЕНЕНИЯ (мобильные карточки):
+//  • значения полей переносятся по словам и обрезаются тем же лимитом строк,
+//    что и метки (заголовки столбцов) — проп labelMaxLines, по умолчанию 3;
+//    длинный непрерывный текст (URL, идентификаторы) тоже переносится;
+//  • настройка полей карточки: кнопка «Поля карточки» над списком открывает
+//    модалку с чекбоксами, порядком (↑/↓), «Выбрать все» / «Скрыть все».
+//    Можно оставить 5–10 полей для постоянного наблюдения — карточка
+//    становится компактной. Набор НЕ зависит от видимости колонок десктопа
+//    и сохраняется отдельно: localStorage 'table-mobile-fields:<persistKey>';
+//  • счётчик «видимо/всего» на кнопке настройки.
 //
 // Ранее:
+//  • зебра (stripe / 'odd' / 'even') + настройка в шестерёнке десктопа;
 //  • действие 'photos' (onPhotos / photosIcon) — просмотр фотографий записи;
 //  • шестерёнка следует за таблицей при любом сдвиге layout (watchLayout);
 //  • ACL: Column.acl / MobileCardField.acl; ActionsColumn({ acl }) объявляет
@@ -22,7 +27,7 @@ import type { Theme } from '../themes/theme';
 import Modal from './Modal';
 import Checkbox from './Checkbox';
 import Button from './Button';
-import { IcoChevronUp, IcoChevronDown } from './icons';
+import { IcoChevronUp, IcoChevronDown, SettingsIcon } from './icons';
 import { useResponsive } from '../context/AppContext';
 import { useAutoRefresh, useStyleTag, watchLayout } from '../hooks';
 import { useAcl, useAclResource, registerResource } from '../acl';
@@ -68,6 +73,7 @@ export function useSort<T extends Record<string, any>>(data: T[], initialSort: S
 export type StripeMode = 'odd' | 'even' | false;
 
 const STORAGE_PREFIX = 'table-columns:';
+const MOBILE_STORAGE_PREFIX = 'table-mobile-fields:';
 const hasStorage = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
 interface StoredColumns { order: string[]; visible: string[]; stripe?: StripeMode; }
@@ -167,7 +173,88 @@ function usePersistedTableColumns(
 
   const columnOrder = useMemo(() => [...order, ...pinned], [order, pinned]);
   const visibleColumns = useMemo(() => [...visible, ...pinned], [visible, pinned]);
+
   return { columnOrder, visibleColumns, stripe, onApplySettings };
+}
+
+/* ───────────────────────── Персист полей мобильной карточки ───────────────────────── */
+
+interface StoredMobileFields { order: string[]; visible: string[]; }
+
+function loadMobileFields(key: string): StoredMobileFields | null {
+  if (!hasStorage) return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) ?? 'null');
+    if (Array.isArray(parsed?.order) && Array.isArray(parsed?.visible)) {
+      return {
+        order: Array.from(new Set<string>(parsed.order)),
+        visible: Array.from(new Set<string>(parsed.visible)),
+      };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveMobileFields(key: string, value: StoredMobileFields) {
+  if (!hasStorage) return;
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
+
+/**
+ * Независимый от десктопа набор полей мобильной карточки.
+ * Без persistKey — состояние в памяти (как у десктопной шестерёнки).
+ */
+function usePersistedMobileFields(tableKey: string, allKeys: string[], enabled: boolean) {
+  const storageKey = MOBILE_STORAGE_PREFIX + tableKey;
+  const signature = allKeys.join('\u0001');
+
+  const [order, setOrder] = useState<string[]>(() => {
+    if (!enabled) return allKeys;
+    const s = loadMobileFields(storageKey);
+    return s ? reconcileOrder(s.order, allKeys) : allKeys;
+  });
+  const [visible, setVisible] = useState<string[]>(() => {
+    if (!enabled) return allKeys;
+    const s = loadMobileFields(storageKey);
+    if (!s) return allKeys;
+    const allSet = new Set(allKeys);
+    const storedOrderSet = new Set(s.order);
+    const result = s.visible.filter((k) => allSet.has(k));
+    for (const k of allKeys) if (!storedOrderSet.has(k) && !result.includes(k)) result.push(k);
+    return result;
+  });
+
+  const prevKeysRef = useRef<string[]>(allKeys);
+  const allKeysRef = useRef<string[]>(allKeys);
+  allKeysRef.current = allKeys;
+
+  useEffect(() => {
+    const prevSet = new Set(prevKeysRef.current);
+    const current = allKeysRef.current;
+    const currentSet = new Set(current);
+    const added = current.filter((k) => !prevSet.has(k));
+    const removed = prevKeysRef.current.some((k) => !currentSet.has(k));
+    if (added.length > 0 || removed) {
+      setOrder((prev) => { const next = reconcileOrder(prev, current); return sameArr(prev, next) ? prev : next; });
+      setVisible((prev) => {
+        const next = prev.filter((k) => currentSet.has(k));
+        for (const k of added) if (!next.includes(k)) next.push(k);
+        return sameArr(prev, next) ? prev : next;
+      });
+    }
+    prevKeysRef.current = current;
+  }, [signature]);
+
+  useEffect(() => {
+    if (enabled) saveMobileFields(storageKey, { order, visible });
+  }, [storageKey, order, visible, enabled]);
+
+  const apply = useCallback((v: string[], o: string[]) => {
+    setVisible(v);
+    setOrder(o);
+  }, []);
+
+  return { order, visible, apply };
 }
 
 /* ───────────────────────── ActionsColumn ───────────────────────── */
@@ -326,7 +413,10 @@ export interface MobileCardListProps<T> {
   gap?: number;
   /** Максимальная ширина колонки меток, px. @default 160 */
   labelMaxWidth?: number;
-  /** Максимум строк метки. */
+  /**
+   * Максимум строк метки (заголовка столбца). Значения переносятся по словам
+   * и обрезаются ТЕМ ЖЕ лимитом строк. @default 3
+   */
   labelMaxLines?: number;
   /** Интервал автообновления, мс. */
   autoRefreshInterval?: number;
@@ -338,7 +428,7 @@ export interface MobileCardListProps<T> {
 export function MobileCardList<T extends Record<string, any>>({
   t, data, rowKey, fields, titleRender, titleMaxLines = 2, titleMaxChars,
   onRowClick, actions, emptyText = 'Нет данных', rowStyle, rowClassName,
-  loading = false, pageSize = 20, gap = 10, labelMaxWidth = 160, labelMaxLines,
+  loading = false, pageSize = 20, gap = 10, labelMaxWidth = 160, labelMaxLines = 3,
   autoRefreshInterval, autoRefreshPaused = false, refetch,
 }: MobileCardListProps<T>) {
   const { can } = useAcl();
@@ -399,6 +489,19 @@ export function MobileCardList<T extends Record<string, any>>({
     return raw;
   };
 
+  /**
+   * Метки и значения: перенос по словам (включая длинные непрерывные строки)
+   * и одинаковый лимит строк — карточка не «расползается» на длинных текстах.
+   */
+  const clampedTextStyle: React.CSSProperties = {
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+    display: '-webkit-box',
+    WebkitLineClamp: labelMaxLines,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap }}>
       {slice.map((row) => {
@@ -430,21 +533,21 @@ export function MobileCardList<T extends Record<string, any>>({
               gridTemplateColumns: `minmax(0, ${labelMaxWidth}px) minmax(0, 1fr)`,
               gap: '6px 12px', fontSize: 13, lineHeight: 1.45, alignItems: 'start',
             }}>
-              {visibleFields.map((f) => (
-                <Fragment key={f.label}>
-                  <dt style={{
-                    color: t.textMuted, whiteSpace: 'normal', overflowWrap: 'break-word', wordBreak: 'normal',
-                    ...(labelMaxLines != null ? {
-                      display: '-webkit-box', WebkitLineClamp: labelMaxLines, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                    } : null),
-                  }}>
-                    {f.label}
-                  </dt>
-                  <dd style={{ margin: 0, color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {f.render(row)}
-                  </dd>
-                </Fragment>
-              ))}
+              {visibleFields.map((f) => {
+                const content = f.render(row);
+                return (
+                  <Fragment key={f.label}>
+                    <dt style={{ color: t.textMuted, ...clampedTextStyle }}>
+                      {f.label}
+                    </dt>
+                    <dd
+                      title={typeof content === 'string' ? content : undefined}
+                      style={{ margin: 0, color: t.text, ...clampedTextStyle }}>
+                      {content}
+                    </dd>
+                  </Fragment>
+                );
+              })}
             </dl>
             {actions && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
@@ -521,7 +624,7 @@ export interface TableProps<T extends Record<string, any>> {
   onApplySettings?: (visible: string[], order: string[], stripe?: StripeMode) => void;
   /** Включить локальную сортировку. */
   sortable?: boolean;
-  /** Ключ персиста колонок в localStorage. */
+  /** Ключ персиста колонок в localStorage (и полей мобильной карточки — отдельным ключом). */
   persistKey?: string;
   /** Всегда видимые колонки в конце. */
   pinnedColumns?: string[];
@@ -536,9 +639,10 @@ export interface TableProps<T extends Record<string, any>> {
   mobileTitleMaxLines?: number;
   mobileTitleMaxChars?: number;
   mobileLabelMaxWidth?: number;
+  /** Максимум строк метки и значения в карточке (значения переносятся). @default 3 */
   mobileLabelMaxLines?: number;
   mobileActions?: (row: T) => React.ReactNode;
-  /** Полностью кастомный мобильный рендер. */
+  /** Полностью кастомный мобильный рендер (настройка полей карточки не применяется). */
   renderMobile?: (data: T[]) => React.ReactNode;
   /** Состояние загрузки. */
   loading?: boolean;
@@ -562,15 +666,25 @@ const TABLE_CSS = `
 .kbs-col-move { transition: background .15s, opacity .15s; }
 @media (hover: hover) { .kbs-col-move:not(:disabled):hover { background: var(--kbs-gear-hover) !important; } }
 .kbs-col-move:focus-visible { outline: 2px solid var(--kbs-gear-accent); outline-offset: 1px; }
-@media (prefers-reduced-motion: reduce) { .kbs-table-gear, .kbs-col-move { transition: none !important; } }
+.kbs-mobile-fields-btn { transition: background .15s, border-color .15s; }
+.kbs-mobile-fields-btn:focus-visible { outline: 2px solid var(--kbs-gear-accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .kbs-table-gear, .kbs-col-move, .kbs-mobile-fields-btn { transition: none !important; } }
 `;
 
 const normalizeStripe = (s: boolean | StripeMode | undefined): StripeMode | undefined =>
   s === undefined ? undefined : s === false ? false : s === true ? 'even' : s;
 
+/** Поле мобильной карточки с устойчивым id для персиста. */
+interface MobileFieldEntry<T> {
+  id: string;
+  label: string;
+  field: MobileCardField<T>;
+}
+
 /**
  * Таблица с сортировкой, настройкой колонок (шестерёнка), зеброй,
- * sticky-колонками, персистом и автоматическим мобильным режимом (карточки).
+ * sticky-колонками, персистом и автоматическим мобильным режимом (карточки
+ * с независимой настройкой полей).
  */
 export default function Table<T extends Record<string, any>>({
   theme: t, columns, data, rowKey = 'id',
@@ -610,6 +724,7 @@ export default function Table<T extends Record<string, any>>({
   const [internalStripe, setInternalStripe] = useState<StripeMode>(defaultStripe);
   const effectiveStripe: StripeMode =
     propStripe !== undefined ? propStripe : persistKey ? persisted.stripe : internalStripe;
+
   const stripeRowBg = useCallback((index: number): string => {
     if (effectiveStripe === false) return t.bgSurface;
     const rowNumber = index + 1;
@@ -638,7 +753,7 @@ export default function Table<T extends Record<string, any>>({
   const visibleKeys = useMemo(() =>
     externalVisibleColumns !== undefined ? new Set(externalVisibleColumns)
       : persistKey ? new Set(persisted.visibleColumns)
-        : internalVisible,
+      : internalVisible,
     [externalVisibleColumns, persistKey, persisted.visibleColumns, internalVisible]);
 
   const columnByKey = useMemo(() => {
@@ -646,7 +761,6 @@ export default function Table<T extends Record<string, any>>({
     for (const col of columns) map.set(col.key, col);
     return map;
   }, [columns]);
-
   const stickyRightSet = useMemo(() => new Set(stickyRight), [stickyRight]);
 
   const updateOrder = useCallback((newOrder: string[]) => {
@@ -658,7 +772,7 @@ export default function Table<T extends Record<string, any>>({
     else setInternalVisible(newVisible);
   }, [onVisibleColumnsChange]);
 
-  /* Модалка настроек */
+  /* Модалка настроек (десктоп) */
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsOrder, setSettingsOrder] = useState<string[]>([]);
   const [settingsVisible, setSettingsVisible] = useState<Set<string>>(new Set());
@@ -753,6 +867,149 @@ export default function Table<T extends Record<string, any>>({
   }), [settingsOrder, settingsVisible, settingsStripe, columnByKey, stickyRightSet, t,
     toggleVisible, moveColumn, getMoveButtonStyle, can]);
 
+  /* ── Мобильные карточки: независимый набор полей + настройка ── */
+
+  // Базовый список полей карточки: явные mobileFields (id = label) либо
+  // колонки без 'actions' (id = key). ACL учитывается сразу.
+  const mobileBaseFields = useMemo<MobileFieldEntry<T>[]>(() => {
+    if (mobileFields) {
+      return mobileFields
+        .filter((f) => !f.hidden && can(f.acl))
+        .map((f) => ({ id: f.label, label: f.label, field: f }));
+    }
+    return columns
+      .filter((c) => c.key !== 'actions' && can(c.acl))
+      .map((c) => {
+        const label = typeof c.header === 'string' ? c.header : c.key;
+        return {
+          id: c.key,
+          label,
+          field: {
+            label,
+            render: (row: T) => c.render ? c.render((row as any)[c.key], row) : (row as any)[c.key],
+          },
+        };
+      });
+  }, [columns, mobileFields, can]);
+
+  const mobileBaseById = useMemo(
+    () => new Map(mobileBaseFields.map((f) => [f.id, f])),
+    [mobileBaseFields]);
+  const mobileFieldKeys = useMemo(() => mobileBaseFields.map((f) => f.id), [mobileBaseFields]);
+
+  const { order: mobileOrder, visible: mobileVisible, apply: applyMobilePersist } =
+    usePersistedMobileFields(persistKey ?? '__unused__', mobileFieldKeys, !!persistKey);
+
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [mobileSettingsOrder, setMobileSettingsOrder] = useState<string[]>([]);
+  const [mobileSettingsVisible, setMobileSettingsVisible] = useState<Set<string>>(new Set());
+
+  const openMobileSettings = useCallback(() => {
+    setMobileSettingsOrder([...mobileOrder]);
+    setMobileSettingsVisible(new Set(mobileVisible));
+    setMobileSettingsOpen(true);
+  }, [mobileOrder, mobileVisible]);
+
+  const applyMobileSettings = useCallback(() => {
+    const known = new Set(mobileFieldKeys);
+    applyMobilePersist(
+      Array.from(mobileSettingsVisible).filter((id) => known.has(id)),
+      mobileSettingsOrder.filter((id) => known.has(id)),
+    );
+    setMobileSettingsOpen(false);
+  }, [applyMobilePersist, mobileFieldKeys, mobileSettingsVisible, mobileSettingsOrder]);
+
+  const toggleMobileField = useCallback((id: string) => {
+    setMobileSettingsVisible((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const moveMobileField = useCallback((id: string, dir: -1 | 1) => {
+    setMobileSettingsOrder((prev) => {
+      const idx = prev.indexOf(id);
+      const target = idx + dir;
+      if (idx === -1 || target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[target], next[idx]] = [next[idx], next[target]];
+      return next;
+    });
+  }, []);
+
+  const setAllMobileFields = useCallback((on: boolean) => {
+    setMobileSettingsVisible(on ? new Set(mobileFieldKeys) : new Set());
+  }, [mobileFieldKeys]);
+
+  const getMobileMoveButtonStyle = useCallback((canMove: boolean): React.CSSProperties => ({
+    width: 36, height: 36, padding: 0, background: t.bgSurface,
+    border: `1px solid ${t.border}`, borderRadius: 8,
+    cursor: canMove ? 'pointer' : 'default',
+    color: canMove ? t.iconColor : t.placeholder,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    lineHeight: 1, opacity: canMove ? 1 : 0.35, flexShrink: 0,
+    touchAction: 'manipulation',
+  }), [t.bgSurface, t.border, t.iconColor, t.placeholder]);
+
+  const mobileSettingsField = useMemo(() => ({
+    row: 0, col: 0,
+    content: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 'min(62vh, 500px)', minHeight: 0 }}>
+        <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+          Отметьте поля, которые видны в карточке. Оставьте 5–10 для компактного
+          просмотра — остальные данные останутся в таблице на десктопе.
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+          <Button theme={t} size="sm" outline onClick={() => setAllMobileFields(true)}>Выбрать все</Button>
+          <Button theme={t} size="sm" outline onClick={() => setAllMobileFields(false)}>Скрыть все</Button>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: t.textMuted, whiteSpace: 'nowrap' }}>
+            Выбрано <strong style={{ color: t.text }}>{mobileSettingsVisible.size}</strong> из {mobileSettingsOrder.length}
+          </span>
+        </div>
+        <div style={{
+          flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain',
+          border: `1px solid ${t.border}`, borderRadius: 10, padding: '2px 10px', background: t.bg,
+        }}>
+          {mobileSettingsOrder.length === 0 ? (
+            <div style={{ padding: 16, fontSize: 13, color: t.placeholder }}>Нет доступных полей</div>
+          ) : mobileSettingsOrder.map((id, index) => {
+            const entry = mobileBaseById.get(id);
+            if (!entry) return null;
+            const canUp = index > 0;
+            const canDown = index < mobileSettingsOrder.length - 1;
+            return (
+              <div key={id} style={{
+                display: 'flex', alignItems: 'center', gap: 8, minHeight: 44,
+                borderBottom: index === mobileSettingsOrder.length - 1 ? 'none' : `1px solid ${t.borderSubtle}`,
+              }}>
+                <Checkbox theme={t} size="sm" truncate label={entry.label}
+                  checked={mobileSettingsVisible.has(id)}
+                  onChange={() => toggleMobileField(id)} style={{ flex: 1, minWidth: 0 }} />
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button type="button" className="kbs-col-move" aria-label={`Переместить «${entry.label}» вверх`}
+                    disabled={!canUp} onClick={() => moveMobileField(id, -1)} style={getMobileMoveButtonStyle(canUp)}>
+                    <IcoChevronUp s={14} />
+                  </button>
+                  <button type="button" className="kbs-col-move" aria-label={`Переместить «${entry.label}» вниз`}
+                    disabled={!canDown} onClick={() => moveMobileField(id, 1)} style={getMobileMoveButtonStyle(canDown)}>
+                    <IcoChevronDown s={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {mobileSettingsVisible.size === 0 && (
+          <div style={{ fontSize: 12, color: t.danger, flexShrink: 0 }}>
+            Оставьте хотя бы одно поле, иначе карточка будет пустой.
+          </div>
+        )}
+      </div>
+    ),
+  }), [mobileSettingsOrder, mobileSettingsVisible, mobileBaseById, t,
+    setAllMobileFields, toggleMobileField, moveMobileField, getMobileMoveButtonStyle]);
+
   /* Клик по заголовку */
   const handleHeaderClick = (key: string, e: React.MouseEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
@@ -826,23 +1083,69 @@ export default function Table<T extends Record<string, any>>({
   /* ===== Мобильный режим (все хуки выше) ===== */
   if (willRenderMobile) {
     if (renderMobile) return <>{renderMobile(dataToRender)}</>;
+
     const actionsColumn = columns.find((c) => c.key === 'actions');
     const autoActions = actionsColumn?.render
       ? (row: T) => actionsColumn.render!((row as any)[actionsColumn.key], row)
       : undefined;
-    const fields: MobileCardField<T>[] = mobileFields ?? displayColumns
-      .filter((col) => col.key !== 'actions')
-      .map((col) => ({
-        label: typeof col.header === 'string' ? col.header : col.key,
-        render: (row: T) => col.render ? col.render((row as any)[col.key], row) : (row as any)[col.key],
-      }));
+
+    // Поля карточки — независимый набор (порядок + видимость), не связанный
+    // с видимостью колонок десктопной таблицы.
+    const mobileVisibleSet = new Set(mobileVisible);
+    const fields: MobileCardField<T>[] = mobileOrder
+      .filter((id) => mobileVisibleSet.has(id))
+      .map((id) => mobileBaseById.get(id))
+      .filter((e): e is MobileFieldEntry<T> => e !== undefined)
+      .map((e) => e.field);
+
     return (
-      <MobileCardList t={t} data={dataToRender} rowKey={rowKey as keyof T} fields={fields}
-        titleRender={mobileTitleRender} titleMaxLines={mobileTitleMaxLines} titleMaxChars={mobileTitleMaxChars}
-        labelMaxWidth={mobileLabelMaxWidth} labelMaxLines={mobileLabelMaxLines}
-        onRowClick={onRowClick} actions={mobileActions ?? autoActions}
-        rowStyle={rowStyle} rowClassName={rowClassName} loading={loading}
-        autoRefreshInterval={autoRefreshInterval} autoRefreshPaused={autoRefreshPaused} refetch={refetch} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {mobileBaseFields.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" className="kbs-mobile-fields-btn" onClick={openMobileSettings}
+              aria-label="Настройка полей карточки" title="Настройка полей карточки"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                minHeight: 40, padding: '8px 12px', borderRadius: 10,
+                border: `1px solid ${t.border}`, background: t.bgSurface,
+                color: t.text, fontSize: 12.5, fontFamily: 'system-ui', fontWeight: 500,
+                cursor: 'pointer', touchAction: 'manipulation', boxShadow: t.shadow,
+                '--kbs-gear-accent': t.accent,
+              } as React.CSSProperties}
+              onPointerEnter={(e) => {
+                if (e.pointerType !== 'mouse') return;
+                e.currentTarget.style.background = t.navHoverBg;
+                e.currentTarget.style.borderColor = t.accent;
+              }}
+              onPointerLeave={(e) => {
+                if (e.pointerType !== 'mouse') return;
+                e.currentTarget.style.background = t.bgSurface;
+                e.currentTarget.style.borderColor = t.border;
+              }}>
+              <span style={{ color: t.iconColor, display: 'flex' }}><SettingsIcon s={14} /></span>
+              Поля карточки
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: 20, height: 20, padding: '0 6px', borderRadius: 20,
+                background: t.navHoverBg, color: t.accent, fontSize: 11, fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {fields.length}/{mobileBaseFields.length}
+              </span>
+            </button>
+          </div>
+        )}
+        <MobileCardList t={t} data={dataToRender} rowKey={rowKey as keyof T} fields={fields}
+          titleRender={mobileTitleRender} titleMaxLines={mobileTitleMaxLines} titleMaxChars={mobileTitleMaxChars}
+          labelMaxWidth={mobileLabelMaxWidth} labelMaxLines={mobileLabelMaxLines}
+          onRowClick={onRowClick} actions={mobileActions ?? autoActions}
+          rowStyle={rowStyle} rowClassName={rowClassName} loading={loading}
+          autoRefreshInterval={autoRefreshInterval} autoRefreshPaused={autoRefreshPaused} refetch={refetch} />
+        <Modal theme={t} isOpen={mobileSettingsOpen} onClose={() => setMobileSettingsOpen(false)}
+          onOk={applyMobileSettings} title="Поля карточки" columns={1} rows={1}
+          okText="Применить" cancelText="Отмена" width={520}
+          canSubmit={mobileSettingsVisible.size > 0} fields={[mobileSettingsField]} />
+      </div>
     );
   }
 

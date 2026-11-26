@@ -1,3 +1,4 @@
+// PhotoViewerModal.tsx - UI Kit
 // PhotoViewerModal.tsx — просмотр фотографий записи.
 //
 //  • центр — большое изображение (contain), клик по нему открывает
@@ -5,12 +6,17 @@
 //  • низ — карусель-лента миниатюр с переключением, счётчик и стрелки;
 //  • клавиатура: ←/→ — переключение, Escape — закрыть fullscreen/окно;
 //  • опциональное удаление (onDelete) — право проверяет вызывающая сторона.
+//
+// ИЗМЕНЕНИЕ: на мобильном кнопка удаления — компактная icon-only корзина
+// (без слова «Удалить»), во время удаления — спиннер. Десктоп не изменён.
+// Заголовок шапки обрезается многоточием и не выталкивает кнопки на узком экране.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Theme } from '../themes/theme';
-import { useBodyScrollLock } from '../hooks';
+import { useBodyScrollLock, useStyleTag } from '../hooks';
+import { useResponsive } from '../context/AppContext';
 import { formatDateTime } from '../utils';
 import LoadingOverlay from './LoadingOverlay';
-import { IcoChevronLeft, IcoChevronRight, IcoX } from './icons';
+import { IcoChevronLeft, IcoChevronRight, IcoX, IcoTrash } from './icons';
 
 /** Фотография для просмотра. url — оригинал; thumbUrl — миниатюра (если есть). */
 export interface ViewerPhoto {
@@ -38,18 +44,25 @@ export interface PhotoViewerModalProps {
 
 const THUMB = 72;
 
+const PHOTO_CSS = `
+@keyframes kbsPhotoSpin { to { transform: rotate(360deg); } }
+.kbs-photo-spinner { animation: kbsPhotoSpin 0.7s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .kbs-photo-spinner { animation-duration: 1.6s; } }
+`;
+
 /** Модалка просмотра фото: карусель миниатюр + большое изображение + fullscreen. */
 export default function PhotoViewerModal({
   theme: t, isOpen, onClose, photos, initialIndex = 0,
   title = 'Фотографии', loading = false, onDelete,
 }: PhotoViewerModalProps) {
+  useStyleTag('kbs-photo-viewer-css', PHOTO_CSS);
+  const { isMobile } = useResponsive();
   const [idx, setIdx] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const stripRef = useRef<HTMLDivElement>(null);
   const activeThumbRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose); onCloseRef.current = onClose;
-
   useBodyScrollLock(isOpen);
 
   // Сброс при открытии / смене набора фото.
@@ -133,22 +146,47 @@ export default function PhotoViewerModal({
           padding: '12px 16px', borderBottom: `1px solid ${t.border}`, flexShrink: 0,
           display: 'flex', alignItems: 'center', gap: 12,
         }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: t.text }}>{title}</span>
+          <span style={{
+            fontSize: 16, fontWeight: 600, color: t.text,
+            flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{title}</span>
           {count > 0 && (
-            <span style={{ fontSize: 13, color: t.textMuted }}>{Math.min(idx, count - 1) + 1} / {count}</span>
+            <span style={{ fontSize: 13, color: t.textMuted, flexShrink: 0 }}>{Math.min(idx, count - 1) + 1} / {count}</span>
           )}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             {onDelete && current && (
-              <button type="button" onClick={handleDelete} disabled={deleting}
-                aria-label="Удалить фото" title="Удалить фото"
-                style={{
-                  padding: '6px 12px', minHeight: 36, borderRadius: 8, fontSize: 13,
-                  border: `1px solid ${t.danger}`, background: 'transparent', color: t.danger,
-                  cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.5 : 1,
-                  fontFamily: 'inherit', touchAction: 'manipulation',
-                }}>
-                {deleting ? 'Удаление…' : '✕ Удалить'}
-              </button>
+              isMobile ? (
+                /* Мобильный: только иконка корзины, без текста. */
+                <button type="button" onClick={handleDelete} disabled={deleting}
+                  aria-label="Удалить фото" title="Удалить фото" aria-busy={deleting}
+                  style={{
+                    width: 36, height: 36, padding: 0, borderRadius: 8,
+                    border: `1px solid ${t.danger}`, background: 'transparent', color: t.danger,
+                    cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.55 : 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    touchAction: 'manipulation', transition: 'opacity 0.15s',
+                  }}>
+                  {deleting ? (
+                    <span className="kbs-photo-spinner" style={{
+                      display: 'inline-block', width: 14, height: 14,
+                      border: `2px solid ${t.danger}40`, borderTopColor: t.danger, borderRadius: '50%',
+                    }} />
+                  ) : (
+                    <IcoTrash s={16} />
+                  )}
+                </button>
+              ) : (
+                <button type="button" onClick={handleDelete} disabled={deleting}
+                  aria-label="Удалить фото" title="Удалить фото"
+                  style={{
+                    padding: '6px 12px', minHeight: 36, borderRadius: 8, fontSize: 13,
+                    border: `1px solid ${t.danger}`, background: 'transparent', color: t.danger,
+                    cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.5 : 1,
+                    fontFamily: 'inherit', touchAction: 'manipulation',
+                  }}>
+                  {deleting ? 'Удаление…' : '✕ Удалить'}
+                </button>
+              )
             )}
             <button type="button" aria-label="Закрыть" onClick={onClose}
               style={{
